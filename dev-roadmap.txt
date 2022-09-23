@@ -1,0 +1,57 @@
+
+WO platform consists of 3 main components.
+
+- wodev: workoak developer tools
+- wop/wog: workoak grid
+- wop: wo platform is a cluster of nodes to 
+
+output:
+- model
+	- pb3/.proto
+- go
+	-.mod
+	-api
+	-srv
+	-clt
+	-cli
+	-tests
+- ts
+- java
+
+WODEV
+- validate a json wo schema
+- build ServiceDef from wo schema
+- marshal ServiceDef to wo valid woschema
+- build pb3 spec from ServiceDef
+- build GO pb3 API
+- build GO SRV
+
+
+
+
+WOP
+- wogrid:
+- wop: 
+- wonode: services and clients connect to the node
+	- LocalNode:
+	- 
+- Build 
+
+- Valid WO service definition
+- pb3 definition generator -> .proto
+- pb3 go api generator ->protoc-> pb3.go
+- generate go api .mod (maybe not all go stuff has same .mod, maybe apart from service)
+- generate go client (clt)
+- generate go cli (maybe skipp this one)
+- generate go implementors (not servers yet, decouple implementation)
+- generate go services/ starter 
+
+- Flow:
+	- Connect to grid -> directly to a node,
+	 or use a lookup gateway to return node(s) to connect=>WOConn
+	- WOService: use a WOConn and plug into the grid
+		- subscribes to commands
+		- publish events
+
+
+client

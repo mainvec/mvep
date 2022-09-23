@@ -1,0 +1,30 @@
+{
+	"$id": "test5Id",
+	"$schema": "../resources/schemas/wop_service.schema_latest_draft.json",
+	"name": "test5Name",
+	"namespace": "test5Namespace",
+	"commands": {
+		"OrderPizzaCmd": {
+			"title": "Order a pizza",
+			"fields": {
+				"size":{
+					"fnum": 1,
+					"type": "string"
+				},
+				"type":{
+					"fnum": 2,
+					"type": "string"
+				},
+				"toppings":{
+					"fnum": 3,
+					"type": "string",
+					"repeated": true
+				}
+
+			}
+		}
+	}
+
+	
+
+}

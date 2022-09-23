@@ -1,0 +1,10 @@
+{{- $CLINAME := print .NAME "cli" }} 
+/*
+{{ if .Copyright }}{{ .Copyright }}{{ end }}
+{{ if .Legal.Header }}{{ .Legal.Header }}{{ end }}
+*/
+package main
+import "{{ .BASE }}/{{$CLINAME}}/{{$CLINAME}}/cmd"
+func main() {
+	cmd.Execute()
+}
