@@ -9,7 +9,7 @@
 			"fields": {
 				"size":{
 					"fnum": 1,
-					"type":  "int64"
+					"type": "string"
 				},
 				"type":{
 					"fnum": 2,

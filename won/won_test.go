@@ -10,7 +10,7 @@ import (
 func TestSwitchNew(t *testing.T) {
 	//a connect to a node, using node url
 
-	woswitch, err := won.NewSwitch("wo-inproc://inproc-test")
+	woswitch, err := won.DialNewSwitch("wo-inproc://inproc-test")
 	if err != nil {
 		t.Errorf("error creating a new WO Switch, %v", err)
 		return

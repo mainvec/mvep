@@ -127,3 +127,7 @@ func (woconn *WOInProcConn) PingSubscribe(pingSubject string) {
 func (woconn *WOInProcConn) Subscribe(subj string, hfunc func(data []byte) ([]byte, error)) error {
 	return nil
 }
+
+func (woconn *WOInProcConn) QueueSubscribe(subject string, queue string, hf func(data []byte) ([]byte, error)) error {
+	return nil
+}

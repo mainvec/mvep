@@ -23,6 +23,7 @@ type WOConn interface {
 	Close() error
 	PingSubscribe(pingSubject string)
 	Subscribe(subj string, hf func(data []byte) ([]byte, error)) error
+	QueueSubscribe(subject string, queue string, hf func(data []byte) ([]byte, error)) error
 }
 
 type WOConnDriver interface {

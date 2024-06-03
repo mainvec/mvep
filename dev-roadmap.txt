@@ -1,4 +1,15 @@
 
+- As a developer, connect to WO Hub to get access to the WO services used in the the developer app without replacing static or dynamic dependency wiht "live" dependency
+- As a developer, define depednecy by the client contract and not the implemntation
+
+e.g.
+
+1- Connect to Hub (inter-process, intra-process, TCP, QUCI,HTTP, scalable protocol, cluster (NATS))
+2- Import client (stricter semver quarantees)
+3- client.plug(connect?)(woconn)
+
+
+
 WO platform consists of 3 main components.
 
 - wodev: workoak developer tools

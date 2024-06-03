@@ -5,60 +5,63 @@
 	"namespace": "wop",
 	"base": "github.com/workoak/wop/won",
 	"gen_options": {
-		"go_package" : "github.com/workoak/wop/won"
-       },
-       "commands": {
-	"WOLivlinessProbe":{
-		"title": "WO Livliness Probe Cmd"
-	}
-       },
+		"go_package": "github.com/workoak/wop/won"
+	},
+	"commands": {
+		"WOLivlinessProbe": {
+			"title": "WO Livliness Probe Cmd",
+			"resultFields": {
+				"status": {
+					"fnum": 1,
+					"type": "int32"
+				}
+			}
+		}
+	},
 	"recordsDefs": {
-		"WOReq":{
+		"WOReq": {
 			"name": "WOReq",
 			"fields": {
-				"wosrvs":{
+				"wosrvs": {
 					"fnum": 1,
 					"type": "string"
 				},
-				"wocmdid":{
+				"wocmdid": {
 					"fnum": 2,
 					"type": "string"
 				},
-				"headers":{
+				"headers": {
 					"fnum": 6,
 					"type": "map",
 					"valueType": "string"
 				},
-				"payload":{
+				"payload": {
 					"fnum": 10,
 					"type": "bytes"
 				}
 			}
 		},
-		"WOResp":{
+		"WOResp": {
 			"name": "WOResp",
 			"fields": {
-				"wosrvs":{
+				"wosrvs": {
 					"fnum": 1,
 					"type": "string"
 				},
-				"wocmdid":{
+				"wocmdid": {
 					"fnum": 2,
 					"type": "string"
 				},
-				"headers":{
+				"headers": {
 					"fnum": 6,
 					"type": "map",
 					"valueType": "string"
 				},
-				"payload":{
+				"payload": {
 					"fnum": 10,
 					"type": "bytes"
 				}
 			}
 		}
 	}
-
-	
-
 }

@@ -8,18 +8,8 @@
 	},
 	"commands": {
 		"OrderPizzaCmd": {
-			"title": "Order a pizza",
-			"fields": {
-				"size":{
-					"fnum": 1,
-					"type": "string"
-				}
-			}
-			},
-		"OrderPizzaCmd2": {
-			"title": "Order a pizza2"
+			"title": "Order a pizza"
 			}
 		}
-	
 		
 }

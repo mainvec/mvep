@@ -13,3 +13,6 @@
 test_temp/
 # Dependency directories (remove the comment below to include it)
 # vendor/
+.history/
+docs/design/.$wo.drawio.svg.bkp
+docs/dev-docs/
