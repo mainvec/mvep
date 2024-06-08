@@ -9,14 +9,18 @@ import (
 	"github.com/workoak/wop/wog"
 )
 
+// WOG CLI self-generator. to be run manually when needed.
 func main() {
 	wd, err := os.Getwd()
-	specpath := filepath.Join(wd, "woncore.jsonc")
+	if err != nil {
+		log.Fatal(err)
+	}
+	specpath := filepath.Join(wd, "wogcli.jsonc")
 	specfile, err := os.Open(specpath)
-	defer specfile.Close()
 	if err != nil {
 		log.Fatalf("error reading spec file %v,%e", specpath, err)
 	}
+	defer specfile.Close()
 
 	srvDef, err := wog.BuildSrvDefFromJSON(specfile)
 	if err != nil {
@@ -33,7 +37,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error GenerateProtobuf3FromFileDesc file %v,%e", specpath, err)
 	}
-	proto := filepath.Join(wd, "..", "woncore.proto")
+	proto := filepath.Join(wd, "..", "wogcli.proto")
 	err = os.WriteFile(proto, buff.Bytes(), os.ModePerm)
 	if err != nil {
 		log.Fatalf("error writing .proto file %v,%e", specpath, err)
@@ -50,7 +54,7 @@ func main() {
 		return
 	}
 
-	goapi := filepath.Join(wd, "..", "woncore.pb.go")
+	goapi := filepath.Join(wd, "..", "wog.pb.go")
 	err = os.WriteFile(goapi, pb3GOAPI, os.ModePerm)
 	if err != nil {
 		log.Fatalf("error writing go pb3 api file %v,%e", specpath, err)

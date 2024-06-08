@@ -1,22 +1,29 @@
-package wop
+package wog
 
 import (
+	"context"
 	"io"
 	"log"
 	"reflect"
 	"strings"
 
+	"github.com/bufbuild/protocompile"
+	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	pbBuilder "github.com/jhump/protoreflect/desc/builder"
-	"github.com/jhump/protoreflect/desc/protoparse"
-	"github.com/jhump/protoreflect/desc/protoprint"
-	"google.golang.org/protobuf/types/descriptorpb"
 
-	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
+	"github.com/jhump/protoreflect/desc/protoprint"
+	"github.com/workoak/wop/wou"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-//Build a Protobuff3 schema from WO JSON Schema
-func BuildProtoBuffDefFromJSON(srvDefJsonReader io.Reader) (*desc.FileDescriptor, error) {
+//NOTE: where possible, we are using the latest 'google.golang.org/protobuf' and
+// not older api 'github.com/golang/protobuf'. we still need github.com/jhump/protoreflect
+// which requires the older api, mainly for the desc.builder.
+
+// Build a Protobuff3 schema from WO JSON Schema
+func BuildProtoBuffDefFromJSON(srvDefJsonReader io.Reader) (protoreflect.FileDescriptor, error) {
 	srvDef, err := BuildSrvDefFromJSON(srvDefJsonReader)
 	if err != nil {
 		return nil, err
@@ -25,14 +32,15 @@ func BuildProtoBuffDefFromJSON(srvDefJsonReader io.Reader) (*desc.FileDescriptor
 	return BuildProtoBuffDefFromSrvDef(srvDef)
 }
 
-//Build a Protobuff3 schema from WO SrvDef
-func BuildProtoBuffDefFromSrvDef(srvDef *SrvDef) (*desc.FileDescriptor, error) {
+// Build a Protobuff3 schema from WO SrvDef
+func BuildProtoBuffDefFromSrvDef(srvDef *SrvDef) (protoreflect.FileDescriptor, error) {
 
 	name := srvDef.Name
 	namespace := srvDef.Namespace
 	b := pbBuilder.NewFile(name)
 	b.SetComments(buildComments(srvDef.Desc))
 	b.SetPackageName(namespace + "." + name)
+	b.SetProto3(true)
 	/*
 		processOptions(b, jsonSpec)
 		//build recordDef messsgaes
@@ -46,34 +54,51 @@ func BuildProtoBuffDefFromSrvDef(srvDef *SrvDef) (*desc.FileDescriptor, error) {
 	processRecordDefMessages(b, srvDef)
 	processCommandMessages(b, srvDef)
 	processImports(b, srvDef)
-	desc, err := b.Build()
+	pb3desc, err := b.Build()
 	if err != nil {
 		return nil, err
 	}
 	if debug := false; debug {
 
 		printer := &protoprint.Printer{}
-		descString, err := printer.PrintProtoToString(desc)
+		descString, err := printer.PrintProtoToString(pb3desc)
 		if err == nil {
 			log.Println(descString)
 		}
 	}
-	return desc, nil
+	return pb3desc.UnwrapFile(), nil
 }
 
-func ParseProto3Definition(name string, pb3Definition []byte) (*desc.FileDescriptor, error) {
+func ParseProto3Definition(name string, pb3Definition []byte) (protoreflect.FileDescriptor, error) {
 
-	parser := &protoparse.Parser{}
-	parser.Accessor = protoparse.FileContentsFromMap(map[string]string{
-		name: string(pb3Definition),
-	})
-	parser.IncludeSourceCodeInfo = false
-	//for now only the first one. don't know how to pass var len arg
-	descrption, err := parser.ParseFiles(name)
+	// parser := &protoparse.Parser{}
+	// parser.Accessor = protoparse.FileContentsFromMap(map[string]string{
+	// 	name: string(pb3Definition),
+	// })
+	// parser.IncludeSourceCodeInfo = false
+	// //for now only the first one. don't know how to pass var len arg
+	// descrption, err := parser.ParseFiles(name)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// return descrption[0].UnwrapFile(), nil
+	//If you used protoparse.FileContentsFromMap,
+	//in this new repo you'll use a protocompile.SourceResolver and then use protocompile.SourceAccessorFromMap as its accessor function.
+	//
+	resolver := &protocompile.SourceResolver{
+		Accessor: protocompile.SourceAccessorFromMap(map[string]string{
+			name: string(pb3Definition),
+		}),
+	}
+	compiler := protocompile.Compiler{
+		Resolver: protocompile.WithStandardImports(resolver),
+	}
+	files, err := compiler.Compile(context.Background(), name)
 	if err != nil {
 		return nil, err
 	}
-	return descrption[0], nil
+	return files[0], nil
+
 }
 
 func processOptions(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
@@ -157,7 +182,7 @@ func processMessageFields(srvDef *SrvDef, b *pbBuilder.FileBuilder, mb *pbBuilde
 	lessFunc := func(i, j FieldDef) bool {
 		return i.Fnum < j.Fnum
 	}
-	for iter := IterateByValue(fieldDefs, lessFunc); iter.HasNext(); {
+	for iter := wou.IterateByValue(fieldDefs, lessFunc); iter.HasNext(); {
 		name, fieldDef := iter.Next()
 		ftype := fieldDef.Type
 
@@ -312,16 +337,21 @@ func RemoveSourceCodeInfo(desc *desc.FileDescriptor) *desc.FileDescriptor {
 	return desc
 }
 
-func GenerateProtobuf3FromFileDesc(pbFielDesc *desc.FileDescriptor, w io.Writer) error {
+func GenerateProtobuf3FromFileDesc(pbFielDesc protoreflect.FileDescriptor, w io.Writer) error {
 	printer := &protoprint.Printer{}
-	descString, err := printer.PrintProtoToString(pbFielDesc)
+	olddesc, err := desc.WrapFile(pbFielDesc)
 	if err != nil {
 		return err
 	}
-	_, err = io.WriteString(w, descString)
+
+	err = printer.PrintProtoFile(olddesc, w)
 	if err != nil {
 		return err
 	}
+	// _, err = io.WriteString(w, descString)
+	// if err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
@@ -333,16 +363,26 @@ func GenerateProtobuf3FromSrvDef(srvDef *SrvDef, w io.Writer) error {
 	return GenerateProtobuf3FromFileDesc(pbFielDesc, w)
 }
 
-func FileDescriptorEqual(desc1, desc2 *desc.FileDescriptor) bool {
+func FileDescriptorEqual(desc1, desc2 protoreflect.FileDescriptor) bool {
 	//Ignore dependencies for now. deep equal not working on them
 	//dep1 := desc1.GetDependencies()
 	//dep2 := desc2.GetDependencies()
+	//not woring this: equal := cmp.Equal(desc1, desc2)
+	s1 := desc1.Syntax()
+	s2 := desc2.Syntax()
+	// n1 := desc1.Name()
+	// n2 := desc2.Name()
+	nf1 := desc1.FullName()
+	nf2 := desc2.FullName()
+	p1 := desc1.Package()
+	p2 := desc2.Package()
+	equal := s1 == s2 && p1 == p2 && nf1 == nf2
 
-	equal :=
-		(desc1.IsProto3() == desc2.IsProto3()) &&
-			(desc1.GetName() == desc2.GetName()) &&
-			(desc1.GetPackage() == desc2.GetPackage())
-	equal = equal && isMessagesEqual(desc1.GetMessageTypes(), desc2.GetMessageTypes())
+	// equal :=
+	// 	(desc1.Syntax() == desc2.Syntax()) &&
+	// 		(desc1.Name() == desc2.Name()) &&
+	// 		(desc1.Package() == desc2.Package())
+	equal = equal && isMessagesEqual(desc1.Messages(), desc2.Messages())
 	//TODO Rethink how to default gen options
 	//equal = equal && isOptionsEqual(desc1.GetFileOptions(), desc2.GetFileOptions())
 
@@ -353,65 +393,76 @@ func isOptionsEqual(op1, op2 *descriptorpb.FileOptions) bool {
 	return reflect.DeepEqual(op1, op2)
 }
 
-func isMessagesEqual(a, b []*desc.MessageDescriptor) bool {
+func isMessagesEqual(a, b protoreflect.MessageDescriptors) bool {
 	//order by message name first
-	sortFun := func(i, j *desc.MessageDescriptor) bool { return i.GetName() < j.GetName() }
-	sortedA := sortBy(a, sortFun)
-	sortedB := sortBy(b, sortFun)
-
 	eq := true
-	if len(sortedA) != len(sortedB) {
+	if a.Len() != b.Len() {
 		return false
 	}
 	//FIXME very fragile comparision
-	for i := range sortedA {
-		if !isMessageEqual(sortedA[i], sortedB[i]) {
+	for i := 0; i < a.Len(); i++ {
+		aM := a.Get(i)
+		if !isMessageEqual(aM, b.ByName(aM.Name())) {
 			return false
 		}
 	}
 	return eq
 }
 
-func isMessageEqual(a, b *desc.MessageDescriptor) bool {
+func isMessageEqual(a, b protoreflect.MessageDescriptor) bool {
 
-	if a.GetFullyQualifiedName() != b.GetFullyQualifiedName() {
+	if a.FullName() != b.FullName() {
 		return false
 	}
-	if !isFieldsEqual(a.GetFields(), b.GetFields()) {
+	if !isFieldsEqual(a.Fields(), b.Fields()) {
 		return false
 	}
 	return true
 }
 
-func isFieldsEqual(a, b []*desc.FieldDescriptor) bool {
+func isFieldsEqual(a, b protoreflect.FieldDescriptors) bool {
 	//order by field number first
-	sortFun := func(i, j *desc.FieldDescriptor) bool { return i.GetNumber() < j.GetNumber() }
-	sortedA := sortBy(a, sortFun)
-	sortedB := sortBy(b, sortFun)
+	//	sortFun := func(i, j protoreflect.FieldDescriptor) bool { return i.Number() < j.Number() }
+	//	sortedA := sortBy(a, sortFun)
+	//	sortedB := sortBy(b, sortFun)
 
 	eq := true
-	if len(sortedA) != len(sortedB) {
+	if a.Len() != b.Len() {
 		return false
 	}
 	//FIXME very fragile comparision
-	for i := range sortedA {
-		if !isFieldEqual(sortedA[i], sortedB[i]) {
+	for i := 0; i < a.Len(); i++ {
+		aF := a.Get(i)
+		if !isFieldEqual(aF, b.ByNumber(aF.Number())) {
 			return false
 		}
 	}
 	return eq
 }
 
-func isFieldEqual(a, b *desc.FieldDescriptor) bool {
+func isFieldEqual(a, b protoreflect.FieldDescriptor) bool {
 
-	if a.GetFullyQualifiedName() != b.GetFullyQualifiedName() {
+	if a.FullName() != b.FullName() {
 		return false
 	}
-	eq := a.GetName() == b.GetName() && a.GetNumber() == b.GetNumber() && a.GetType() == b.GetType()
+	aName := a.Name()
+	bName := b.Name()
+
+	aNum := a.Number()
+	bNum := b.Number()
+
+	aKind := a.Kind()
+	bKind := b.Kind()
+
+	eq := aName == bName && aNum == bNum && aKind == bKind
+	//eq := a.Name() == b.Name() && a.Number() == b.Number() && a.Kind() == b.Kind()
 	if a.IsMap() || b.IsMap() {
 		//for some reason 'optional' lable is not set on map entry
 		//key value, use type comparsion for now
-		eq = eq && (a.GetMapKeyType().GetType() == b.GetMapKeyType().GetType() && a.GetMapValueType().GetType() == b.GetMapValueType().GetType())
+		eq = eq && (a.MapKey().Kind() == b.MapKey().Kind() && a.MapValue().Kind() == b.MapValue().Kind())
+	}
+	if !eq {
+		return false
 	}
 	return eq
 }

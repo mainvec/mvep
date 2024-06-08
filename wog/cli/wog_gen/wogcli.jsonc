@@ -1,0 +1,54 @@
+{
+	"$id": "wogcli",
+	"$schema": "../../../resources/schemas/wop_service.schema_latest_draft.json",
+	"name": "wogcli",
+	"namespace": "wog",
+	"gen_options": {
+		"go_package": "github.com/workoak/wop/wog;wogcli"
+	},
+	"commands": {
+		"InitializeCmd": {
+			"title": "Initialize a new WOP Shema",
+			"alias": "init",
+			"fields": {
+				"name": {
+					"fnum": 1,
+					"type": "string",
+					"tags": [
+						"required"
+					]
+				},
+				"namespace": {
+					"fnum": 2,
+					"type": "string",
+					"alias": "ns"
+				}
+			}
+		},
+		"GenerateCmd": {
+			"title": "generate wop code from spec",
+			"alias": "generate",
+			"fields": {
+				"input": {
+					"fnum": 1,
+					"alias": "in",
+					"type": "string",
+					"tags": [
+						"required"
+					]
+				},
+				"outdir": {
+					"fnum": 2,
+					"type": "string"
+				},
+				"lang": {
+					"fnum": 3,
+					"type": "string",
+					"tags": [
+						"required"
+					]
+				}
+			}
+		}
+	}
+}

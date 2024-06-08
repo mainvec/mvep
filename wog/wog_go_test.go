@@ -1,13 +1,14 @@
-package wop_test
+package wog_test
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/workoak/wop"
+	"github.com/workoak/wop/wog"
 )
 
 func TestGenerateGOProtoBuffAPI(t *testing.T) {
@@ -28,28 +29,31 @@ func TestGenerateGOProtoBuffAPI(t *testing.T) {
 				log.Fatal(err.Error())
 			}
 			specfile, err := os.Open(wd)
+			if err != nil {
+
+			}
 			defer specfile.Close()
 			if err != nil {
 				log.Fatalf("error reading test file %v,%e", tt.testfile_path, err)
 			}
 
-			srvDef, err := wop.BuildSrvDefFromJSON(specfile)
+			srvDef, err := wog.BuildSrvDefFromJSON(specfile)
 			if err != nil {
 				log.Fatalf("error building SrvDef %v,%e", tt.testfile_path, err)
 			}
 
-			result, err := wop.BuildProtoBuffDefFromSrvDef(srvDef)
+			result, err := wog.BuildProtoBuffDefFromSrvDef(srvDef)
 
 			if err != nil {
 				log.Fatalf("error BuildProtoBuffDefFromJSON test file %v,%e", tt.testfile_path, err)
 			}
 			buff := &bytes.Buffer{}
-			err = wop.GenerateProtobuf3FromFileDesc(result, buff)
+			err = wog.GenerateProtobuf3FromFileDesc(result, buff)
 			if err != nil {
 				log.Fatalf("error GenerateProtobuf3FromFileDesc test file %v,%e", tt.testfile_path, err)
 			}
 
-			pb3GOAPI, err := wop.GenerateGOProtoBuffAPIFromProto(buff.Bytes())
+			pb3GOAPI, err := wog.GenerateGOProtoBuffAPIFromProto(buff.Bytes())
 			if (err != nil) && !tt.wantErr {
 				t.Errorf("got error[%v], wanted error[%v], error[%v]", err != nil, tt.wantErr, err)
 				return
@@ -59,7 +63,7 @@ func TestGenerateGOProtoBuffAPI(t *testing.T) {
 				t.Errorf(" no GO Pb3 API generated ")
 				return
 			}
-
+			fmt.Printf("Golang==== \n%v\n====", string(pb3GOAPI))
 		})
 	}
 }
@@ -84,13 +88,13 @@ func TestGenerateGOSRV(t *testing.T) {
 			if err != nil {
 				log.Fatalf("error reading test file %v,%e", tt.testfile_path, err)
 			}
-			srvDef, err := wop.BuildSrvDefFromJSON(specfile)
+			srvDef, err := wog.BuildSrvDefFromJSON(specfile)
 			if err != nil {
 				log.Fatalf("error BuildSrvDefFromJSON test file %v,%e", tt.testfile_path, err)
 			}
 
 			//generate GO MOD
-			goMod, err := wop.GenerateGOMod(srvDef)
+			goMod, err := wog.GenerateGOMod(srvDef)
 			if err == nil && len(goMod) == 0 {
 				t.Errorf(" no GO goMod generated ")
 				return
@@ -99,11 +103,11 @@ func TestGenerateGOSRV(t *testing.T) {
 
 			//generate .proto
 			buff := &bytes.Buffer{}
-			wop.GenerateProtobuf3FromSrvDef(srvDef, buff)
+			wog.GenerateProtobuf3FromSrvDef(srvDef, buff)
 			saveTestTempFile(srvDef, "model", srvDef.Name+".proto", buff.Bytes())
 
 			//generate GO PB3 API
-			pb3GOAPI, err := wop.GenerateGOProtoBuffAPIFromProto(buff.Bytes())
+			pb3GOAPI, err := wog.GenerateGOProtoBuffAPIFromProto(buff.Bytes())
 			if (err != nil) && !tt.wantErr {
 				t.Errorf("got error[%v], wanted error[%v], error[%v]", err != nil, tt.wantErr, err)
 				return
@@ -116,7 +120,7 @@ func TestGenerateGOSRV(t *testing.T) {
 			saveTestTempFile(srvDef, filepath.Join("go", "api"), srvDef.Name+".pb.go", pb3GOAPI)
 
 			//generate GO SRV
-			goSRV, err := wop.GenerateGOSRV(srvDef)
+			goSRV, err := wog.GenerateGOSRV(srvDef)
 			if (err != nil) && !tt.wantErr {
 				t.Errorf("got error[%v], wanted error[%v], error[%v]", err != nil, tt.wantErr, err)
 				return
@@ -129,7 +133,7 @@ func TestGenerateGOSRV(t *testing.T) {
 			//saveTestTempFile(srvDef, filepath.Join("go", "srv"), srvDef.Name+".srv.go", goSRV)
 
 			////generate GO Client
-			goClient, err := wop.GenerateGOClient(srvDef)
+			goClient, err := wog.GenerateGOClient(srvDef)
 			if err != nil {
 				log.Fatalf("error GenerateGOClient test file %v,%e", tt.testfile_path, err)
 			}

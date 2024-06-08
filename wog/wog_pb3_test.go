@@ -1,14 +1,14 @@
-package wop_test
+package wog_test
 
 import (
 	"log"
 	"os"
 	"testing"
 
-	"github.com/workoak/wop"
+	"github.com/workoak/wop/wog"
 )
 
-//Protobuf Def test data
+// Protobuf Def test data
 var tests = []struct {
 	name          string
 	testfile_path string
@@ -17,11 +17,8 @@ var tests = []struct {
 	numOfErrors   int
 }{
 	{"TEST01 :Valid - basic without comments", "01_basic_wo_valid_no_comments.json",
-		`
-		syntax = "proto3";
+		`syntax = "proto3";
 		package test1Namespace.test1Name;
-		import "google/protobuf/duration.proto";
-		import "google/protobuf/timestamp.proto";
 	`,
 		false, 0},
 	{"TEST04 :Valid - basic cmd", "04_valid_wosrv_command.jsonc",
@@ -47,7 +44,7 @@ var tests = []struct {
 		import "google/protobuf/timestamp.proto";
 
 		message OrderPizzaCmd {
-			string size = 1;
+			int32 size = 1;
 			string type = 2;
 			repeated string toppings = 3;
 			
@@ -110,27 +107,31 @@ func TestBuildProtoBuffDefFromJSON(t *testing.T) {
 				log.Fatal(err.Error())
 			}
 			specfile, err := os.Open(wd)
+			if err != nil {
+				t.Errorf("error reading test file %v,%e", tt.testfile_path, err)
+				return
+			}
 			defer specfile.Close()
 			if err != nil {
 				log.Fatalf("error reading test file %v,%e", tt.testfile_path, err)
 			}
 
-			result, err := wop.BuildProtoBuffDefFromJSON(specfile)
+			result, err := wog.BuildProtoBuffDefFromJSON(specfile)
 			if (err != nil) != tt.wantErr {
 				t.Errorf(" error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			wantPb3Descrp, err := wop.ParseProto3Definition(result.GetName(), []byte(tt.wantPB3))
+			wantPb3Descrp, err := wog.ParseProto3Definition(string(result.Name()), []byte(tt.wantPB3))
 
 			if err != nil {
 				log.Fatal(err.Error())
 			}
 
-			if !wop.FileDescriptorEqual(wop.RemoveSourceCodeInfo(result), wantPb3Descrp) {
+			if !wog.FileDescriptorEqual(result, wantPb3Descrp) {
 				//println("[======")
 				//GenerateProtobuf3FromFileDesc(result, os.Stdout)
 				//println("======]")
-				t.Errorf("BuildProtoBuffDefFromJSON: got %v, wanted %v", result, wantPb3Descrp)
+				t.Errorf("BuildProtoBuffDefFromJSON: ==GOT %v\n==WANTED %v", result, wantPb3Descrp)
 				return
 
 			}

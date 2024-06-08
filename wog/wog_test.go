@@ -1,82 +1,17 @@
-package wop_test
+package wog_test
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 
-	"github.com/workoak/wop"
+	"github.com/workoak/wop/wog"
 )
 
-func TestIterateByKey(t *testing.T) {
-	type OData wop.OMap[string, string]
-	testMap := OData{
-		"a": "aVal",
-		"x": "xVal",
-		"c": "cVal",
-		"b": "bVal",
-	}
-	want := []string{"aVal", "bVal", "cVal", "xVal"}
-	var got []string
-	for iter := wop.IteratorByKey(testMap); iter.HasNext(); {
-		_, v := iter.Next()
-		got = append(got, v)
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got %v,wanted %v ", got, want)
-	}
-
-}
-
-func TestIterateByValue(t *testing.T) {
-
-	type ValStruct struct {
-		Fnum  int
-		FName string
-	}
-	type OData map[string]*ValStruct
-	testMap := OData{
-		"a": &ValStruct{Fnum: 4, FName: "aStruct"},
-		"x": &ValStruct{Fnum: 2, FName: "xStruct"},
-		"c": &ValStruct{Fnum: 3, FName: "cStruct"},
-		"b": &ValStruct{Fnum: 1, FName: "bStruct"},
-	}
-	t.Run("iterate by fnum order", func(t *testing.T) {
-		//order by Fnum
-		want := []*ValStruct{testMap["b"], testMap["x"], testMap["c"], testMap["a"]}
-		var got []*ValStruct
-		lessFunc := func(i, j *ValStruct) bool {
-			return i.Fnum < j.Fnum
-		}
-		for iter := wop.IterateByValue(testMap, lessFunc); iter.HasNext(); {
-			_, v := iter.Next()
-			got = append(got, v)
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("got %v,wanted %v ", got, want)
-		}
-	})
-
-	t.Run("iterate by fname order", func(t *testing.T) {
-		//order by Fnum
-		want := []*ValStruct{testMap["a"], testMap["b"], testMap["c"], testMap["x"]}
-		var got []*ValStruct
-		lessNameFunc := func(i, j *ValStruct) bool {
-			return i.FName < j.FName
-		}
-		for iter := wop.IterateByValue(testMap, lessNameFunc); iter.HasNext(); {
-			_, v := iter.Next()
-			got = append(got, v)
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("got %v,wanted %v ", got, want)
-		}
-	})
-
-}
 func TestValidateJSONSchema(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -104,8 +39,13 @@ func TestValidateJSONSchema(t *testing.T) {
 				log.Fatalf("error reading test file %v,%e", tt.testfile_path, err)
 			}
 
-			result, err := wop.ValidateJSONSchema(specfile)
+			result, err := wog.ValidateJSONSchema(specfile)
+			if !result.Valid() {
+				for _, v := range result.ValidationErrors() {
+					fmt.Printf("err:%v", v.String())
+				}
 
+			}
 			if (err != nil) != tt.wantErr {
 				t.Errorf(" error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -124,53 +64,53 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 	tests := []struct {
 		name          string
 		testfile_path string
-		want          wop.SrvDef
+		want          wog.SrvDef
 		wantErr       bool
 		numOfErrors   int
 	}{
 		{"TEST01 :Valid - basic ServiceDef", "01_basic_wo_valid_no_comments.json",
-			wop.SrvDef{
+			wog.SrvDef{
 				Id:        "test1Id",
 				Name:      "test1Name",
 				Namespace: "test1Namespace",
 			}, false, 0},
 		{"TEST02 :Valid - basic with comments", "02_basic_wo_valid_with_comments.jsonc",
-			wop.SrvDef{
+			wog.SrvDef{
 				Id:        "test2Id",
 				Name:      "test2Name",
 				Namespace: "test2Namespace",
 			}, false, 0},
-		{"TEST03 :InValid - basic", "03_basic_wo_invalid.jsonc", wop.SrvDef{}, true, 0},
+		{"TEST03 :InValid - basic", "03_basic_wo_invalid.jsonc", wog.SrvDef{}, true, 0},
 		{"TEST04 :Valid - basic cmd", "04_valid_wosrv_command.jsonc",
-			wop.SrvDef{
+			wog.SrvDef{
 				Id:        "test4Id",
 				Name:      "test4Name",
 				Namespace: "test4Namespace",
-				GenOpts: wop.GenOptsDef{
+				GenOpts: wog.GenOptsDef{
 					"go_package": "github.com/workoak/wo/wop/wopdb/wopdb2api",
 				},
-				Commands: wop.CommandDefs{
-					"OrderPizzaCmd": wop.CommandDef{
+				Commands: wog.CommandDefs{
+					"OrderPizzaCmd": wog.CommandDef{
 						Title: "Order a pizza",
 					},
 				},
 			}, false, 0},
 		{"TEST05 :Valid - cmd with fields", "05_command_withfields.jsonc",
-			wop.SrvDef{
+			wog.SrvDef{
 				Id:        "test5Id",
 				Name:      "test5Name",
 				Namespace: "test5Namespace",
-				Commands: wop.CommandDefs{
-					"OrderPizzaCmd": wop.CommandDef{
+				Commands: wog.CommandDefs{
+					"OrderPizzaCmd": wog.CommandDef{
 						Title: "Order a pizza",
-						Fields: wop.FieldDefs{
+						Fields: wog.FieldDefs{
 							"size": {
 								Fnum: 1,
-								Type: wop.STRING,
+								Type: wog.INT32,
 							},
 							"type": {
 								Fnum: 2,
-								Type: wop.STRING,
+								Type: wog.STRING,
 							},
 							"toppings": {
 								Fnum:     3,
@@ -182,24 +122,24 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 				},
 			}, false, 0},
 		{"TEST06 :Valid/comands with refs", "06_command_with_ref.jsonc",
-			wop.SrvDef{
+			wog.SrvDef{
 				Id:        "test6Id",
 				Name:      "test6Name",
 				Namespace: "test6Namespace",
-				GenOpts: wop.GenOptsDef{
+				GenOpts: wog.GenOptsDef{
 					"go_package": "github.com/workoak/wo/wop/wopdb/wopdb2api",
 				},
-				Commands: wop.CommandDefs{
-					"OrderPizzaCmd": wop.CommandDef{
+				Commands: wog.CommandDefs{
+					"OrderPizzaCmd": wog.CommandDef{
 						Title: "Order a pizza",
-						Fields: wop.FieldDefs{
+						Fields: wog.FieldDefs{
 							"size": {
 								Fnum: 1,
-								Type: wop.STRING,
+								Type: wog.STRING,
 							},
 							"type": {
 								Fnum: 2,
-								Type: wop.STRING,
+								Type: wog.STRING,
 							},
 							"toppings": {
 								Fnum:     3,
@@ -214,17 +154,17 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 						},
 					},
 				},
-				Records: wop.RecordsDefs{
-					"Address": wop.RecordDef{
+				Records: wog.RecordsDefs{
+					"Address": wog.RecordDef{
 						Name: "Address",
-						Fields: wop.FieldDefs{
+						Fields: wog.FieldDefs{
 							"street": {
 								Fnum: 1,
-								Type: wop.STRING,
+								Type: wog.STRING,
 							},
 							"city": {
 								Fnum: 2,
-								Type: wop.STRING,
+								Type: wog.STRING,
 							},
 							"country": {
 								Fnum: 3,
@@ -235,25 +175,25 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 				},
 			}, false, 0},
 		{"TEST08 :Valid - map field", "08_maps.jsonc",
-			wop.SrvDef{
+			wog.SrvDef{
 				Id:        "mapsTest",
 				Name:      "mapstest",
 				Namespace: "test8",
 				Base:      "github.com/workoak/mapstest",
-				GenOpts: wop.GenOptsDef{
+				GenOpts: wog.GenOptsDef{
 					"go_package": "github.com/workoak/wop/won/mapstest",
 				},
-				Records: wop.RecordsDefs{
-					"WOReqTest": wop.RecordDef{
+				Records: wog.RecordsDefs{
+					"WOReqTest": wog.RecordDef{
 						Name: "WOReqTest",
-						Fields: wop.FieldDefs{
+						Fields: wog.FieldDefs{
 							"woservs": {
 								Fnum: 1,
-								Type: wop.STRING,
+								Type: wog.STRING,
 							},
 							"headers": {
 								Fnum:         2,
-								Type:         wop.MAP,
+								Type:         wog.MAP,
 								MapValueType: "string",
 							},
 						},
@@ -273,7 +213,7 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 				log.Fatalf("error reading test file %v,%e", tt.testfile_path, err)
 			}
 
-			result, err := wop.BuildSrvDefFromJSON(specfile)
+			result, err := wog.BuildSrvDefFromJSON(specfile)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf(" error = %v, wantErr %v", err, tt.wantErr)
@@ -292,7 +232,7 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 
 			//Marsal SrvDef to json and validate
 			var buf bytes.Buffer
-			err = wop.MarshalSrvDefToJSON(&buf, result)
+			err = wog.MarshalSrvDefToJSON(&buf, result)
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
@@ -310,7 +250,7 @@ func getTestFilePath(testfilename string) (string, error) {
 	return wd, nil
 }
 
-func saveTestTempFile(srvDef *wop.SrvDef, dir, testfilename string, content []byte) error {
+func saveTestTempFile(srvDef *wog.SrvDef, dir, testfilename string, content []byte) error {
 	wd, err := os.Getwd()
 	if err != nil {
 		return err

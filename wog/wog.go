@@ -1,4 +1,4 @@
-package wop
+package wog
 
 import (
 	"bufio"
@@ -13,8 +13,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/xeipuuv/gojsonschema"
-	"golang.org/x/exp/constraints"
+	"github.com/santhosh-tekuri/jsonschema/v6"
+	"github.com/workoak/wop/wou"
 )
 
 //go:embed resources
@@ -44,22 +44,23 @@ type RecordDef struct {
 type FieldDataType string
 
 /*
-		"string",
-                "boolean",
-                "int32",
-                "int64",
-                "float",
-                "double",
-                "bytes",
-                "uint32",
-                "sint32",
-                "timestamp",
-                "duration"
+			"string",
+	                "boolean",
+	                "int32",
+	                "int64",
+	                "float",
+	                "double",
+	                "bytes",
+	                "uint32",
+	                "sint32",
+	                "timestamp",
+	                "duration"
 */
 const (
 	STRING  FieldDataType = "string"
 	BOOLEAN FieldDataType = "boolean"
 	INT32   FieldDataType = "int32"
+	INT64   FieldDataType = "int64"
 	RECREF  FieldDataType = "recRef"
 	MAP     FieldDataType = "map"
 )
@@ -75,96 +76,10 @@ type FieldDef struct {
 	MapValueType string        `json:"valueType,omitempty"`
 }
 
-type OMap[K constraints.Ordered, V any] map[K]V
-
-type iterator[K constraints.Ordered, V any] struct {
-	i     int
-	_keys []K
-	_map  map[K]V
-}
-
-func (iter *iterator[K, V]) HasNext() bool {
-	return int(iter.i) < len(iter._keys)
-}
-
-func (iter *iterator[K, V]) Next() (K, V) {
-	if !iter.HasNext() {
-		panic("iteration has no more elements, shold us HasNext")
-	}
-	k := iter._keys[iter.i]
-	iter.i++
-	return k, iter._map[k]
-
-}
-
-// func IteratorByKey[K constraints.Ordered, V any](_omap interface{}) iterator[K, V] {
-// 	omap, ok := _omap.(OMap[K, V])
-// 	if !ok {
-// 		panic("iterationByKey needs OMap")
-// 	}
-// 	return iteratorByKey(omap)
-// }
-
-func IteratorByKey[K constraints.Ordered, V any](omap map[K]V) iterator[K, V] {
-
-	keys := make([]K, 0, len(omap))
-	for k := range omap {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		return keys[i] < keys[j]
-	})
-
-	return iterator[K, V]{
-		i:     0,
-		_keys: keys,
-		_map:  omap,
-	}
-}
-
-func (omap OMap[K, V]) IterateByKey() iterator[K, V] {
-	return IteratorByKey(omap)
-}
-
-type mapItem[K constraints.Ordered, V any] struct {
-	_k K
-	_v V
-}
-
-//Create a iterator for the map, ordered by map vlaues, using the lessFunc
-func IterateByValue[K constraints.Ordered, V any](omap map[K]V, lessFunc func(i, j V) bool) iterator[K, V] {
-
-	items := make([]*mapItem[K, V], 0, len(omap))
-	for k, v := range omap {
-		items = append(items, &mapItem[K, V]{
-			_k: k,
-			_v: v,
-		})
-	}
-	sort.Slice(items, func(i, j int) bool {
-		return lessFunc(items[i]._v, items[j]._v)
-	})
-
-	keys := make([]K, 0, len(omap))
-	for _, item := range items {
-		keys = append(keys, item._k)
-	}
-	return iterator[K, V]{
-		i:     0,
-		_keys: keys,
-		_map:  omap,
-	}
-}
-
-func (omap OMap[K, V]) IterateByValue(lessFunc func(i, j V) bool) iterator[K, V] {
-	//Can only be used by direct OMap. Cannot be used by structs "inherting" OMap
-	return IterateByValue(omap, lessFunc)
-}
-
-type CommandDefs OMap[string, CommandDef]
-type FieldDefs OMap[string, FieldDef]
-type RecordsDefs OMap[string, RecordDef]
-type GenOptsDef OMap[string, string]
+type CommandDefs wou.OMap[string, CommandDef]
+type FieldDefs wou.OMap[string, FieldDef]
+type RecordsDefs wou.OMap[string, RecordDef]
+type GenOptsDef wou.OMap[string, string]
 
 type SrvDef struct {
 	Id        string      `json:"$id"`
@@ -185,20 +100,34 @@ type ValidationResult interface {
 type ValidationError interface {
 	String() string
 }
+type JSONValidationError struct {
+	vErr *jsonschema.ValidationError
+}
+
+func (v *JSONValidationError) String() string {
+	p := v.vErr.ErrorKind.KeywordPath()
+	l := v.vErr.InstanceLocation
+	return fmt.Sprintf("error[%v],path[%v],loc[%v]", v.vErr.Error(), p, l)
+
+}
 
 type jsonValidationResult struct {
-	result *gojsonschema.Result
+	valid              bool
+	schValidationError *jsonschema.ValidationError
 }
 
 func (v *jsonValidationResult) Valid() bool {
-	return v.result.Valid()
+	return v.valid
 }
 
 func (v *jsonValidationResult) ValidationErrors() []ValidationError {
-	jsonErrors := v.result.Errors()
-	resultErrors := make([]ValidationError, len(v.result.Errors()))
+	if v.schValidationError == nil {
+		return nil
+	}
+	jsonErrors := v.schValidationError.Causes
+	resultErrors := make([]ValidationError, len(jsonErrors))
 	for index := range jsonErrors {
-		resultErrors[index] = jsonErrors[index]
+		resultErrors[index] = &JSONValidationError{vErr: jsonErrors[index]}
 	}
 	return resultErrors
 }
@@ -243,21 +172,53 @@ func validateJSONSchemaContent(defJsonContent []byte) (ValidationResult, error) 
 
 	//schemaFile, err := os.Open("resources/schemas/wop_service.schema_latest_draft.json")
 	//defer schemaFile.Close()
-	content, err := resources.ReadFile("resources/schemas/wop_service.schema_latest_draft.json")
-	if err != nil {
-		return nil, err
-	}
+	// content, err := resources.ReadFile("resources/schemas/wop_service.schema_latest_draft.json")
+	// if err != nil {
+	// 	return nil, err
+	// }
 	//content, err := io.ReadAll(schemaFile)
-	schemaLoader := gojsonschema.NewBytesLoader(content)
 
-	documentLoader := gojsonschema.NewBytesLoader(defJsonContent)
+	c := jsonschema.NewCompiler()
+	schemaFile := "resources/schemas/wop_service.schema_latest_draft.json"
+	schema, err := resources.Open(schemaFile)
+	if err != nil {
+		return nil, err
+	}
+	defer schema.Close()
 
-	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+	schemaBytes, err := resources.ReadFile(schemaFile)
+	if err != nil {
+		return nil, err
+	}
+	schemaJson, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaBytes))
+	if err != nil {
+		return nil, err
+	}
+	err = c.AddResource(schemaFile, schemaJson)
 	if err != nil {
 		return nil, err
 	}
 
-	return &jsonValidationResult{result}, nil
+	sch, err := c.Compile(schemaFile)
+	if err != nil {
+
+		return nil, err
+	}
+	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(defJsonContent))
+	if err != nil {
+		return nil, err
+	}
+
+	err = sch.Validate(inst)
+	if err != nil {
+		vErr, ok := err.(*jsonschema.ValidationError)
+		if !ok {
+			return nil, err
+		}
+		return &jsonValidationResult{valid: false, schValidationError: vErr}, nil
+	}
+
+	return &jsonValidationResult{valid: true}, nil
 
 }
 

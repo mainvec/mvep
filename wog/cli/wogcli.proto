@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package wog.wogcli;
+
+import "google/protobuf/duration.proto";
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/workoak/wop/wog;wogcli";
+
+message GenerateCmd {
+  string input = 1;
+
+  string outdir = 2;
+
+  string lang = 3;
+}
+
+message GenerateCmdResult {
+}
+
+message InitializeCmd {
+  string name = 1;
+
+  string namespace = 2;
+}
+
+message InitializeCmdResult {
+}

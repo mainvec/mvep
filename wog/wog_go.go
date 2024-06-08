@@ -1,4 +1,4 @@
-package wop
+package wog
 
 import (
 	"bytes"
