@@ -1,6 +1,6 @@
 {
 	"$id": "test4Id",
-	"$schema": "../resources/schemas/wop_service.schema_latest_draft.json",
+	"$schema": "resources/wopapi/wopspec/0.1/schema/2023-09-19",
 	"name": "test4Name",
 	"namespace": "test4Namespace",
 	"gen_options": {

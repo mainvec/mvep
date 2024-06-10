@@ -3,15 +3,18 @@ package wog
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
 	"sort"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/workoak/wop/wou"
@@ -167,19 +170,46 @@ func (v *DefaultValidationResult) ValidationErrors() []ValidationError {
 	return resultErrors
 }
 
+type HTTPURLLoader http.Client
+
+func (l *HTTPURLLoader) Load(url string) (any, error) {
+	client := (*http.Client)(l)
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("%s returned status code %d", url, resp.StatusCode)
+	}
+	defer resp.Body.Close()
+
+	return jsonschema.UnmarshalJSON(resp.Body)
+}
+
+func newHTTPURLLoader(insecure bool) *HTTPURLLoader {
+	httpLoader := HTTPURLLoader(http.Client{
+		Timeout: 15 * time.Second,
+	})
+	if insecure {
+		httpLoader.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
+	return &httpLoader
+}
+
 // Validate JSON of WOService Definition against WO JSON Schema
 func validateJSONSchemaContent(defJsonContent []byte) (ValidationResult, error) {
-
-	//schemaFile, err := os.Open("resources/schemas/wop_service.schema_latest_draft.json")
-	//defer schemaFile.Close()
-	// content, err := resources.ReadFile("resources/schemas/wop_service.schema_latest_draft.json")
-	// if err != nil {
-	// 	return nil, err
-	// }
-	//content, err := io.ReadAll(schemaFile)
+	loader := jsonschema.SchemeURLLoader{
+		"file":  jsonschema.FileLoader{},
+		"http":  newHTTPURLLoader(false),
+		"https": newHTTPURLLoader(false),
+	}
 
 	c := jsonschema.NewCompiler()
-	schemaFile := "resources/schemas/wop_service.schema_latest_draft.json"
+	c.UseLoader(loader)
+	schemaFile := "resources/wopapi/wopspec/0.1/schema/2023-09-19.json"
 	schema, err := resources.Open(schemaFile)
 	if err != nil {
 		return nil, err
@@ -198,14 +228,32 @@ func validateJSONSchemaContent(defJsonContent []byte) (ValidationResult, error) 
 	if err != nil {
 		return nil, err
 	}
-
-	sch, err := c.Compile(schemaFile)
+	err = c.AddResource("https://spec.workoak.com/wopspec/0.1/schema/2023-09-19", schemaJson)
 	if err != nil {
-
 		return nil, err
 	}
 	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(defJsonContent))
 	if err != nil {
+		return nil, err
+	}
+	jsonMap, ok := inst.(map[string]interface{})
+
+	if !ok {
+		return nil, errors.New("invalid JSON")
+	}
+	jsonSchema := schemaFile
+	if schm, ok := jsonMap["$schema"]; ok {
+		jsonSchema, ok = schm.(string)
+		if !ok {
+			return nil, errors.New("invalid JSON")
+
+		}
+	}
+
+	sch, err := c.Compile(jsonSchema)
+
+	if err != nil {
+
 		return nil, err
 	}
 

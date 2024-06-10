@@ -1,6 +1,6 @@
 {
 	"$id": "mapsTest",
-	"$schema": "../resources/schemas/wop_service.schema_latest_draft.json",
+	"$schema": "resources/wopapi/wopspec/0.1/schema/2023-09-19",
 	"name": "mapstest",
 	"namespace": "test8",
 	"base": "github.com/workoak/mapstest",

@@ -26,6 +26,7 @@ func TestValidateJSONSchema(t *testing.T) {
 		{"TEST04 :Valid/basic cmd", "04_valid_wosrv_command.jsonc", true, false, 0},
 		{"TEST05 :Valid/comands with fields", "05_command_withfields.jsonc", true, false, 0},
 		{"TEST06 :Valid/comands with refs", "06_command_with_ref.jsonc", true, false, 0},
+		{"TEST09 :Valid/external schema", "09_external_schema.jsonc", true, false, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -34,10 +35,10 @@ func TestValidateJSONSchema(t *testing.T) {
 				log.Fatal(err.Error())
 			}
 			specfile, err := os.Open(wd)
-			defer specfile.Close()
 			if err != nil {
 				log.Fatalf("error reading test file %v,%e", tt.testfile_path, err)
 			}
+			defer specfile.Close()
 
 			result, err := wog.ValidateJSONSchema(specfile)
 			if !result.Valid() {
