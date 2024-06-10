@@ -1,0 +1,3 @@
+[submodule "wog/resources/wopapi"]
+	path = wog/resources/wopapi
+	url = https://github.com/workoak/wopapi
