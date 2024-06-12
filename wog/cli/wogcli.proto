@@ -9,7 +9,7 @@ import "google/protobuf/timestamp.proto";
 option go_package = "github.com/workoak/wop/wog;wogcli";
 
 message GenerateCmd {
-  string input = 1;
+  string in = 1;
 
   string outdir = 2;
 
@@ -26,4 +26,16 @@ message InitializeCmd {
 }
 
 message InitializeCmdResult {
+}
+
+message ValidateCmd {
+  string in = 1;
+}
+
+message ValidateCmdResult {
+  bool valid = 1;
+
+  repeated string errors = 5;
+
+  repeated string warnings = 10;
 }

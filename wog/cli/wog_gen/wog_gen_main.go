@@ -54,9 +54,35 @@ func main() {
 		return
 	}
 
-	goapi := filepath.Join(wd, "..", "wog.pb.go")
-	err = os.WriteFile(goapi, pb3GOAPI, os.ModePerm)
+	gopb3 := filepath.Join(wd, "..", "wog.pb.go")
+	err = os.WriteFile(gopb3, pb3GOAPI, os.ModePerm)
 	if err != nil {
 		log.Fatalf("error writing go pb3 api file %v,%e", specpath, err)
 	}
+
+	goapi, err := wog.GenerateGOAPI(srvDef)
+	if err != nil {
+		log.Fatalf("error generating go api: %v", err)
+	}
+	goapiFile := filepath.Join(wd, "..", "wog_api.go")
+	err = os.WriteFile(goapiFile, goapi, os.ModePerm)
+	if err != nil {
+		log.Fatalf("error writing go api file %v,%e", goapiFile, err)
+	}
+
+	gocli, err := wog.GenerateFromEmbeddTemplate(srvDef, "go_cli_main", "resources/codegen_templates/go/go_cli_main.txt")
+	if err != nil {
+		log.Fatalf("error generating go cli: %v", err)
+	}
+	goMainCmdDir := filepath.Join(wd, "..", "..", "cmd")
+	err = os.MkdirAll(goMainCmdDir, os.ModePerm)
+	if err != nil {
+		log.Fatalf("error creating go maoin cmd dir: %v,%v", goMainCmdDir, err)
+	}
+	gocliMainFile := filepath.Join(goMainCmdDir, "wog_main_cmd.go")
+	err = os.WriteFile(gocliMainFile, gocli, os.ModePerm)
+	if err != nil {
+		log.Fatalf("error writing go cli file %v,%e", gocliMainFile, err)
+	}
+
 }

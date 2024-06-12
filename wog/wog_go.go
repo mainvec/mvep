@@ -3,6 +3,7 @@ package wog
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 )
@@ -43,14 +44,20 @@ func GenerateGOProtoBuffAPIFromProto(protoContent []byte) ([]byte, error) {
 	return goAPIBytes, nil
 }
 
-func GenerateGOSRV(srvDef *SrvDef) ([]byte, error) {
+func GenerateFromEmbeddTemplate(srvDef *SrvDef, templateName, templateEmbeddPath string) ([]byte, error) {
 
-	name := srvDef.Name
-	srvname := name + "srv"
+	templateReader, err := resources.Open(templateEmbeddPath)
+	if err != nil {
+		return nil, err
+	}
+	return GenerateFromTemplate(srvDef, templateName, templateReader)
+}
+
+func GenerateFromTemplate(srvDef *SrvDef, templateName string, templateReader io.Reader) ([]byte, error) {
 
 	data := prepareTemplateDataMap(srvDef)
 
-	tmpl, err := LoadTemplate(srvname, "resources/codegen_templates/go/go_srv_code.txt")
+	tmpl, err := LoadTemplate(templateName, templateReader)
 	if err != nil {
 
 		return nil, err
@@ -61,47 +68,30 @@ func GenerateGOSRV(srvDef *SrvDef) ([]byte, error) {
 		return nil, err
 	}
 	return srvBuff.Bytes(), nil
+}
+
+func GenerateGOSRV(srvDef *SrvDef) ([]byte, error) {
+	srvname := srvDef.Name + "srv"
+	return GenerateFromEmbeddTemplate(srvDef, srvname, "resources/codegen_templates/go/go_srv_code.txt")
 }
 
 func GenerateGOClient(srvDef *SrvDef) ([]byte, error) {
 
 	name := srvDef.Name
 	clientname := name + "client"
-
-	data := prepareTemplateDataMap(srvDef)
-
-	tmpl, err := LoadTemplate(clientname, "resources/codegen_templates/go/go_client_code.txt")
-	if err != nil {
-
-		return nil, err
-	}
-	srvBuff := &bytes.Buffer{}
-	err = tmpl.Execute(srvBuff, data)
-	if err != nil {
-		return nil, err
-	}
-	return srvBuff.Bytes(), nil
+	return GenerateFromEmbeddTemplate(srvDef, clientname, "resources/codegen_templates/go/go_client_code.txt")
 }
 
 func GenerateGOMod(srvDef *SrvDef) ([]byte, error) {
 
 	name := srvDef.Name
 	srvname := name + "srv"
+	return GenerateFromEmbeddTemplate(srvDef, srvname, "resources/codegen_templates/go/go_srv_mod.txt")
+}
 
-	data := prepareTemplateDataMap(srvDef)
-
-	tmpl, err := LoadTemplate(srvname, "resources/codegen_templates/go/go_srv_mod.txt")
-	if err != nil {
-
-		return nil, err
-	}
-	srvBuff := &bytes.Buffer{}
-	err = tmpl.Execute(srvBuff, data)
-	if err != nil {
-		return nil, err
-	}
-
-	return srvBuff.Bytes(), nil
+func GenerateGOAPI(srvDef *SrvDef) ([]byte, error) {
+	srvname := srvDef.Name + "api"
+	return GenerateFromEmbeddTemplate(srvDef, srvname, "resources/codegen_templates/go/go_api_code.txt")
 }
 
 func prepareTemplateDataMap(srvDef *SrvDef) map[string]interface{} {
@@ -121,6 +111,7 @@ func prepareTemplateDataMap(srvDef *SrvDef) map[string]interface{} {
 	data["APINAME"] = name + "api"
 	data["CMDS"] = commands
 	data["BASE"] = base
+	data["SPEC"] = srvDef
 
 	return data
 }

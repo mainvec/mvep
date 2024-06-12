@@ -81,6 +81,22 @@ var tests = []struct {
 		}
 	`,
 		false, 0},
+	{"TEST07 :Valid/command with result", "07_command_with_result.jsonc",
+		`
+		syntax = "proto3";
+		package test7Namespace.test7Name;
+		import "google/protobuf/duration.proto";
+		import "google/protobuf/timestamp.proto";
+
+		message OrderPizzaCmd {
+			string size = 1;
+			
+		}
+		message OrderPizzaCmdResult {
+			string orderStatus = 1;
+		}
+	`,
+		false, 0},
 	{"TEST08 :Valid/map fields", "08_maps.jsonc",
 		`
 		syntax = "proto3";

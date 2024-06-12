@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.34.1
 // 	protoc        v5.26.1
-// source: wo-proto3-3809627072.tmp
+// source: wo-proto3-1043523685.tmp
 
 package wogcli
 
@@ -27,7 +27,7 @@ type GenerateCmd struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Input  string `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`
+	In     string `protobuf:"bytes,1,opt,name=in,proto3" json:"in,omitempty"`
 	Outdir string `protobuf:"bytes,2,opt,name=outdir,proto3" json:"outdir,omitempty"`
 	Lang   string `protobuf:"bytes,3,opt,name=lang,proto3" json:"lang,omitempty"`
 }
@@ -35,7 +35,7 @@ type GenerateCmd struct {
 func (x *GenerateCmd) Reset() {
 	*x = GenerateCmd{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wo_proto3_3809627072_tmp_msgTypes[0]
+		mi := &file_wo_proto3_1043523685_tmp_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -48,7 +48,7 @@ func (x *GenerateCmd) String() string {
 func (*GenerateCmd) ProtoMessage() {}
 
 func (x *GenerateCmd) ProtoReflect() protoreflect.Message {
-	mi := &file_wo_proto3_3809627072_tmp_msgTypes[0]
+	mi := &file_wo_proto3_1043523685_tmp_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61,12 +61,12 @@ func (x *GenerateCmd) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateCmd.ProtoReflect.Descriptor instead.
 func (*GenerateCmd) Descriptor() ([]byte, []int) {
-	return file_wo_proto3_3809627072_tmp_rawDescGZIP(), []int{0}
+	return file_wo_proto3_1043523685_tmp_rawDescGZIP(), []int{0}
 }
 
-func (x *GenerateCmd) GetInput() string {
+func (x *GenerateCmd) GetIn() string {
 	if x != nil {
-		return x.Input
+		return x.In
 	}
 	return ""
 }
@@ -94,7 +94,7 @@ type GenerateCmdResult struct {
 func (x *GenerateCmdResult) Reset() {
 	*x = GenerateCmdResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wo_proto3_3809627072_tmp_msgTypes[1]
+		mi := &file_wo_proto3_1043523685_tmp_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -107,7 +107,7 @@ func (x *GenerateCmdResult) String() string {
 func (*GenerateCmdResult) ProtoMessage() {}
 
 func (x *GenerateCmdResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wo_proto3_3809627072_tmp_msgTypes[1]
+	mi := &file_wo_proto3_1043523685_tmp_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -120,7 +120,7 @@ func (x *GenerateCmdResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateCmdResult.ProtoReflect.Descriptor instead.
 func (*GenerateCmdResult) Descriptor() ([]byte, []int) {
-	return file_wo_proto3_3809627072_tmp_rawDescGZIP(), []int{1}
+	return file_wo_proto3_1043523685_tmp_rawDescGZIP(), []int{1}
 }
 
 type InitializeCmd struct {
@@ -135,7 +135,7 @@ type InitializeCmd struct {
 func (x *InitializeCmd) Reset() {
 	*x = InitializeCmd{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wo_proto3_3809627072_tmp_msgTypes[2]
+		mi := &file_wo_proto3_1043523685_tmp_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -148,7 +148,7 @@ func (x *InitializeCmd) String() string {
 func (*InitializeCmd) ProtoMessage() {}
 
 func (x *InitializeCmd) ProtoReflect() protoreflect.Message {
-	mi := &file_wo_proto3_3809627072_tmp_msgTypes[2]
+	mi := &file_wo_proto3_1043523685_tmp_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -161,7 +161,7 @@ func (x *InitializeCmd) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitializeCmd.ProtoReflect.Descriptor instead.
 func (*InitializeCmd) Descriptor() ([]byte, []int) {
-	return file_wo_proto3_3809627072_tmp_rawDescGZIP(), []int{2}
+	return file_wo_proto3_1043523685_tmp_rawDescGZIP(), []int{2}
 }
 
 func (x *InitializeCmd) GetName() string {
@@ -187,7 +187,7 @@ type InitializeCmdResult struct {
 func (x *InitializeCmdResult) Reset() {
 	*x = InitializeCmdResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wo_proto3_3809627072_tmp_msgTypes[3]
+		mi := &file_wo_proto3_1043523685_tmp_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -200,7 +200,7 @@ func (x *InitializeCmdResult) String() string {
 func (*InitializeCmdResult) ProtoMessage() {}
 
 func (x *InitializeCmdResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wo_proto3_3809627072_tmp_msgTypes[3]
+	mi := &file_wo_proto3_1043523685_tmp_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -213,56 +213,175 @@ func (x *InitializeCmdResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitializeCmdResult.ProtoReflect.Descriptor instead.
 func (*InitializeCmdResult) Descriptor() ([]byte, []int) {
-	return file_wo_proto3_3809627072_tmp_rawDescGZIP(), []int{3}
+	return file_wo_proto3_1043523685_tmp_rawDescGZIP(), []int{3}
 }
 
-var File_wo_proto3_3809627072_tmp protoreflect.FileDescriptor
+type ValidateCmd struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
 
-var file_wo_proto3_3809627072_tmp_rawDesc = []byte{
-	0x0a, 0x18, 0x77, 0x6f, 0x2d, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33, 0x2d, 0x33, 0x38, 0x30, 0x39,
-	0x36, 0x32, 0x37, 0x30, 0x37, 0x32, 0x2e, 0x74, 0x6d, 0x70, 0x12, 0x0a, 0x77, 0x6f, 0x67, 0x2e,
+	In string `protobuf:"bytes,1,opt,name=in,proto3" json:"in,omitempty"`
+}
+
+func (x *ValidateCmd) Reset() {
+	*x = ValidateCmd{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wo_proto3_1043523685_tmp_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ValidateCmd) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateCmd) ProtoMessage() {}
+
+func (x *ValidateCmd) ProtoReflect() protoreflect.Message {
+	mi := &file_wo_proto3_1043523685_tmp_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateCmd.ProtoReflect.Descriptor instead.
+func (*ValidateCmd) Descriptor() ([]byte, []int) {
+	return file_wo_proto3_1043523685_tmp_rawDescGZIP(), []int{4}
+}
+
+func (x *ValidateCmd) GetIn() string {
+	if x != nil {
+		return x.In
+	}
+	return ""
+}
+
+type ValidateCmdResult struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Valid    bool     `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
+	Errors   []string `protobuf:"bytes,5,rep,name=errors,proto3" json:"errors,omitempty"`
+	Warnings []string `protobuf:"bytes,10,rep,name=warnings,proto3" json:"warnings,omitempty"`
+}
+
+func (x *ValidateCmdResult) Reset() {
+	*x = ValidateCmdResult{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wo_proto3_1043523685_tmp_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ValidateCmdResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateCmdResult) ProtoMessage() {}
+
+func (x *ValidateCmdResult) ProtoReflect() protoreflect.Message {
+	mi := &file_wo_proto3_1043523685_tmp_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateCmdResult.ProtoReflect.Descriptor instead.
+func (*ValidateCmdResult) Descriptor() ([]byte, []int) {
+	return file_wo_proto3_1043523685_tmp_rawDescGZIP(), []int{5}
+}
+
+func (x *ValidateCmdResult) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+func (x *ValidateCmdResult) GetErrors() []string {
+	if x != nil {
+		return x.Errors
+	}
+	return nil
+}
+
+func (x *ValidateCmdResult) GetWarnings() []string {
+	if x != nil {
+		return x.Warnings
+	}
+	return nil
+}
+
+var File_wo_proto3_1043523685_tmp protoreflect.FileDescriptor
+
+var file_wo_proto3_1043523685_tmp_rawDesc = []byte{
+	0x0a, 0x18, 0x77, 0x6f, 0x2d, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33, 0x2d, 0x31, 0x30, 0x34, 0x33,
+	0x35, 0x32, 0x33, 0x36, 0x38, 0x35, 0x2e, 0x74, 0x6d, 0x70, 0x12, 0x0a, 0x77, 0x6f, 0x67, 0x2e,
 	0x77, 0x6f, 0x67, 0x63, 0x6c, 0x69, 0x1a, 0x1e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70,
 	0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x64, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e,
 	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x1f, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70,
 	0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d,
-	0x70, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x4f, 0x0a, 0x0b, 0x47, 0x65, 0x6e, 0x65, 0x72,
-	0x61, 0x74, 0x65, 0x43, 0x6d, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x69, 0x6e, 0x70, 0x75, 0x74, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x69, 0x6e, 0x70, 0x75, 0x74, 0x12, 0x16, 0x0a, 0x06,
-	0x6f, 0x75, 0x74, 0x64, 0x69, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x6f, 0x75,
-	0x74, 0x64, 0x69, 0x72, 0x12, 0x12, 0x0a, 0x04, 0x6c, 0x61, 0x6e, 0x67, 0x18, 0x03, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x04, 0x6c, 0x61, 0x6e, 0x67, 0x22, 0x13, 0x0a, 0x11, 0x47, 0x65, 0x6e, 0x65,
-	0x72, 0x61, 0x74, 0x65, 0x43, 0x6d, 0x64, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x22, 0x41, 0x0a,
-	0x0d, 0x49, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x43, 0x6d, 0x64, 0x12, 0x12,
-	0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61,
-	0x6d, 0x65, 0x12, 0x1c, 0x0a, 0x09, 0x6e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63, 0x65, 0x18,
-	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x6e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63, 0x65,
-	0x22, 0x15, 0x0a, 0x13, 0x49, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x43, 0x6d,
-	0x64, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x42, 0x23, 0x5a, 0x21, 0x67, 0x69, 0x74, 0x68, 0x75,
-	0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x77, 0x6f, 0x72, 0x6b, 0x6f, 0x61, 0x6b, 0x2f, 0x77, 0x6f,
-	0x70, 0x2f, 0x77, 0x6f, 0x67, 0x3b, 0x77, 0x6f, 0x67, 0x63, 0x6c, 0x69, 0x62, 0x06, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x33,
+	0x70, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x49, 0x0a, 0x0b, 0x47, 0x65, 0x6e, 0x65, 0x72,
+	0x61, 0x74, 0x65, 0x43, 0x6d, 0x64, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x02, 0x69, 0x6e, 0x12, 0x16, 0x0a, 0x06, 0x6f, 0x75, 0x74, 0x64, 0x69, 0x72,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x6f, 0x75, 0x74, 0x64, 0x69, 0x72, 0x12, 0x12,
+	0x0a, 0x04, 0x6c, 0x61, 0x6e, 0x67, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6c, 0x61,
+	0x6e, 0x67, 0x22, 0x13, 0x0a, 0x11, 0x47, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x43, 0x6d,
+	0x64, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x22, 0x41, 0x0a, 0x0d, 0x49, 0x6e, 0x69, 0x74, 0x69,
+	0x61, 0x6c, 0x69, 0x7a, 0x65, 0x43, 0x6d, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1c, 0x0a, 0x09,
+	0x6e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x09, 0x6e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63, 0x65, 0x22, 0x15, 0x0a, 0x13, 0x49, 0x6e,
+	0x69, 0x74, 0x69, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x43, 0x6d, 0x64, 0x52, 0x65, 0x73, 0x75, 0x6c,
+	0x74, 0x22, 0x1d, 0x0a, 0x0b, 0x56, 0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6d, 0x64,
+	0x12, 0x0e, 0x0a, 0x02, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x6e,
+	0x22, 0x5d, 0x0a, 0x11, 0x56, 0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x65, 0x43, 0x6d, 0x64, 0x52,
+	0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x69, 0x64, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x08, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x69, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x65,
+	0x72, 0x72, 0x6f, 0x72, 0x73, 0x18, 0x05, 0x20, 0x03, 0x28, 0x09, 0x52, 0x06, 0x65, 0x72, 0x72,
+	0x6f, 0x72, 0x73, 0x12, 0x1a, 0x0a, 0x08, 0x77, 0x61, 0x72, 0x6e, 0x69, 0x6e, 0x67, 0x73, 0x18,
+	0x0a, 0x20, 0x03, 0x28, 0x09, 0x52, 0x08, 0x77, 0x61, 0x72, 0x6e, 0x69, 0x6e, 0x67, 0x73, 0x42,
+	0x23, 0x5a, 0x21, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x77, 0x6f,
+	0x72, 0x6b, 0x6f, 0x61, 0x6b, 0x2f, 0x77, 0x6f, 0x70, 0x2f, 0x77, 0x6f, 0x67, 0x3b, 0x77, 0x6f,
+	0x67, 0x63, 0x6c, 0x69, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
-	file_wo_proto3_3809627072_tmp_rawDescOnce sync.Once
-	file_wo_proto3_3809627072_tmp_rawDescData = file_wo_proto3_3809627072_tmp_rawDesc
+	file_wo_proto3_1043523685_tmp_rawDescOnce sync.Once
+	file_wo_proto3_1043523685_tmp_rawDescData = file_wo_proto3_1043523685_tmp_rawDesc
 )
 
-func file_wo_proto3_3809627072_tmp_rawDescGZIP() []byte {
-	file_wo_proto3_3809627072_tmp_rawDescOnce.Do(func() {
-		file_wo_proto3_3809627072_tmp_rawDescData = protoimpl.X.CompressGZIP(file_wo_proto3_3809627072_tmp_rawDescData)
+func file_wo_proto3_1043523685_tmp_rawDescGZIP() []byte {
+	file_wo_proto3_1043523685_tmp_rawDescOnce.Do(func() {
+		file_wo_proto3_1043523685_tmp_rawDescData = protoimpl.X.CompressGZIP(file_wo_proto3_1043523685_tmp_rawDescData)
 	})
-	return file_wo_proto3_3809627072_tmp_rawDescData
+	return file_wo_proto3_1043523685_tmp_rawDescData
 }
 
-var file_wo_proto3_3809627072_tmp_msgTypes = make([]protoimpl.MessageInfo, 4)
-var file_wo_proto3_3809627072_tmp_goTypes = []interface{}{
+var file_wo_proto3_1043523685_tmp_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_wo_proto3_1043523685_tmp_goTypes = []interface{}{
 	(*GenerateCmd)(nil),         // 0: wog.wogcli.GenerateCmd
 	(*GenerateCmdResult)(nil),   // 1: wog.wogcli.GenerateCmdResult
 	(*InitializeCmd)(nil),       // 2: wog.wogcli.InitializeCmd
 	(*InitializeCmdResult)(nil), // 3: wog.wogcli.InitializeCmdResult
+	(*ValidateCmd)(nil),         // 4: wog.wogcli.ValidateCmd
+	(*ValidateCmdResult)(nil),   // 5: wog.wogcli.ValidateCmdResult
 }
-var file_wo_proto3_3809627072_tmp_depIdxs = []int32{
+var file_wo_proto3_1043523685_tmp_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -270,13 +389,13 @@ var file_wo_proto3_3809627072_tmp_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_wo_proto3_3809627072_tmp_init() }
-func file_wo_proto3_3809627072_tmp_init() {
-	if File_wo_proto3_3809627072_tmp != nil {
+func init() { file_wo_proto3_1043523685_tmp_init() }
+func file_wo_proto3_1043523685_tmp_init() {
+	if File_wo_proto3_1043523685_tmp != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_wo_proto3_3809627072_tmp_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+		file_wo_proto3_1043523685_tmp_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GenerateCmd); i {
 			case 0:
 				return &v.state
@@ -288,7 +407,7 @@ func file_wo_proto3_3809627072_tmp_init() {
 				return nil
 			}
 		}
-		file_wo_proto3_3809627072_tmp_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+		file_wo_proto3_1043523685_tmp_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GenerateCmdResult); i {
 			case 0:
 				return &v.state
@@ -300,7 +419,7 @@ func file_wo_proto3_3809627072_tmp_init() {
 				return nil
 			}
 		}
-		file_wo_proto3_3809627072_tmp_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+		file_wo_proto3_1043523685_tmp_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*InitializeCmd); i {
 			case 0:
 				return &v.state
@@ -312,8 +431,32 @@ func file_wo_proto3_3809627072_tmp_init() {
 				return nil
 			}
 		}
-		file_wo_proto3_3809627072_tmp_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+		file_wo_proto3_1043523685_tmp_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*InitializeCmdResult); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wo_proto3_1043523685_tmp_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ValidateCmd); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wo_proto3_1043523685_tmp_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ValidateCmdResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -329,18 +472,18 @@ func file_wo_proto3_3809627072_tmp_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_wo_proto3_3809627072_tmp_rawDesc,
+			RawDescriptor: file_wo_proto3_1043523685_tmp_rawDesc,
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_wo_proto3_3809627072_tmp_goTypes,
-		DependencyIndexes: file_wo_proto3_3809627072_tmp_depIdxs,
-		MessageInfos:      file_wo_proto3_3809627072_tmp_msgTypes,
+		GoTypes:           file_wo_proto3_1043523685_tmp_goTypes,
+		DependencyIndexes: file_wo_proto3_1043523685_tmp_depIdxs,
+		MessageInfos:      file_wo_proto3_1043523685_tmp_msgTypes,
 	}.Build()
-	File_wo_proto3_3809627072_tmp = out.File
-	file_wo_proto3_3809627072_tmp_rawDesc = nil
-	file_wo_proto3_3809627072_tmp_goTypes = nil
-	file_wo_proto3_3809627072_tmp_depIdxs = nil
+	File_wo_proto3_1043523685_tmp = out.File
+	file_wo_proto3_1043523685_tmp_rawDesc = nil
+	file_wo_proto3_1043523685_tmp_goTypes = nil
+	file_wo_proto3_1043523685_tmp_depIdxs = nil
 }

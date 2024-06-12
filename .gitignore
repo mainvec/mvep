@@ -18,3 +18,4 @@ docs/design/.$wo.drawio.svg.bkp
 docs/dev-docs/
 go.work
 go.work.sum
+wog/cli/cmd/wog_main

@@ -18,6 +18,8 @@ github.com/santhosh-tekuri/jsonschema/v6 v6.0.0 h1:tnigFF7+QRJfnw8PQmcq4mvcWxz6R
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.0/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
+github.com/workoak/woutil v0.1.0 h1:iYnrU4p5tghJDCKJFjUfJS74gE6soDJdx5qO0sFKKZw=
+github.com/workoak/woutil v0.1.0/go.mod h1:o1TkRy6ccWrycRjYN/Q+e+0/RFOU61CPaYPayu4jvDs=
 golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8 h1:LoYXNGAShUG3m/ehNk4iFctuhGX/+R1ZpfJ4/ia80JM=
 golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8/go.mod h1:jj3sYF3dwk5D+ghuXyeI3r5MFf+NT2An6/9dOA95KSI=
 golang.org/x/net v0.22.0 h1:9sGLhx7iRIHEiX0oAJ3MRZMUCElJgy7Br1nO+AMN3Tc=

@@ -15,9 +15,10 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"unicode"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
-	"github.com/workoak/wop/wou"
+	wou "github.com/workoak/woutil"
 )
 
 //go:embed resources
@@ -31,16 +32,18 @@ type GenOpt struct {
 //type CommandId string
 
 type CommandDef struct {
-	Id     string    `json:"-"`
-	Title  string    `json:"title,omitempty"`
-	Desc   string    `json:"description,omitempty"`
-	Fields FieldDefs `json:"fields,omitempty"`
+	Id           string    `json:"-"`
+	Title        string    `json:"title,omitempty"`
+	Alias        string    `json:"alias,omitempty"`
+	Desc         string    `json:"desc,omitempty"`
+	Fields       FieldDefs `json:"fields,omitempty"`
+	ResultFields FieldDefs `json:"resultFields,omitempty"`
 }
 
 type RecordDef struct {
 	Name   string    `json:"name"`
 	Title  string    `json:"title,omitempty"`
-	Desc   string    `json:"description,omitempty"`
+	Desc   string    `json:"desc,omitempty"`
 	Fields FieldDefs `json:"fields,omitempty"`
 }
 
@@ -71,7 +74,8 @@ const (
 type FieldDef struct {
 	Id           string        `json:"-"`
 	Title        string        `json:"title,omitempty"`
-	Desc         string        `json:"description,omitempty"`
+	Alias        string        `json:"alias,omitempty"`
+	Desc         string        `json:"desc,omitempty"`
 	Fnum         int32         `json:"fnum"`
 	Type         FieldDataType `json:"type"`
 	Repeated     bool          `json:"repeated,omitempty"`
@@ -88,8 +92,10 @@ type SrvDef struct {
 	Id        string      `json:"$id"`
 	Name      string      `json:"name"`
 	Namespace string      `json:"namespace"`
+	Title     string      `json:"title,omitempty"`
 	Base      string      `json:"base,omitempty"`
-	Desc      string      `json:"description,omitempty"`
+	Desc      string      `json:"desc,omitempty"`
+	Version   string      `json:"version,omitempty"`
 	Commands  CommandDefs `json:"commands,omitempty"`
 	Records   RecordsDefs `json:"recordsDefs,omitempty"`
 	GenOpts   GenOptsDef  `json:"gen_options,omitempty"`
@@ -349,6 +355,7 @@ func validateCommands(srvDef *SrvDef, result *DefaultValidationResult) {
 
 func validateCommand(srvDef *SrvDef, cmdDef *CommandDef, result *DefaultValidationResult) {
 	validateFieldDefs(srvDef, cmdDef.Fields, cmdDef, result)
+	validateFieldDefs(srvDef, cmdDef.ResultFields, cmdDef, result)
 }
 
 func validateFieldDefs(srvDef *SrvDef, fields FieldDefs, fieldsOwner any, result *DefaultValidationResult) {
@@ -439,15 +446,23 @@ func sortBy[V any](arr []V, compareFunc func(iv, jv V) bool) []V {
 	return sorted
 }
 
-func LoadTemplate(tmpltName string, tmpltEmbedPath string) (*template.Template, error) {
+func LoadTemplate(tmpltName string, templateReader io.Reader) (*template.Template, error) {
 
 	funcMap := template.FuncMap{
 		"ToUpper": strings.ToUpper,
+		"ToTitle": strings.ToTitle,
+		"ToCamel": func(s string) string {
+			if len(s) == 0 {
+				return ""
+			}
+			r := []rune(s)
+			r[0] = unicode.ToUpper(r[0])
+			return string(r)
+		},
 	}
 
 	//Open template
-
-	tmpltSrc, err := resources.ReadFile(tmpltEmbedPath)
+	tmpltSrc, err := io.ReadAll(templateReader)
 	if err != nil {
 		return nil, err
 	}

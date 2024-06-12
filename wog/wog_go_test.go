@@ -84,10 +84,10 @@ func TestGenerateGOSRV(t *testing.T) {
 				log.Fatal(err.Error())
 			}
 			specfile, err := os.Open(wd)
-			defer specfile.Close()
 			if err != nil {
 				log.Fatalf("error reading test file %v,%e", tt.testfile_path, err)
 			}
+			defer specfile.Close()
 			srvDef, err := wog.BuildSrvDefFromJSON(specfile)
 			if err != nil {
 				log.Fatalf("error BuildSrvDefFromJSON test file %v,%e", tt.testfile_path, err)

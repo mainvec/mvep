@@ -1,7 +1,9 @@
 {
 	"$id": "wogcli",
-	"$schema": "http://spec.workoak.com/wopspec/0.1/schema/2023-09-19",
+	"$schema": "https://spec.workoak.com/wopspec/0.1/schema/2023-09-19",
 	"name": "wogcli",
+	"title": "wo generator",
+	"version": "v0.1",
 	"namespace": "wog",
 	"gen_options": {
 		"go_package": "github.com/workoak/wop/wog;wogcli"
@@ -29,9 +31,10 @@
 			"title": "generate wop code from spec",
 			"alias": "generate",
 			"fields": {
-				"input": {
+				"in": {
 					"fnum": 1,
 					"alias": "in",
+					"title": "input wop spec file",
 					"type": "string",
 					"tags": [
 						"required"
@@ -47,6 +50,37 @@
 					"tags": [
 						"required"
 					]
+				}
+			}
+		},
+		"ValidateCmd": {
+			"title": "validate wop spec",
+			"alias": "validate",
+			"fields": {
+				"in": {
+					"fnum": 1,
+					"alias": "in",
+					"title": "input wop spec file",
+					"type": "string",
+					"tags": [
+						"required"
+					]
+				}
+			},
+			"resultFields": {
+				"valid": {
+					"fnum": 1,
+					"type": "boolean"
+				},
+				"errors": {
+					"fnum": 5,
+					"type": "string",
+					"repeated": true
+				},
+				"warnings": {
+					"fnum": 10,
+					"type": "string",
+					"repeated": true
 				}
 			}
 		}

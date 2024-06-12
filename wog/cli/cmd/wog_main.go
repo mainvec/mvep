@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	wogcli "github.com/workoak/wop/wog/cli"
-	"github.com/workoak/wop/wou/cli"
+	"github.com/workoak/woutil/cli"
 )
 
 func main() {
@@ -42,7 +42,7 @@ func prepareInitCmd(rootCmd *cli.Command) {
 		Usage: "init",
 		Short: "initalize a new wop schema",
 		Run: func(ctx *cli.Context, args []string) {
-			_, err := wogcli.RunInitCmd(ctx, initCmd)
+			_, err := wogcli.RunInitializeCmd(ctx, initCmd)
 			if err != nil {
 				fmt.Fprintln(ctx.Errout(), err)
 
@@ -69,7 +69,7 @@ func prepareGenerateCmd(rootCmd *cli.Command) {
 		},
 	}
 
-	generateCli.Flags().StringVar(&generateCmd.Input, "in", "", "input wop schema file")
+	generateCli.Flags().StringVar(&generateCmd.In, "in", "", "input wop schema file")
 	generateCli.Flags().StringVar(&generateCmd.Lang, "lang", "", "language to generate code artifacts. e.g. go")
 	generateCli.Flags().StringVar(&generateCmd.Outdir, "outdir", "", "output directory for generated code artifacts")
 

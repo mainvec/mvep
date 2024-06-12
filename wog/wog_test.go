@@ -26,6 +26,7 @@ func TestValidateJSONSchema(t *testing.T) {
 		{"TEST04 :Valid/basic cmd", "04_valid_wosrv_command.jsonc", true, false, 0},
 		{"TEST05 :Valid/comands with fields", "05_command_withfields.jsonc", true, false, 0},
 		{"TEST06 :Valid/comands with refs", "06_command_with_ref.jsonc", true, false, 0},
+		{"TEST07 :Valid/command with result", "07_command_with_result.jsonc", true, false, 0},
 		{"TEST09 :Valid/external schema", "09_external_schema.jsonc", true, false, 0},
 	}
 	for _, tt := range tests {
@@ -170,6 +171,35 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 							"country": {
 								Fnum: 3,
 								Type: "string",
+							},
+						},
+					},
+				},
+			}, false, 0},
+		{"TEST07 :Valid/command with result", "07_command_with_result.jsonc",
+			wog.SrvDef{
+				Id:        "test7Id",
+				Name:      "test7Name",
+				Namespace: "test7Namespace",
+				Title:     "test7Title",
+				Desc:      "test7Description",
+				Version:   "v0.1",
+				Commands: wog.CommandDefs{
+					"OrderPizzaCmd": wog.CommandDef{
+						Title: "Order a pizza",
+						Alias: "order",
+						Desc:  "command description",
+						Fields: wog.FieldDefs{
+							"size": {
+								Fnum: 1,
+								Type: wog.STRING,
+								Desc: "field description",
+							},
+						},
+						ResultFields: wog.FieldDefs{
+							"orderStatus": {
+								Fnum: 1,
+								Type: wog.STRING,
 							},
 						},
 					},

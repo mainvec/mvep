@@ -13,7 +13,7 @@ import (
 	pbBuilder "github.com/jhump/protoreflect/desc/builder"
 
 	"github.com/jhump/protoreflect/desc/protoprint"
-	"github.com/workoak/wop/wou"
+	wou "github.com/workoak/woutil"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -167,6 +167,7 @@ func processCommandMessages(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 		//process command result, an empty one of no result fields
 		resultName := commandName + "Result"
 		mbresult := pbBuilder.NewMessage(resultName)
+		processMessageFields(srvDef, b, mbresult, commandDef.ResultFields)
 		// _, ok := commandDef["resultFields"].(map[string]interface{})
 		// if ok {
 		// 	processMessageFields(jsonSpec, b, mbresult, commandDef, "resultFields")
