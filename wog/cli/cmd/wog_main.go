@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/workoak/wogo/cli"
 	wogcli "github.com/workoak/wop/wog/cli"
-	"github.com/workoak/woutil/cli"
 )
 
 func main() {

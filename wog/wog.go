@@ -18,7 +18,7 @@ import (
 	"unicode"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
-	wou "github.com/workoak/woutil"
+	"github.com/workoak/wogo/omap"
 )
 
 //go:embed resources
@@ -83,10 +83,10 @@ type FieldDef struct {
 	MapValueType string        `json:"valueType,omitempty"`
 }
 
-type CommandDefs wou.OMap[string, CommandDef]
-type FieldDefs wou.OMap[string, FieldDef]
-type RecordsDefs wou.OMap[string, RecordDef]
-type GenOptsDef wou.OMap[string, string]
+type CommandDefs omap.OMap[string, CommandDef]
+type FieldDefs omap.OMap[string, FieldDef]
+type RecordsDefs omap.OMap[string, RecordDef]
+type GenOptsDef omap.OMap[string, string]
 
 type SrvDef struct {
 	Id        string      `json:"$id"`

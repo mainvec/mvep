@@ -13,7 +13,7 @@ import (
 	pbBuilder "github.com/jhump/protoreflect/desc/builder"
 
 	"github.com/jhump/protoreflect/desc/protoprint"
-	wou "github.com/workoak/woutil"
+	"github.com/workoak/wogo/omap"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -183,7 +183,7 @@ func processMessageFields(srvDef *SrvDef, b *pbBuilder.FileBuilder, mb *pbBuilde
 	lessFunc := func(i, j FieldDef) bool {
 		return i.Fnum < j.Fnum
 	}
-	for iter := wou.IterateByValue(fieldDefs, lessFunc); iter.HasNext(); {
+	for iter := omap.IterateByValue(fieldDefs, lessFunc); iter.HasNext(); {
 		name, fieldDef := iter.Next()
 		ftype := fieldDef.Type
 

@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/workoak/wogo/cli"
 	wogcli "github.com/workoak/wop/wog/cli"
-	"github.com/workoak/woutil/cli"
 )
 
 func main() {
@@ -95,47 +95,3 @@ func prepareValidateCmd(rootCmd *cli.Command) {
 	rootCmd.AddCommand(cliCmd)
 
 }
-
-/*
-func prepareInitCmd(rootCmd *cli.Command) {
-	initCmd := &wogcli.InitializeCmd{}
-
-	initCli := &cli.Command{
-		Usage: "init",
-		Short: "initalize a new wop schema",
-		Run: func(ctx *cli.Context, args []string) {
-			_, err := wogcli.RunInitCmd(ctx, initCmd)
-			if err != nil {
-				fmt.Fprintln(ctx.Errout(), err)
-
-			}
-		},
-	}
-
-	initCli.Flags().StringVar(&initCmd.Name, "name", "", "name of the wop schema")
-	initCli.Flags().StringVar(&initCmd.Name, "namespace", "", "namespace of the wop schema")
-	rootCmd.AddCommand(initCli)
-}
-
-func prepareGenerateCmd(rootCmd *cli.Command) {
-	generateCmd := &wogcli.GenerateCmd{}
-	generateCli := &cli.Command{
-		Usage: "generate",
-		Short: "generate code artifacts based on wop schema",
-		Run: func(ctx *cli.Context, args []string) {
-			_, err := wogcli.RunGenerateCmd(ctx, generateCmd)
-			if err != nil {
-				fmt.Fprintln(ctx.Errout(), err)
-
-			}
-		},
-	}
-
-	generateCli.Flags().StringVar(&generateCmd.Input, "in", "", "input wop schema file")
-	generateCli.Flags().StringVar(&generateCmd.Lang, "lang", "", "language to generate code artifacts. e.g. go")
-	generateCli.Flags().StringVar(&generateCmd.Outdir, "outdir", "", "output directory for generated code artifacts")
-
-	rootCmd.AddCommand(generateCli)
-
-}
-*/

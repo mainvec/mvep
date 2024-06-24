@@ -6,7 +6,7 @@
 	"version": "v0.1",
 	"namespace": "wog",
 	"gen_options": {
-		"go_package": "github.com/workoak/wop/wog;wogcli"
+		"go_package": "github.com/workoak/wop/wog/cli;wogcli"
 	},
 	"commands": {
 		"InitializeCmd": {

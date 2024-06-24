@@ -1,15 +1,18 @@
 package wogcli
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/workoak/wogo/validate"
 	"github.com/workoak/wop/wog"
-	"github.com/workoak/woutil/validate"
 )
 
 func RunInitializeCmd(ctx context.Context, cmd *InitializeCmd) (*InitializeCmdResult, error) {
@@ -96,15 +99,15 @@ func RunGenerateCmd(ctx context.Context, cmd *GenerateCmd) (*GenerateCmdResult, 
 		log.Fatalf("error writing go pb3 api file %v,%e", specpath, err)
 	}
 
-	goapi, err := wog.GenerateGOAPI(srvDef)
-	if err != nil {
-		log.Fatalf("error generating go api: %v", err)
-	}
-	goapiFile := filepath.Join(outdir, srvDef.Name+"_api.go")
-	err = os.WriteFile(goapiFile, goapi, os.ModePerm)
-	if err != nil {
-		log.Fatalf("error writing go api file %v,%e", goapiFile, err)
-	}
+	// goapi, err := wog.GenerateGOAPI(srvDef)
+	// if err != nil {
+	// 	log.Fatalf("error generating go api: %v", err)
+	// }
+	// goapiFile := filepath.Join(outdir, srvDef.Name+"_api.go")
+	// err = os.WriteFile(goapiFile, goapi, os.ModePerm)
+	// if err != nil {
+	// 	log.Fatalf("error writing go api file %v,%e", goapiFile, err)
+	// }
 
 	gocli, err := wog.GenerateFromEmbeddTemplate(srvDef, "go_cli_main", "resources/codegen_templates/go/go_cli_main.txt")
 	if err != nil {
@@ -113,7 +116,7 @@ func RunGenerateCmd(ctx context.Context, cmd *GenerateCmd) (*GenerateCmdResult, 
 	goMainCmdDir := filepath.Join(outdir, "cmd")
 	err = os.MkdirAll(goMainCmdDir, os.ModePerm)
 	if err != nil {
-		log.Fatalf("error creating go maoin cmd dir: %v,%v", goMainCmdDir, err)
+		log.Fatalf("error creating go main cmd dir: %v,%v", goMainCmdDir, err)
 	}
 	gocliMainFile := filepath.Join(goMainCmdDir, srvDef.Name+"_main_cmd.go")
 	err = os.WriteFile(gocliMainFile, gocli, os.ModePerm)
@@ -121,7 +124,74 @@ func RunGenerateCmd(ctx context.Context, cmd *GenerateCmd) (*GenerateCmdResult, 
 		log.Fatalf("error writing go cli file %v,%e", gocliMainFile, err)
 	}
 
+	//package
+	goPkgFile := filepath.Join(outdir, srvDef.Name+"_package.go")
+
+	if allow, _ := isAllowWOGen(goPkgFile); allow {
+		gopkg, err := wog.GenerateFromEmbeddTemplate(srvDef, "go_pkg", "resources/codegen_templates/go/go_package_code.txt")
+		if err != nil {
+			log.Fatalf("error generating go package: %v", err)
+		}
+
+		err = os.WriteFile(goPkgFile, gopkg, os.ModePerm)
+		if err != nil {
+			log.Fatalf("error writing go package file %v,%e", goPkgFile, err)
+		}
+
+	}
+
+	//go default implemetaiton
+	goImplFile := filepath.Join(outdir, srvDef.Name+"_impl.go")
+
+	if allow, _ := isAllowWOGen(goImplFile); allow {
+		goimpl, err := wog.GenerateFromEmbeddTemplate(srvDef, "go_impl", "resources/codegen_templates/go/go_impl_code.txt")
+		if err != nil {
+			log.Fatalf("error generating go impl: %v", err)
+		}
+
+		err = os.WriteFile(goImplFile, goimpl, os.ModePerm)
+		if err != nil {
+			log.Fatalf("error writing go impl file %v,%e", goImplFile, err)
+		}
+
+	}
+
 	return &GenerateCmdResult{}, nil
+}
+
+func isAllowWOGen(fileName string) (bool, error) {
+	if len(fileName) == 0 {
+		return false, errors.New("invalid filename")
+	}
+	file, err := os.Open(fileName)
+	if err != nil {
+		if os.IsNotExist(err) {
+			//file doesn ot exists, allow generation
+			return true, nil
+		} else {
+			log.Printf("could not check file[%v] for wogen, err:%v", fileName, err)
+			return false, err
+		}
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		//read only first line
+		//look for NOWOGEN comment in first line
+		line := strings.ToUpper(scanner.Text())
+		if strings.Contains(line, "NOWOGEN") {
+			log.Printf("skipping generation for file [%v]. NOWOGEN found in first line", fileName)
+			return false, nil
+		}
+		break
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Printf("could not check first line in file[%v] for wogen, err:%v", fileName, err)
+		return false, err
+	}
+	return true, nil
 }
 
 func RunValidateCmd(ctx context.Context, cmd *ValidateCmd) (*ValidateCmdResult, error) {

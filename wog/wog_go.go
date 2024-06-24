@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 func GenerateGOProtoBuffAPIFromProto(protoContent []byte) ([]byte, error) {
@@ -112,6 +113,25 @@ func prepareTemplateDataMap(srvDef *SrvDef) map[string]interface{} {
 	data["CMDS"] = commands
 	data["BASE"] = base
 	data["SPEC"] = srvDef
+
+	//if go_package is set in the spec file
+	//use it to set the go package and import
+	//otherwise use the name of the service
+	//as the package name. only if the go_package
+	//is set with 'importpath;packagename'
+	goPkg, ok := srvDef.GenOpts["go_package"]
+	if ok {
+		idx := strings.Index(goPkg, ";")
+		if idx > 0 {
+			data["GOPKG"] = goPkg[idx+1:]
+			data["GOIMPORT"] = goPkg[:idx]
+		} else {
+			data["GOIMPORT"] = goPkg
+			data["GOPKG"] = name
+		}
+	} else {
+		data["GOPKG"] = name
+	}
 
 	return data
 }

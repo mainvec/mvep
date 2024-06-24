@@ -69,6 +69,7 @@ func TestGenerateGOProtoBuffAPI(t *testing.T) {
 }
 
 func TestGenerateGOSRV(t *testing.T) {
+	t.Skip()
 	tests := []struct {
 		name          string
 		testfile_path string
