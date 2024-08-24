@@ -104,11 +104,22 @@ func ParseProto3Definition(name string, pb3Definition []byte) (protoreflect.File
 func processOptions(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 	options := srvDef.GenOpts
 	fileOptions := &dpb.FileOptions{}
-	for name, op_value := range options {
+	gopkg, ok := options["go_api_package"]
+	if ok {
+		fileOptions.GoPackage = &gopkg
+	} else {
+		gopkg, ok = options["go_package"]
+		if ok {
+			fileOptions.GoPackage = &gopkg
+		}
+	}
+
+	for name, _ := range options {
 
 		switch name {
 		case "go_package":
-			fileOptions.GoPackage = &op_value
+		case "go_api_package":
+			//OK
 		default:
 			log.Fatalf("unsupported gen_option [%v]", name)
 		}
@@ -148,12 +159,31 @@ func processImports(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 
 func processRecordDefMessages(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 	recordDefs := srvDef.Records
-	mapForEachKeySorted(recordDefs, func(recname string, recordDef RecordDef) any {
-		mb := pbBuilder.NewMessage(recname)
-		processMessageFields(srvDef, b, mb, recordDef.Fields)
-		b.AddMessage(mb)
-		return nil
-	})
+	// //FIXME should process dependent recrods first and detect cycles
+	// recs:=make([]string,0,len(recordDefs))
+
+	// for r,recDef  := range recordDefs {
+	// 	recs=prepareRecordsDepdencies(recs,r,recDef)
+	// }
+	// mapForEachKeySorted(recordDefs, func(recname string, recordDef RecordDef) any {
+	// 	mb := pbBuilder.NewMessage(recname)
+	// 	processMessageFields(srvDef, b, mb, recordDef.Fields)
+	// 	b.AddMessage(mb)
+	// 	return nil
+	// })
+	for recname, recordDef := range recordDefs {
+		processRecordDef(b, srvDef, recname, recordDef)
+	}
+}
+
+func processRecordDef(b *pbBuilder.FileBuilder, srvDef *SrvDef, recname string, recordDef RecordDef) {
+	//already processed via dependencies
+	if b.GetMessage(recname) != nil {
+		return
+	}
+	mb := pbBuilder.NewMessage(recname)
+	processMessageFields(srvDef, b, mb, recordDef.Fields)
+	b.AddMessage(mb)
 }
 
 func processCommandMessages(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
@@ -262,7 +292,16 @@ func processField(srvDef *SrvDef, b *pbBuilder.FileBuilder, fname string, fieldD
 
 		refmb := b.GetMessage(recordDefName)
 		if refmb == nil {
-			log.Fatalf("cannot find rerodDefname [%v] for field [%v]. ", recordDefName, fname)
+			//FIXME: should detect cycles and fail
+			recordDef, ok := srvDef.Records[recordDefName]
+			if !ok {
+				log.Fatalf("cannot find rerodDefname [%v] for field [%v]. ", recordDefName, fname)
+			}
+			processRecordDef(b, srvDef, recordDefName, recordDef)
+			refmb = b.GetMessage(recordDefName)
+			if refmb == nil {
+				log.Fatalf("cannot find rerodDefname [%v] for field [%v]. ", recordDefName, fname)
+			}
 		}
 		fbuilder = pbBuilder.NewField(fname, pbBuilder.FieldTypeMessage(refmb))
 	case "record":

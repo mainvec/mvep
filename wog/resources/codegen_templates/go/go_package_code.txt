@@ -2,7 +2,7 @@
 {{- $SRVNAME := .SRVNAME }}
 {{- $NS := .NS }}
 {{- $PKG := print .NAME "Package"}}
-package {{.NAME}}
+package api
 
 import (
 	"context"
@@ -46,11 +46,7 @@ func (p *{{$PKG}}) NameOf(comp any) string {
 }
 
 func NewCommandRunner() *PkgCommandRunner {
-	return &PkgCommandRunner{
-{{range $name, $v :=  .CMDS }} 
-	Run{{$name}}:	run{{$name}},
-{{- end }}
-	}
+	return &PkgCommandRunner{}
 }
 func (r *PkgCommandRunner) RunCmd(ctx context.Context, cmd any) (any, error) {
 	switch cmd := cmd.(type) {
@@ -69,6 +65,8 @@ func InstanceOf(compName string) (any, bool) {
 {{range $name, $v :=  .CMDS }} 
 	case "{{$name}}":
 		return &{{$name}}{},true
+	case "{{$name}}Result":
+		return &{{$name}}Result{},true
 {{- end }}
 	default:
 		return nil,false
@@ -80,6 +78,8 @@ func NameOf(comp any) string {
 {{range $name, $v :=  .CMDS }} 
 	case *{{$name}}:
 		return "{{$name}}"
+	case *{{$name}}Result:
+		return "{{$name}}Result"
 {{- end }}
 	default:
 		return ""

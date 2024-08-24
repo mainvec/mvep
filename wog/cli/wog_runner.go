@@ -78,7 +78,13 @@ func RunGenerateCmd(ctx context.Context, cmd *GenerateCmd) (*GenerateCmdResult, 
 			return nil, err
 		}
 	}
-	proto := filepath.Join(outdir, srvDef.Name+".proto")
+	goApiDir := filepath.Join(outdir, "api")
+	err = os.MkdirAll(goApiDir, os.ModePerm)
+	if err != nil {
+		log.Fatalf("error creating go api dir: %v,%v", goApiDir, err)
+	}
+
+	proto := filepath.Join(goApiDir, srvDef.Name+".proto")
 	err = os.WriteFile(proto, buff.Bytes(), os.ModePerm)
 	if err != nil {
 		log.Fatalf("error writing .proto file %v,%e", specpath, err)
@@ -93,7 +99,7 @@ func RunGenerateCmd(ctx context.Context, cmd *GenerateCmd) (*GenerateCmdResult, 
 		log.Fatalf(" no GO Pb3 API generated ")
 	}
 
-	gopb3api := filepath.Join(outdir, srvDef.Name+".pb.go")
+	gopb3api := filepath.Join(goApiDir, srvDef.Name+".pb.go")
 	err = os.WriteFile(gopb3api, pb3GOAPI, os.ModePerm)
 	if err != nil {
 		log.Fatalf("error writing go pb3 api file %v,%e", specpath, err)
@@ -125,7 +131,7 @@ func RunGenerateCmd(ctx context.Context, cmd *GenerateCmd) (*GenerateCmdResult, 
 	}
 
 	//package
-	goPkgFile := filepath.Join(outdir, srvDef.Name+"_package.go")
+	goPkgFile := filepath.Join(goApiDir, srvDef.Name+"_package.go")
 
 	if allow, _ := isAllowWOGen(goPkgFile); allow {
 		gopkg, err := wog.GenerateFromEmbeddTemplate(srvDef, "go_pkg", "resources/codegen_templates/go/go_package_code.txt")

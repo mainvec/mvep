@@ -3,7 +3,7 @@
 {{- $SRVI := ToUpper .SRVNAME}}
 {{- $NS := .NS }}
 {{- $SRVIMP := print $SRVI "Imp"}} {{$APINAME := .APINAME}}
-package {{.NAME}}
+package api 
 
 import (
 	"context"

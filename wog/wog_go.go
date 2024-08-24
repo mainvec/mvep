@@ -132,6 +132,26 @@ func prepareTemplateDataMap(srvDef *SrvDef) map[string]interface{} {
 	} else {
 		data["GOPKG"] = name
 	}
-
+	goApiPkg, ok := srvDef.GenOpts["go_api_package"]
+	if ok {
+		idx := strings.Index(goApiPkg, ";")
+		if idx > 0 {
+			data["GOAPIPKG"] = goApiPkg[idx+1:]
+			data["GOAPIIMPORT"] = goApiPkg[:idx]
+		} else {
+			data["GOAPIIMPORT"] = goApiPkg
+			data["GOAPIPKG"] = "api"
+		}
+	} else {
+		base, ok := data["GOIMPORT"]
+		if !ok {
+			panic("GOIMPORT not set")
+		}
+		//if no go_api_package is set
+		//use the go_package as the base
+		// and append /api to it
+		data["GOAPIIMPORT"] = fmt.Sprintf("%s/api", base)
+		data["GOAPIPKG"] = ""
+	}
 	return data
 }

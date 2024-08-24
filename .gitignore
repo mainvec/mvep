@@ -19,3 +19,6 @@ docs/dev-docs/
 go.work
 go.work.sum
 wog/cli/cmd/wog_main
+.vscode/settings.json
+wog/cmd/wog_main_cmd
+wog/cmd/wog_main_cmd

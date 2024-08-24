@@ -5,10 +5,11 @@ package {{.NAME}}
 import (
 	"context"
 	"errors"
+	{{ if .GOIMPORT}}{{.GOPKG}} "{{.GOIMPORT}}"{{ end }}
 )
 
 {{range $name, $v :=  .CMDS }} 
- func run{{$name}}(ctx context.Context,cmd *{{$name}}) (*{{$name}}Result, error){
+ func run{{$name}}(ctx context.Context,cmd *api.{{$name}}) (*api.{{$name}}Result, error){
 		return nil, errors.New("command not implemented")
  }
 {{- end }}
