@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -458,6 +459,20 @@ func LoadTemplate(tmpltName string, templateReader io.Reader) (*template.Templat
 			r := []rune(s)
 			r[0] = unicode.ToUpper(r[0])
 			return string(r)
+		},
+		"PrintStdOut": func(s string) string {
+			if len(s) == 0 {
+				return ""
+			}
+			fmt.Fprintln(os.Stdout, s)
+			return ""
+		},
+		"PrintStdErr": func(s string) string {
+			if len(s) == 0 {
+				return ""
+			}
+			fmt.Fprintln(os.Stderr, s)
+			return ""
 		},
 	}
 

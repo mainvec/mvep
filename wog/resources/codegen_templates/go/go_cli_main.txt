@@ -56,14 +56,22 @@ func prepare{{$name}}(rootCmd *cli.Command) {
 	}
 	//Command Flags
 	{{range $fname, $fv :=  .Fields }} 
+	{{- $flagName := $fname }}
+	{{- if $fv.Alias }}
+	{{- $flagName = $fv.Alias }}
+	{{- end }}
+	//using field alias: {{$fv.Alias }}
 	{{- if eq $fv.Type "string"}}
-	cliCmd.Flags().StringVar(&cmd.{{ToCamel $fname}}, "{{$fname}}", "", "{{$fv.Title}}")
+	cliCmd.Flags().StringVar(&cmd.{{ToCamel $fname}}, "{{$flagName}}", "", "{{$fv.Title}}")
 	{{- else if eq $fv.Type "boolean"}}
-	cliCmd.Flags().BoolVar(&cmd.{{ToCamel $fname}}, "{{$fname}}", false, "{{$fv.Title}}")
+	cliCmd.Flags().BoolVar(&cmd.{{ToCamel $fname}}, "{{$flagName}}", false, "{{$fv.Title}}")
 	{{- else if eq $fv.Type "int32"}}
-	cliCmd.Flags().Int32Var(&cmd.{{ToCamel $fname}}, "{{$fname}}", 0, "{{$fv.Title}}")
+	cliCmd.Flags().Int32Var(&cmd.{{ToCamel $fname}}, "{{$flagName}}", 0, "{{$fv.Title}}")
 	{{- else}}
-	{{printf "Error in go_cli_main tmaplate: Unsupported type %s for field %s" $v.Type $name | printf "%s\n"}}
+	{{- $CLIWARN := printf "//WARNING: unsupported field type in  $s.$s. Defaulting to string type" $name $fname | printf "%s\n"}}
+	{{$CLIWARN }}
+	{{PrintStdErr $CLIWARN}}
+	cliCmd.Flags().StringVar(&cmd.{{ToCamel $fname}}, "{{$flagName}}", "", "{{$fv.Title}}")
 	{{- end }}
 	{{- end }}
 	rootCmd.AddCommand(cliCmd)

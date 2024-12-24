@@ -10,7 +10,7 @@
 	},
 	"commands": {
 		"InitializeCmd": {
-			"title": "Initialize a new WOP Shema",
+			"title": "Initialize a new WOP Schema",
 			"alias": "init",
 			"fields": {
 				"name": {
@@ -28,7 +28,7 @@
 			}
 		},
 		"GenerateCmd": {
-			"title": "generate wop code from spec",
+			"title": "generate wop code from from wop schema",
 			"alias": "generate",
 			"fields": {
 				"in": {

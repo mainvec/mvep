@@ -79,7 +79,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error creating go maoin cmd dir: %v,%v", goMainCmdDir, err)
 	}
-	gocliMainFile := filepath.Join(goMainCmdDir, "wog_main_cmd.go")
+	gocliMainFile := filepath.Join(goMainCmdDir, "wogcli.go")
 	err = os.WriteFile(gocliMainFile, gocli, os.ModePerm)
 	if err != nil {
 		log.Fatalf("error writing go cli file %v,%e", gocliMainFile, err)
