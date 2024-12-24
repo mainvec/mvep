@@ -216,7 +216,7 @@ func validateJSONSchemaContent(defJsonContent []byte) (ValidationResult, error) 
 
 	c := jsonschema.NewCompiler()
 	c.UseLoader(loader)
-	schemaFile := "resources/wopapi/wopspec/0.1/schema/2023-09-19.json"
+	schemaFile := "resources/wopspec/0.1/schema/2023-09-19.json"
 	schema, err := resources.Open(schemaFile)
 	if err != nil {
 		return nil, err
