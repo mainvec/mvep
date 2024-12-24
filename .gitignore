@@ -22,4 +22,4 @@ wog/cli/cmd/wog_main
 .vscode/settings.json
 wog/cmd/wog_main_cmd
 wog/cmd/wog_main_cmd
-wog/cmd/wogcli
+

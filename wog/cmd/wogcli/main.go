@@ -24,7 +24,7 @@ func NewCli() *cli.Framework {
 		Usage: "wogcli",
 		Short: "wo generator",
 
-		Version: "v0.1.2",
+		Version: "v0.1.3",
 	}
 
 	prepareGenerateCmd(rootCmd)
