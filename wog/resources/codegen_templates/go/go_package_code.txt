@@ -7,7 +7,7 @@ package api
 import (
 	"context"
 	"errors"
-	"github.com/workoak/wonet/util/wop"
+	"github.com/workoak/wopgo/wop"
 )
 
 var _ wop.Package = &{{$PKG}}{}

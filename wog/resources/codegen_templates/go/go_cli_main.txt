@@ -71,7 +71,7 @@ func prepare{{$name}}(rootCmd *cli.Command) {
 	{{- $CLIWARN := printf "//WARNING: unsupported field type in  $s.$s. Defaulting to string type" $name $fname | printf "%s\n"}}
 	{{$CLIWARN }}
 	{{PrintStdErr $CLIWARN}}
-	cliCmd.Flags().StringVar(&cmd.{{ToCamel $fname}}, "{{$flagName}}", "", "{{$fv.Title}}")
+	// cliCmd.Flags().StringVar(&cmd.{{ToCamel $fname}}, "{{$flagName}}", "", "{{$fv.Title}}")
 	{{- end }}
 	{{- end }}
 	rootCmd.AddCommand(cliCmd)
