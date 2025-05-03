@@ -1,0 +1,10 @@
+{
+	//Comments are OK
+	//"$schema": "https://mainvec.github.io/schemas/wop_service.schema_latest_draft.json",
+	/*
+	those comments are ok too
+	*/
+	"$id": "test2Id",
+	"name": "test2Name",
+	"namespace": "test2Namespace"
+}

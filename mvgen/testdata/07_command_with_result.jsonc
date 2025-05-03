@@ -1,0 +1,30 @@
+{
+	"$id": "test7Id",
+	"$schema": "resources/mvepspec/0.1/schema/2023-09-19",
+	"name": "test7Name",
+	"namespace": "test7Namespace",
+	"title": "test7Title",
+	"desc" : "test7Description",
+	"version": "v0.1",
+	"commands": {
+		"OrderPizzaCmd": {
+			"title": "Order a pizza",
+			"desc": "command description",
+			"alias" : "order",
+			"fields": {
+				"size":{
+					"fnum": 1,
+					"type": "string",
+					"desc": "field description"
+				}
+			},
+			"resultFields": {
+				"orderStatus":{
+					"fnum": 1,
+					"type": "string"
+				}
+			}
+
+		}
+	}
+}

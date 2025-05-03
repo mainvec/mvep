@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package mvgenNS.mvgen;
+
+import "google/protobuf/duration.proto";
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/mainvec/mvep/mvgen/mvpapi/api;api";
+
+message GenerateCmd {
+  string in = 1;
+
+  string outdir = 2;
+
+  string lang = 3;
+}
+
+message GenerateCmdResult {
+}
+
+message InitializeCmd {
+  string name = 1;
+
+  string namespace = 2;
+}
+
+message InitializeCmdResult {
+}
+
+message ValidateCmd {
+  string in = 1;
+}
+
+message ValidateCmdResult {
+  bool valid = 1;
+
+  repeated string errors = 5;
+
+  repeated string warnings = 10;
+}

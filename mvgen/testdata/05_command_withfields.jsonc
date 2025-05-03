@@ -1,0 +1,30 @@
+{
+	"$id": "test5Id",
+	"$schema": "resources/mvepspec/0.1/schema/2023-09-19",
+	"name": "test5Name",
+	"namespace": "test5Namespace",
+	"commands": {
+		"OrderPizzaCmd": {
+			"title": "Order a pizza",
+			"fields": {
+				"size":{
+					"fnum": 1,
+					"type":  "int32"
+				},
+				"type":{
+					"fnum": 2,
+					"type": "string"
+				},
+				"toppings":{
+					"fnum": 3,
+					"type": "string",
+					"repeated": true
+				}
+
+			}
+		}
+	}
+
+	
+
+}

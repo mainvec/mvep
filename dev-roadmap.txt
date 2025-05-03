@@ -12,9 +12,9 @@ e.g.
 
 WO platform consists of 3 main components.
 
-- wodev: workoak developer tools
-- wop/wog: workoak grid
-- wop: wo platform is a cluster of nodes to 
+- wodev: mainvec developer tools
+- mvep/wog: mainvec grid
+- mvep: wo platform is a cluster of nodes to 
 
 output:
 - model
@@ -40,9 +40,9 @@ WODEV
 
 
 
-WOP
+MVEP
 - wogrid:
-- wop: 
+- mvep: 
 - wonode: services and clients connect to the node
 	- LocalNode:
 	- 
