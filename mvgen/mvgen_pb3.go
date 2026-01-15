@@ -9,6 +9,8 @@ import (
 
 	"github.com/bufbuild/protocompile"
 	dpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
+
+	//"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc"
 	pbBuilder "github.com/jhump/protoreflect/desc/builder"
 
@@ -21,6 +23,10 @@ import (
 //NOTE: where possible, we are using the latest 'google.golang.org/protobuf' and
 // not older api 'github.com/golang/protobuf'. we still need github.com/jhump/protoreflect
 // which requires the older api, mainly for the desc.builder.
+//
+// TODO: MIGRATION NEEDED - jhump/protoreflect is deprecated. The newer v2 protobuf API
+// doesn't have direct equivalents for dynamic descriptor building (pbBuilder).
+// Consider migrating to protocompile-based approach or static proto generation.
 
 // Build a Protobuff3 schema from WO JSON Schema
 func BuildProtoBuffDefFromJSON(srvDefJsonReader io.Reader) (protoreflect.FileDescriptor, error) {
@@ -41,6 +47,7 @@ func BuildProtoBuffDefFromSrvDef(srvDef *SrvDef) (protoreflect.FileDescriptor, e
 	b.SetComments(buildComments(srvDef.Desc))
 	b.SetPackageName(namespace + "." + name)
 	b.SetProto3(true)
+	//b.SetEdition(descriptorpb.Edition_EDITION_2024)
 	/*
 		processOptions(b, jsonSpec)
 		//build recordDef messsgaes
@@ -114,12 +121,37 @@ func processOptions(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 		}
 	}
 
-	for name, _ := range options {
+	//initialize ProtocOpts array
+	if srvDef.ProtocOpts == nil {
+		srvDef.ProtocOpts = make([]string, 0)
+	}
+
+	for name, opt := range options {
 
 		switch name {
+		case "edition":
+			switch opt {
+			case "2023":
+				b.SetEdition(descriptorpb.Edition_EDITION_2023)
+			//TODO case "2024":
+			// We are not able to support 2024 yet, protojs-cli does not support it yet
+			default:
+				log.Fatalf("unsupported pb3 edition [%v]", opt)
+			}
+
 		case "go_package":
 		case "go_api_package":
-			//OK
+			continue
+		case "go_default_api_level":
+			switch opt {
+			case "API_OPEN":
+			case "API_HYBRID":
+			case "API_OPAQUE":
+				protocOpt := "--go_opt=default_api_level=" + opt
+				srvDef.ProtocOpts = append(srvDef.ProtocOpts, protocOpt)
+			default:
+				log.Fatalf("unsupported value for  gen_option go_default_api_level [%v]", opt)
+			}
 		default:
 			log.Fatalf("unsupported gen_option [%v]", name)
 		}
@@ -132,6 +164,7 @@ func processOptions(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 	}
 
 	b.SetOptions(fileOptions)
+
 	//Add missing options:
 
 }

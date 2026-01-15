@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func GenerateGOProtoBuffAPIFromProto(protoContent []byte) ([]byte, error) {
+func GenerateGOProtoBuffAPIFromProto(srvDef *SrvDef, protoContent []byte) ([]byte, error) {
 	//Using protoc wiht
 
 	protocPath, err := exec.LookPath("protoc")
@@ -30,11 +30,19 @@ func GenerateGOProtoBuffAPIFromProto(protoContent []byte) ([]byte, error) {
 	woproto3File.Write(protoContent)
 	//fpath := filepath.Join(goapiDir, woproto3File.Name())
 	//,
-	cmd := exec.Command(protocPath, "-I="+goapiDir, "--go_opt=paths=source_relative",
-		"--go_out="+goapiDir, woproto3File.Name())
+
+	// Build command arguments
+	args := []string{"-I=" + goapiDir, "--go_opt=paths=source_relative"}
+	args = append(args, srvDef.ProtocOpts...)
+	args = append(args, "--go_out="+goapiDir, woproto3File.Name())
+
+	cmd := exec.Command(protocPath, args...)
 	cmd.Stdin = bytes.NewReader(protoContent)
+
 	var out bytes.Buffer
 	cmd.Stderr = &out
+
+	//log.Printf("runing protoc: %v\n", cmd.String())
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("error running protoc: %v,[%v]", err, out.String())
 	}

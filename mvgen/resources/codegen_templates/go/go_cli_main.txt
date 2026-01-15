@@ -43,10 +43,33 @@ func NewCli() *cli.Framework {
 {{range $name, $v :=  .CMDS }} 
 func prepare{{$name}}(rootCmd *cli.Command) {
 	cmd:= &{{$SPECNAME}}.{{$name}}{}
+	
+	// Declare local variables for flags
+	{{range $fname, $fv := .Fields }}
+	{{- if not $fv.Repeated}}
+	{{- if eq $fv.Type "string"}}
+	var {{$fname}}Flag string
+	{{- else if eq $fv.Type "boolean"}}
+	var {{$fname}}Flag bool
+	{{- else if eq $fv.Type "int32"}}
+	var {{$fname}}Flag int32
+	{{- end}}
+	{{- end}}
+	{{- end}}
+	
 	cliCmd := &cli.Command{
 		Usage: "{{ if $v.Alias}}{{$v.Alias}}{{ else }}{{$name}}{{ end }}",
 		Short: "{{ if $v.Title}}{{$v.Title}}{{ else }}run {{$name}}{{ end }}",
 		Run: func(ctx *cli.Context, args []string) {
+			// Set values using protobuf setters
+			{{range $fname, $fv := .Fields }}
+			{{- if not $fv.Repeated}}
+			{{- if or (eq $fv.Type "string") (eq $fv.Type "boolean") (eq $fv.Type "int32")}}
+			cmd.Set{{ToCamel $fname}}({{$fname}}Flag)
+			{{- end}}
+			{{- end}}
+			{{- end}}
+			
 			_, err := commandRunner.Run{{$name}}(ctx, cmd)
 			if err != nil {
 				fmt.Fprintln(ctx.Errout(), err)
@@ -67,16 +90,16 @@ func prepare{{$name}}(rootCmd *cli.Command) {
 	{{PrintStdErr $CLIWARNREPEATED}}
 	{{- else}}
 	{{- if eq $fv.Type "string"}}
-	cliCmd.Flags().StringVar(&cmd.{{ToCamel $fname}}, "{{$flagName}}", "", "{{$fv.Title}}")
+	cliCmd.Flags().StringVar(&{{$fname}}Flag, "{{$flagName}}", "", "{{$fv.Title}}")
 	{{- else if eq $fv.Type "boolean"}}
-	cliCmd.Flags().BoolVar(&cmd.{{ToCamel $fname}}, "{{$flagName}}", false, "{{$fv.Title}}")
+	cliCmd.Flags().BoolVar(&{{$fname}}Flag, "{{$flagName}}", false, "{{$fv.Title}}")
 	{{- else if eq $fv.Type "int32"}}
-	cliCmd.Flags().Int32Var(&cmd.{{ToCamel $fname}}, "{{$flagName}}", 0, "{{$fv.Title}}")
+	cliCmd.Flags().Int32Var(&{{$fname}}Flag, "{{$flagName}}", 0, "{{$fv.Title}}")
 	{{- else}}
 	{{- $CLIWARN := printf "//WARNING: unsupported field type in  $s.$s. Defaulting to string type" $name $fname | printf "%s\n"}}
 	{{$CLIWARN }}
 	{{PrintStdErr $CLIWARN}}
-	// cliCmd.Flags().StringVar(&cmd.{{ToCamel $fname}}, "{{$flagName}}", "", "{{$fv.Title}}")
+	// cliCmd.Flags().StringVar(&{{$fname}}Flag, "{{$flagName}}", "", "{{$fv.Title}}")
 	{{- end }}
 	{{- end }}
 	{{- end }}

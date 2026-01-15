@@ -90,7 +90,7 @@ func ExecuteGenerate(ctx context.Context, cmdIn string, cmdOutdir string, cmdLan
 		log.Fatalf("error writing .proto file %v,%e", specpath, err)
 	}
 
-	pb3GOAPI, err := GenerateGOProtoBuffAPIFromProto(buff.Bytes())
+	pb3GOAPI, err := GenerateGOProtoBuffAPIFromProto(srvDef, buff.Bytes())
 	if err != nil {
 		log.Fatalf("got error[%v], wanted error[%v], error[%v]", err != nil, wd, err)
 	}

@@ -90,16 +90,17 @@ type RecordsDefs omap.OMap[string, RecordDef]
 type GenOptsDef omap.OMap[string, string]
 
 type SrvDef struct {
-	Id        string      `json:"$id"`
-	Name      string      `json:"name"`
-	Namespace string      `json:"namespace"`
-	Title     string      `json:"title,omitempty"`
-	Base      string      `json:"base,omitempty"`
-	Desc      string      `json:"desc,omitempty"`
-	Version   string      `json:"version,omitempty"`
-	Commands  CommandDefs `json:"commands,omitempty"`
-	Records   RecordsDefs `json:"recordsDefs,omitempty"`
-	GenOpts   GenOptsDef  `json:"gen_options,omitempty"`
+	Id         string      `json:"$id"`
+	Name       string      `json:"name"`
+	Namespace  string      `json:"namespace"`
+	Title      string      `json:"title,omitempty"`
+	Base       string      `json:"base,omitempty"`
+	Desc       string      `json:"desc,omitempty"`
+	Version    string      `json:"version,omitempty"`
+	Commands   CommandDefs `json:"commands,omitempty"`
+	Records    RecordsDefs `json:"recordsDefs,omitempty"`
+	GenOpts    GenOptsDef  `json:"gen_options,omitempty"`
+	ProtocOpts []string    `json:"-"` //Transient Holder for now, filled why processing options
 }
 
 type ValidationResult interface {

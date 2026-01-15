@@ -28,7 +28,7 @@ func NewCli() *cli.Framework {
 		Usage:   "mvgen",
 		Short:   "mvgen tool",
 		Long:    "mvgen is a tool to generate code from a mainvec schema",
-		Version: "v0.16.2",
+		Version: MVGEN_VERSION,
 	}
 
 	prepareGenerateCmd(rootCmd)

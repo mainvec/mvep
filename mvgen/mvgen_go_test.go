@@ -53,7 +53,7 @@ func TestGenerateGOProtoBuffAPI(t *testing.T) {
 				log.Fatalf("error GenerateProtobuf3FromFileDesc test file %v,%e", tt.testfile_path, err)
 			}
 
-			pb3GOAPI, err := mvgen.GenerateGOProtoBuffAPIFromProto(buff.Bytes())
+			pb3GOAPI, err := mvgen.GenerateGOProtoBuffAPIFromProto(srvDef, buff.Bytes())
 			if (err != nil) && !tt.wantErr {
 				t.Errorf("got error[%v], wanted error[%v], error[%v]", err != nil, tt.wantErr, err)
 				return
@@ -108,7 +108,7 @@ func TestGenerateGOSRV(t *testing.T) {
 			saveTestTempFile(srvDef, "model", srvDef.Name+".proto", buff.Bytes())
 
 			//generate GO PB3 API
-			pb3GOAPI, err := mvgen.GenerateGOProtoBuffAPIFromProto(buff.Bytes())
+			pb3GOAPI, err := mvgen.GenerateGOProtoBuffAPIFromProto(srvDef, buff.Bytes())
 			if (err != nil) && !tt.wantErr {
 				t.Errorf("got error[%v], wanted error[%v], error[%v]", err != nil, tt.wantErr, err)
 				return
