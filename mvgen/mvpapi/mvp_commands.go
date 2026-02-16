@@ -3,15 +3,14 @@
 package mvp
 
 import (
-	api "github.com/mainvec/mvep/mvgen/mvpapi/api" 	
+	api "github.com/mainvec/mvep/mvgen/mvpapi/api"
 )
 
 // GetCommandRunner returns the command runner
 func GetCommandRunner() *api.PkgCommandRunner {
-	return &api.PkgCommandRunner{ 
-		RunGenerateCmd:   runGenerateCmd, 
-		RunInitializeCmd:   runInitializeCmd, 
+	return &api.PkgCommandRunner{
+		RunGenerateCmd:   runGenerateCmd,
+		RunInitializeCmd: runInitializeCmd,
 		RunValidateCmd:   runValidateCmd,
 	}
 }
-

@@ -6,17 +6,15 @@ import (
 	"context"
 	"errors"
 
-	api "github.com/mainvec/mvep/mvgen/mvpapi/api" 	
+	api "github.com/mainvec/mvep/mvgen/mvpapi/api"
 )
 
- 
- func runGenerateCmd(ctx context.Context,cmd *api.GenerateCmd) (*api.GenerateCmdResult, error){
-		return nil, errors.New("command not implemented")
- } 
- func runInitializeCmd(ctx context.Context,cmd *api.InitializeCmd) (*api.InitializeCmdResult, error){
-		return nil, errors.New("command not implemented")
- } 
- func runValidateCmd(ctx context.Context,cmd *api.ValidateCmd) (*api.ValidateCmdResult, error){
-		return nil, errors.New("command not implemented")
- }
-
+func runGenerateCmd(ctx context.Context, cmd *api.GenerateCmd) (*api.GenerateCmdResult, error) {
+	return nil, errors.New("command not implemented")
+}
+func runInitializeCmd(ctx context.Context, cmd *api.InitializeCmd) (*api.InitializeCmdResult, error) {
+	return nil, errors.New("command not implemented")
+}
+func runValidateCmd(ctx context.Context, cmd *api.ValidateCmd) (*api.ValidateCmdResult, error) {
+	return nil, errors.New("command not implemented")
+}

@@ -2,15 +2,15 @@
 // implement the runners in _runners.go or _impl.go
 package mvgen
 
-import (api "github.com/mainvec/mvep/mvgen/mvpapi_legacy/api" 	
+import (
+	api "github.com/mainvec/mvep/mvgen/mvpapi_legacy/api"
 )
 
 // GetCommandRunner returns the command runner
 func GetCommandRunner() *api.PkgCommandRunner {
-	return &api.PkgCommandRunner{ 
-		RunGenerateCmd:   runGenerateCmd, 
-		RunInitializeCmd:   runInitializeCmd, 
+	return &api.PkgCommandRunner{
+		RunGenerateCmd:   runGenerateCmd,
+		RunInitializeCmd: runInitializeCmd,
 		RunValidateCmd:   runValidateCmd,
 	}
 }
-
