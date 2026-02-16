@@ -8,7 +8,7 @@
 
 ## Phase 1 — Spec Completeness (Foundation)
 
-> Goal: Bring the MVEP spec to feature parity with what developers expect from any API definition format.
+> Goal: Bring the MVP spec to feature parity with what developers expect from any API definition format.
 
 | Feature | Description | Scope |
 |---------|-------------|-------|
@@ -24,11 +24,11 @@
 
 | Feature | Description | Scope |
 |---------|-------------|-------|
-| **`mvgen docs`** | Generate markdown or HTML API reference from a spec file | New mvgen command |
+| **`mvp docs`** | Generate markdown or HTML API reference from a spec file | New mvp command |
 | **Validation rules** | `min`, `max`, `minLen`, `maxLen`, `pattern` on fields → generated `Validate()` methods in Go, `validate()` in JS | Spec schema + Go/JS codegen |
 | **Error definitions** | `"errors"` section in spec with named error codes → typed error constructors, client-side error matching | Spec schema + Go/JS codegen + runtime |
-| **Breaking change detection** | `mvgen diff --old v1.json --new v2.json` → reports removed fields, changed fnums, type changes | New mvgen command |
-| **Testing harness** | `mvgen test-scaffold` → generates integration test file with HTTP client setup + one test per command | New mvgen command + Go template |
+| **Breaking change detection** | `mvp diff --old v1.json --new v2.json` → reports removed fields, changed fnums, type changes | New mvp command |
+| **Testing harness** | `mvp test-scaffold` → generates integration test file with HTTP client setup + one test per command | New mvp command + Go template |
 
 ## Phase 3 — Ecosystem Interop (Reach)
 
@@ -36,8 +36,8 @@
 
 | Feature | Description | Scope |
 |---------|-------------|-------|
-| **OpenAPI export** | `mvgen export --format openapi` → generates `openapi.yaml` from MVEP spec | New mvgen command |
-| **Mock server** | `mvgen mock --in spec.json --port 8080` → serves fake responses with example data for frontend dev | New mvgen command |
+| **OpenAPI export** | `mvp export --format openapi` → generates `openapi.yaml` from MVP spec | New mvp command |
+| **Mock server** | `mvp mock --in spec.json --port 8080` → serves fake responses with example data for frontend dev | New mvp command |
 | **Postman collection export** | Generate Postman/Insomnia collection from spec | New mvgen command |
 
 ## Phase 4 — Multi-Language (Scale)
@@ -66,7 +66,7 @@
 ```
 Now          Soon         Next         Later
 ─────────    ─────────    ─────────    ──────────
-Enums        mvgen docs   OpenAPI      Streaming
+Enums        mvp docs     OpenAPI      Streaming
 Deprecation  Validation   Mock server  Multi-spec
 Defaults     Error defs   Python       Pagination
 Required     Diff/break   Postman      Events

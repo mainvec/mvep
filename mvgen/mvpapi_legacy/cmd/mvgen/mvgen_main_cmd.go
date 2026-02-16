@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 
-	mvgen "github.com/mainvec/mvep/mvgen/mvpapi"
-	api "github.com/mainvec/mvep/mvgen/mvpapi/api"
+	mvgen "github.com/mainvec/mvep/mvgen/mvpapi_legacy"
+	api "github.com/mainvec/mvep/mvgen/mvpapi_legacy/api"
 	"github.com/mainvec/ugo/cli"
 )
 

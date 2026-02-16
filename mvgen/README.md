@@ -1,31 +1,33 @@
-# MVGen - MainVec Endpoint Code Generator
+# MVP Toolkit - Mainvec Platform Code Generator
 
-MVGen is an internal code generation tool for the MainVec platform that converts service specifications into production-ready code. It generates Protocol Buffer definitions, Go implementations, CLI tools, and API interfaces from declarative JSON specifications.
+MVP Toolkit is an internal code generation tool for the Mainvec Platform that converts service specifications into production-ready code. It generates Go implementations, JavaScript/TypeScript APIs, CLI tools, and Protocol Buffer artifacts from declarative JSON specifications.
 
 ## Overview
 
-MVGen enables declarative API development by:
-- Converting MVEP (MainVec Endpoint) specifications to working code
+MVP Toolkit enables declarative API development by:
+- Converting MVP specifications to working code
 - Generating Protocol Buffer 3 schemas
 - Creating complete Go implementations with CLI tools
 - Validating specifications against JSON schemas
 - Producing type-safe command handlers and runners
 
 **Current Version:** v0.1.4
-**Language Support:** Go (primary), JavaScript (protobuf bindings)
+**Language Support:** Go, JavaScript/TypeScript
 
 ## Installation
 
 ```bash
-go install github.com/mainvec/mvep/mvgen/mvpapi/cmd/mvgen@latest
+go install <module>/mvpapi/cmd/mvp@latest
 ```
+
+Preferred implementation path in this repository is `mvpapi` (plain format) with the `mvp` command.
 
 Or build from source:
 
 ```bash
 git clone https://github.com/mainvec/mvep
 cd mvep/mvgen
-go build -o mvgen ./mvpapi/cmd/mvgen
+go build -o mvp ./mvpapi/cmd/mvp
 ```
 
 ## Quick Start
@@ -33,10 +35,10 @@ go build -o mvgen ./mvpapi/cmd/mvgen
 ### 1. Initialize a New Service Specification
 
 ```bash
-mvgen init --name myservice --ns myservicens
+mvp init --name myservice --ns myservicens
 ```
 
-This creates a basic MVEP specification file.
+This creates a basic MVP specification file.
 
 ### 2. Define Your Service
 
@@ -72,22 +74,23 @@ Create a file `myservice.jsonc`:
 ### 3. Validate Your Specification
 
 ```bash
-mvgen validate --in myservice.jsonc
+mvp validate --in myservice.jsonc
 ```
 
 ### 4. Generate Code
 
 ```bash
-mvgen generate --in myservice.jsonc --lang go --outdir ./output
+mvp generate --in myservice.jsonc --lang go --outdir ./output --format plain
 ```
 
 This generates:
-- `api/myservice.proto` - Protocol Buffer definition
-- `api/myservice.pb.go` - Generated protobuf Go code
+- `api/myservice.plain.go` - Generated Go structs (plain mode)
 - `api/myservice_package.go` - Command handlers and dispatcher
 - `cmd/myservice/myservice_main_cmd.go` - CLI entry point
 - `myservice_impl.go` - Implementation stubs
 - `myservice_commands.go` - Command runner factory
+
+If you use `--format pb3`, generated protobuf files are also produced (`api/myservice.proto`, `api/myservice.pb.go`).
 
 ### 5. Implement Your Commands
 
@@ -115,7 +118,7 @@ go build -o myservice ./cmd/myservice
 ./myservice create_user --name "John Doe" --email "john@example.com"
 ```
 
-## MVEP Specification Format
+## MVP Specification Format
 
 ### Basic Structure
 
@@ -203,7 +206,7 @@ Reference a record in commands:
     "user": {
       "fnum": 1,
       "type": "recRef",
-      "recRefVal": "User"
+      "$ref": "#/recordsDefs/User"
     }
   }
 }
@@ -244,8 +247,7 @@ Define map fields:
 ```
 output/
 ├── api/
-│   ├── myservice.proto           # Protocol Buffer definition
-│   ├── myservice.pb.go           # Generated protobuf code (DO NOT EDIT)
+│   ├── myservice.plain.go        # Generated Go structs (DO NOT EDIT)
 │   └── myservice_package.go      # Command handlers (DO NOT EDIT)
 ├── cmd/
 │   └── myservice/
@@ -256,7 +258,7 @@ output/
 
 ### File Protection
 
-MVGen respects file protection markers:
+The generator respects file protection markers:
 - `// NOMVGEN` - File will not be regenerated
 - `// NOWOGEN` - Alternative protection marker
 
@@ -266,34 +268,43 @@ Place these at the top of files you want to protect from regeneration.
 
 ### generate
 
-Generate code from MVEP specification:
+Generate code from MVP specification:
 
 ```bash
-mvgen generate --in <spec-file> --lang <language> [--outdir <directory>]
+mvp generate --in <spec-file> --lang <language> [--outdir <directory>] [--format plain|pb3]
 ```
 
 **Flags:**
-- `--in` (required) - Input MVEP specification file
-- `--lang` (required) - Target language (currently: `go`)
+- `--in` (required) - Input MVP specification file
+- `--lang` (required) - Target language (`go`, `js`, or `go,js`)
 - `--outdir` - Output directory (default: current directory)
+- `--format` - Output format (`plain` default, `pb3` optional)
+
+### gen
+
+Alias of `generate`:
+
+```bash
+mvp gen --in <spec-file> --lang <language> [--outdir <directory>] [--format plain|pb3]
+```
 
 ### validate
 
-Validate an MVEP specification against the schema:
+Validate an MVP specification against the schema:
 
 ```bash
-mvgen validate --in <spec-file>
+mvp validate --in <spec-file>
 ```
 
 **Flags:**
-- `--in` (required) - Input MVEP specification file
+- `--in` (required) - Input MVP specification file
 
 ### init
 
-Initialize a new MVEP specification:
+Initialize a new MVP specification:
 
 ```bash
-mvgen init --name <service-name> --ns <namespace>
+mvp init --name <service-name> --ns <namespace>
 ```
 
 **Flags:**
@@ -304,7 +315,7 @@ mvgen init --name <service-name> --ns <namespace>
 
 ### Example: mboxy Project
 
-The [mboxy](https://github.com/mainvec/mboxy) project uses MVGen to generate a message box service:
+The [mboxy](https://github.com/mainvec/mboxy) project uses MVP Toolkit to generate a message box service:
 
 **Specification:** `spec/mboxy-spec.json` defines 11 commands:
 - Account management (create, list)
@@ -330,7 +341,7 @@ The [iulink](https://github.com/mainvec/iulink) project uses a related tool (wog
 ### Code Generation Pipeline
 
 ```
-MVEP JSON Spec
+MVP JSON Spec
     ↓
 Schema Validation
     ↓
@@ -364,7 +375,7 @@ Build SrvDef Structure
 
 ### Template System
 
-MVGen uses Go's `text/template` with custom functions:
+The generator uses Go's `text/template` with custom functions:
 - `ToUpper` - Convert to uppercase
 - `ToTitle` - Convert to title case
 - `ToCamel` - Convert to camelCase
@@ -410,7 +421,7 @@ Field numbers (`fnum`) must be:
 ### 3. Record References
 
 - Define records in `recordsDefs` section
-- Reference using `"type": "recRef"` with `"recRefVal": "RecordName"`
+- Reference using `"type": "recRef"` with `"$ref": "#/recordsDefs/RecordName"`
 
 ### 4. Version Management
 
@@ -462,7 +473,7 @@ go mod tidy
 
 ## Contributing
 
-MVGen is an internal MainVec tool. For issues or feature requests, contact the MainVec platform team.
+MVP Toolkit is an internal MainVec tool. For issues or feature requests, contact the MainVec platform team.
 
 ## License
 
@@ -470,7 +481,7 @@ Copyright © MainVec. All rights reserved.
 
 ## See Also
 
-- [MVEP Specification Schema](https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15)
+- [MVP Specification Schema](https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15)
 - Legacy compatibility: `https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19` and `.../2026-01-15` remain supported.
 - [Protocol Buffers Documentation](https://protobuf.dev/)
 - [MainVec Platform Documentation](https://docs.mainvec.com/)

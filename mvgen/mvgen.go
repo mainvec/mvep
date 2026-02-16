@@ -181,7 +181,7 @@ func (v *DefaultValidationResult) ValidationErrors() []ValidationError {
 type HTTPURLLoader http.Client
 
 type schemaResource struct {
-	URL         string
+	URL          string
 	ResourceFile string
 }
 

@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/mainvec/mvep/mvgen"
-	api "github.com/mainvec/mvep/mvgen/mvpapi/api"
+	api "github.com/mainvec/mvep/mvgen/mvpapi_legacy/api"
 )
 
 func runGenerateCmd(ctx context.Context, cmd *api.GenerateCmd) (*api.GenerateCmdResult, error) {

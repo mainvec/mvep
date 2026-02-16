@@ -9,18 +9,18 @@ import (
 	"github.com/mainvec/mvep/mvgen"
 )
 
-// MVGEN CLI self-generator. to be run manually when needed.
+// MVGEN plain-format self-generator. to be run manually when needed.
 
 func main() {
 	wd, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
 	}
-	in := filepath.Join(wd, "mvgen.jsonc")
+	in := filepath.Join(wd, "mvgen_plain.jsonc")
 	lang := "go"
-	outdir := filepath.Join(wd, "..", "mvpapi_legacy")
+	outdir := filepath.Join(wd, "..", "mvpapi")
 	err = mvgen.ExecuteGenerate(context.Background(), in, outdir, lang, false, "plain")
 	if err != nil {
-		log.Fatalf("error executing generate: %v", err)
+		log.Fatalf("error executing plain generate: %v", err)
 	}
 }

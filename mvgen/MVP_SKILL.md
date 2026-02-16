@@ -10,8 +10,8 @@
 
 - [Ecosystem Overview](#ecosystem-overview)
 - [Architecture](#architecture)
-- [The MVEP Spec Format](#the-mvep-spec-format)
-- [mvgen CLI Reference](#mvgen-cli-reference)
+- [The MVP Spec Format](#the-mvp-spec-format)
+- [MVP CLI Reference](#mvp-cli-reference)
 - [Project Integration Guide](#project-integration-guide)
 - [Generated Code Structure](#generated-code-structure)
 - [Core Generated Patterns](#core-generated-patterns)
@@ -29,7 +29,7 @@ MVP consists of three core components:
 
 | Component | Module | Purpose |
 |-----------|--------|---------|
-| **mvgen** | `github.com/mainvec/mvep/mvgen` | Code generator — transforms MVEP specs into Go, JS/TS, and Protobuf code |
+| **mvp generator** | `github.com/mainvec/mvep/mvgen` | Code generator — transforms MVP specs into Go, JS/TS, and Protobuf code |
 | **mvpgo** | `github.com/mainvec/mvp/mvpgo` | Runtime library — `mvp.Package` and `mvp.CommandRunner` interfaces, HTTP/Unix socket server & client, middleware/interceptor system |
 | **ugo** | `github.com/mainvec/ugo` | Go utilities — CLI framework (`cli`), ordered maps (`omap`), encoding registry (`oencoding`), validation, collections |
 
@@ -39,13 +39,13 @@ MVP consists of three core components:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                        MVEP Spec (JSON/JSONC)                    │
+│                        MVP Spec (JSON/JSONC)                     │
 │                    (your-service-spec.json)                       │
 └──────────────────────┬───────────────────────────────────────────┘
                        │
                        ▼
               ┌────────────────┐
-              │     mvgen      │  Code Generator
+              │      mvp       │  Code Generator
               │  (CLI tool)    │
               └───────┬────────┘
                       │ generates
@@ -80,13 +80,13 @@ MVP consists of three core components:
        (mvp/server)   (mvp/client)
 ```
 
-**Foundation layer:** `ugo` provides the CLI framework (used by generated `cmd/` code), ordered maps (used by mvgen for deterministic output), and the encoding registry (used by mvpgo for JSON/Protobuf serialization).
+**Foundation layer:** `ugo` provides the CLI framework (used by generated `cmd/` code), ordered maps (used by the generator for deterministic output), and the encoding registry (used by mvpgo for JSON/Protobuf serialization).
 
 ---
 
-## The MVEP Spec Format
+## The MVP Spec Format
 
-MVEP (MainVec Endpoint) specs are JSON or JSONC files validated against a JSON Schema (`2020-12` draft).
+MVP specs are JSON or JSONC files validated against a JSON Schema (`2020-12` draft).
 
 **Schema URL:** `https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15`
 
@@ -250,30 +250,31 @@ Legacy specs using `https://spec.mainvec.com/mvepspec/0.1/schema/...` remain sup
 
 ---
 
-## mvgen CLI Reference
+## MVP CLI Reference
 
 ### Installation
 
 ```bash
-go install github.com/mainvec/mvep/mvgen/mvpapi/cmd/mvgen@latest
+go install <module>/mvpapi/cmd/mvp@latest
 ```
 
 ### Commands
 
 | Command | Description | Required Flags |
 |---------|-------------|----------------|
-| `generate` | Generate code from an MVEP spec | `--in`, `--lang` |
+| `generate` | Generate code from an MVP spec | `--in`, `--lang` |
+| `gen` | Alias of `generate` | `--in`, `--lang` |
 | `validate` | Validate a spec against the JSON Schema | `--in` |
-| `init` | Initialize a new MVEP spec file | `--name`, `--ns` |
+| `init` | Initialize a new MVP spec file | `--name`, `--ns` |
 
 ### Flags
 
 | Flag | Commands | Description |
 |------|----------|-------------|
-| `--in` | `generate`, `validate` | Path to the MVEP spec file |
-| `--lang` | `generate` | Target language(s): `go`, `js`, or comma-separated `go,js` |
+| `--in` | `generate`, `gen`, `validate` | Path to the MVP spec file |
+| `--lang` | `generate`, `gen` | Target language(s): `go`, `js`, or comma-separated `go,js` |
 | `--outdir` | `generate` | Output directory for generated code |
-| `--format` | `generate` | Output format: `plain` (default) or `pb3` |
+| `--format` | `generate`, `gen` | Output format: `plain` (default) or `pb3` |
 | `--name` | `init` | Service name for the new spec |
 | `--ns` | `init` | Namespace for the new spec |
 
@@ -281,22 +282,25 @@ go install github.com/mainvec/mvep/mvgen/mvpapi/cmd/mvgen@latest
 
 ```bash
 # Generate Go code (plain structs mode)
-mvgen generate --in ./spec/acmeapp-spec.json --lang go --outdir ./go --format=plain
+mvp generate --in ./spec/acmeapp-spec.json --lang go --outdir ./go --format=plain
+
+# Generate Go code (alias)
+mvp gen --in ./spec/acmeapp-spec.json --lang go --outdir ./go --format=plain
 
 # Generate JavaScript/TypeScript code
-mvgen generate --in ./spec/acmeapp-spec.json --lang js --outdir ./js --format=plain
+mvp generate --in ./spec/acmeapp-spec.json --lang js --outdir ./js --format=plain
 
 # Generate both Go and JS in one invocation
-mvgen generate --in ./spec/acmeapp-spec.json --lang go,js --outdir ./out
+mvp generate --in ./spec/acmeapp-spec.json --lang go,js --outdir ./out
 
 # Generate Go code with protobuf
-mvgen generate --in ./spec/acmeapp-spec.json --lang go --outdir ./go --format=pb3
+mvp generate --in ./spec/acmeapp-spec.json --lang go --outdir ./go --format=pb3
 
 # Validate a spec
-mvgen validate --in ./spec/acmeapp-spec.json
+mvp validate --in ./spec/acmeapp-spec.json
 
 # Initialize a new spec
-mvgen init --name myservice --ns myservicens
+mvp init --name myservice --ns myservicens
 ```
 
 ---
@@ -310,12 +314,12 @@ your-project/
 └── mvpapi/
     ├── generate_api.sh          # Code generation script
     └── spec/
-        └── acmeapp-spec.json    # Your MVEP specification
+        └── acmeapp-spec.json    # Your MVP specification
 ```
 
-### Step 2: Write Your MVEP Spec
+### Step 2: Write Your MVP Spec
 
-Create `mvpapi/spec/<name>-spec.json` following the [spec format](#the-mvep-spec-format) above. Start with:
+Create `mvpapi/spec/<name>-spec.json` following the [spec format](#the-mvp-spec-format) above. Start with:
 
 ```jsonc
 {
@@ -342,14 +346,14 @@ Create `mvpapi/generate_api.sh`:
 ```bash
 #!/bin/bash
 
-# Generate API code from MVEP spec
+# Generate API code from MVP spec
 # Usage: cd mvpapi && bash generate_api.sh
 
 SPEC="./spec/acmeapp-spec.json"
 
-mvgen generate -in "$SPEC" -lang go -outdir ./go -format=plain \
+mvp generate -in "$SPEC" -lang go -outdir ./go -format=plain \
 && \
-mvgen generate -in "$SPEC" -lang js -outdir ./js -format=plain
+mvp generate -in "$SPEC" -lang js -outdir ./js -format=plain
 
 if [ $? -eq 0 ]; then
   echo "✓ API generated successfully"
@@ -436,13 +440,13 @@ func main() {
 
 ## Generated Code Structure
 
-After running `mvgen generate`, your `mvpapi/` directory will look like:
+After running `mvp generate`, your `mvpapi/` directory will look like:
 
 ```
 mvpapi/
 ├── generate_api.sh
 ├── spec/
-│   └── acmeapp-spec.json           # Your MVEP specification (you write this)
+│   └── acmeapp-spec.json           # Your MVP specification (you write this)
 ├── go/
 │   ├── go.mod                      # Generated Go module file
 │   ├── acmeapp_impl.go             # ✏️  EDIT THIS — command implementations
@@ -487,7 +491,7 @@ api/
 
 ### Protecting Files from Overwrite
 
-Add `// NOMVGEN` (or `// NOWOGEN`) as the **first line** of any generated file to prevent mvgen from overwriting it:
+Add `// NOMVGEN` (or `// NOWOGEN`) as the **first line** of any generated file to prevent regeneration from overwriting it:
 
 ```go
 // NOMVGEN
@@ -503,7 +507,7 @@ package acmeapp
 
 ### Handler Types (in `*_package.go`)
 
-For each command, mvgen generates a typed handler function signature:
+For each command, the generator emits a typed handler function signature:
 
 ```go
 type UserRegisterCmdHandler func(context.Context, *UserRegisterCmd) (*UserRegisterCmdResult, error)
@@ -988,7 +992,7 @@ type Framework struct {
 
 ### `omap` — Ordered Map
 
-`OMap[K, V]` maintains insertion order and supports sorted iteration. Used by mvgen for deterministic code generation output.
+`OMap[K, V]` maintains insertion order and supports sorted iteration. Used by the generator for deterministic code generation output.
 
 ```go
 m := omap.New[string, int]()
@@ -1035,7 +1039,7 @@ js/
 Each command and record becomes a JS class inside a namespace:
 
 ```javascript
-// Code generated by mvgen. DO NOT EDIT.
+// Code generated. DO NOT EDIT.
 export const acmeappns = (() => {
   const ns = {};
 
@@ -1092,7 +1096,7 @@ export const acmeappns = (() => {
 ### Generated TypeScript Definitions (`acmeapp.d.ts`)
 
 ```typescript
-// Code generated by mvgen. DO NOT EDIT.
+// Code generated. DO NOT EDIT.
 export declare namespace acmeappns {
 
   export interface IUser {
@@ -1136,7 +1140,7 @@ export declare namespace acmeappns {
 ### Generated Package Utilities (`acmeapp_package.js`)
 
 ```javascript
-// Code generated by mvgen. DO NOT EDIT.
+// Code generated. DO NOT EDIT.
 import { acmeappns } from './acmeapp.js';
 
 export const PACKAGE_NAME = 'acmeappPackage';
@@ -1407,7 +1411,7 @@ js/
         └── index.ts                # Barrel exports
 ```
 
-The `client/` directory is **hand-written** (not generated by mvgen). It wraps the generated code with project-specific concerns like auth token management, storage persistence, and typed convenience methods.
+The `client/` directory is **hand-written** (not generated). It wraps the generated code with project-specific concerns like auth token management, storage persistence, and typed convenience methods.
 
 ---
 
@@ -1428,7 +1432,7 @@ The `client/` directory is **hand-written** (not generated by mvgen). It wraps t
 ### Workflow
 
 1. **Edit the spec** (`spec/*.json`) — add/modify commands, fields, or records.
-2. **Validate** — run `mvgen validate --in ./spec/your-spec.json`.
+2. **Validate** — run `mvp validate --in ./spec/your-spec.json`.
 3. **Regenerate** — run `bash generate_api.sh` from the `mvpapi/` directory.
 4. **Implement** — update `*_impl.go` with business logic for new commands.
 5. **Protect** — add `// NOMVGEN` to `*_impl.go` once you've customized it, so regeneration won't overwrite your work.
@@ -1449,7 +1453,7 @@ The `client/` directory is **hand-written** (not generated by mvgen). It wraps t
 | Duplicate `fnum` within a command/record | Each `fnum` must be unique within its parent. |
 | Missing `$ref` for `recRef` fields | `recRef` fields require `"$ref": "#/recordsDefs/RecordName"`. |
 | Case sensitivity in command names | Command names are PascalCase and case-sensitive. |
-| Running generate without validating | Always `mvgen validate` first to catch spec errors before generating. |
+| Running generate without validating | Always `mvp validate` first to catch spec errors before generating. |
 | Forgetting `NOMVGEN` on customized files | Add `// NOMVGEN` as the first line of any generated file you've customized. |
 | Wrong `go_package` path | Must match your actual Go module path. |
 
@@ -1459,20 +1463,22 @@ The `client/` directory is **hand-written** (not generated by mvgen). It wraps t
 
 > This section is structured for AI coding agents operating on projects that use MVP. It can be embedded in a project's `mvpapi/README.md` or `AGENT.md`.
 
+Preferred toolkit implementation in this repository is `mvpapi/cmd/mvp`.
+
 ### Identifying an MVP Project
 
 A project uses MVP if it has a `mvpapi/` directory containing:
-- `spec/*.json` or `spec/*.jsonc` — MVEP specification file(s)
+- `spec/*.json` or `spec/*.jsonc` — MVP specification file(s)
 - `generate_api.sh` — Code generation script
 - `go/` and/or `js/` — Generated output directories
 
 ### Key Rules
 
-1. **NEVER edit generated files** except `*_impl.go`. Look for the header comment `// code generated by mvgen` to identify generated files.
+1. **NEVER edit generated files** except `*_impl.go`. Look for the header comment `// code generated` to identify generated files.
 2. **ONLY edit `*_impl.go`** for command implementations. This is the single file where business logic lives.
 3. **Preserve field numbers** — when adding fields, use the next `fnum` after the highest existing one. Never reuse or change existing field numbers.
 4. **Regenerate after spec changes** — run `bash generate_api.sh` from the `mvpapi/` directory.
-5. **Validate before generating** — run `mvgen validate --in ./spec/<name>-spec.json` first.
+5. **Validate before generating** — run `mvp validate --in ./spec/<name>-spec.json` first.
 
 ### Adding a New Command
 
@@ -1520,7 +1526,7 @@ A project uses MVP if it has a `mvpapi/` directory containing:
 
 | Pattern | Purpose | Edit? |
 |---------|---------|-------|
-| `spec/*-spec.json` | MVEP specification | Yes — source of truth |
+| `spec/*-spec.json` | MVP specification | Yes — source of truth |
 | `generate_api.sh` | Regeneration script | Yes — if paths change |
 | `go/*_impl.go` | Command implementations | **Yes** — your business logic |
 | `go/*_commands.go` | Command runner factory | No |
