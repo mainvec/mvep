@@ -19,7 +19,7 @@ MVEP (MainVec Endpoint) specifications are JSON/JSONC files that describe servic
 ```json
 {
   "$id": "service-id",
-  "$schema": "https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19",
+  "$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
   "name": "service",
   "namespace": "namespace",
   "gen_options": {
@@ -416,7 +416,8 @@ Templates use Go `text/template` with custom functions:
 
 ## Resources
 
-- **Schema:** https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19
+- **Schema:** https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15
+- **Legacy compatible schemas:** `https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19`, `https://spec.mainvec.com/mvepspec/0.1/schema/2026-01-15`
 - **Protobuf Docs:** https://protobuf.dev/
 - **MainVec Libraries:**
   - `github.com/mainvec/ugo` - CLI framework

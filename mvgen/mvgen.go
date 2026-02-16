@@ -180,6 +180,26 @@ func (v *DefaultValidationResult) ValidationErrors() []ValidationError {
 
 type HTTPURLLoader http.Client
 
+type schemaResource struct {
+	URL         string
+	ResourceFile string
+}
+
+var supportedSchemaResources = []schemaResource{
+	{
+		URL:          "https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19",
+		ResourceFile: "resources/mvepspec/0.1/schema/2023-09-19.json",
+	},
+	{
+		URL:          "https://spec.mainvec.com/mvepspec/0.1/schema/2026-01-15",
+		ResourceFile: "resources/mvepspec/0.1/schema/2026-01-15.json",
+	},
+	{
+		URL:          "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
+		ResourceFile: "resources/mvpspec/0.2/schema/2026-01-15.json",
+	},
+}
+
 func (l *HTTPURLLoader) Load(url string) (any, error) {
 	client := (*http.Client)(l)
 	resp, err := client.Get(url)
@@ -218,13 +238,11 @@ func validateJSONSchemaContent(defJsonContent []byte) (ValidationResult, error) 
 	c := jsonschema.NewCompiler()
 	c.UseLoader(loader)
 
-	vr, err := addResource("https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19", "resources/mvepspec/0.1/schema/2023-09-19.json", c)
-	if err != nil {
-		return vr, err
-	}
-	vr, err = addResource("https://spec.mainvec.com/mvepspec/0.1/schema/2026-01-15", "resources/mvepspec/0.1/schema/2026-01-15.json", c)
-	if err != nil {
-		return vr, err
+	for _, schemaResource := range supportedSchemaResources {
+		err := addResource(schemaResource.URL, schemaResource.ResourceFile, c)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(defJsonContent))
@@ -236,7 +254,7 @@ func validateJSONSchemaContent(defJsonContent []byte) (ValidationResult, error) 
 	if !ok {
 		return nil, errors.New("invalid JSON")
 	}
-	jsonSchema := ""
+	jsonSchema := "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15"
 	if schm, ok := jsonMap["$schema"]; ok {
 		jsonSchema, ok = schm.(string)
 		if !ok {
@@ -265,30 +283,30 @@ func validateJSONSchemaContent(defJsonContent []byte) (ValidationResult, error) 
 
 }
 
-func addResource(resourceUrl string, schemaFile string, c *jsonschema.Compiler) (ValidationResult, error) {
+func addResource(resourceURL string, schemaFile string, c *jsonschema.Compiler) error {
 	schema, err := resources.Open(schemaFile)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer schema.Close()
 
 	schemaBytes, err := resources.ReadFile(schemaFile)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	schemaJson, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaBytes))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = c.AddResource(schemaFile, schemaJson)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	err = c.AddResource(resourceUrl, schemaJson)
+	err = c.AddResource(resourceURL, schemaJson)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return nil, nil
+	return nil
 }
 
 // Validate JSON of WOService Definition against WO JSON Schema

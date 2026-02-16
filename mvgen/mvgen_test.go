@@ -28,6 +28,7 @@ func TestValidateJSONSchema(t *testing.T) {
 		{"TEST06 :Valid/comands with refs", "06_command_with_ref.jsonc", true, false, 0},
 		{"TEST07 :Valid/command with result", "07_command_with_result.jsonc", true, false, 0},
 		{"TEST09 :Valid/external schema", "09_external_schema.jsonc", true, false, 0},
+		{"TEST10 :Valid/mvpspec external schema", "10_mvpspec_external_schema.jsonc", true, false, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

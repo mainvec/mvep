@@ -1,6 +1,6 @@
 {
 	"$id": "mvgen",
-	"$schema": "https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19",
+	"$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
 	"name": "mvgen",
 	"title": "mvgen tool",
 	"desc": "mvgen is a tool to generate code from a mainvec schema",

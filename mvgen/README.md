@@ -45,7 +45,7 @@ Create a file `myservice.jsonc`:
 ```json
 {
   "$id": "myservice",
-  "$schema": "https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19",
+  "$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
   "name": "myservice",
   "namespace": "myservicens",
   "version": "v0.1",
@@ -122,7 +122,7 @@ go build -o myservice ./cmd/myservice
 ```json
 {
   "$id": "service-id",
-  "$schema": "https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19",
+  "$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
   "name": "service-name",
   "namespace": "namespace",
   "version": "v0.1",
@@ -470,6 +470,7 @@ Copyright © MainVec. All rights reserved.
 
 ## See Also
 
-- [MVEP Specification Schema](https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19)
+- [MVEP Specification Schema](https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15)
+- Legacy compatibility: `https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19` and `.../2026-01-15` remain supported.
 - [Protocol Buffers Documentation](https://protobuf.dev/)
 - [MainVec Platform Documentation](https://docs.mainvec.com/)

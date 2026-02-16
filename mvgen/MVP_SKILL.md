@@ -88,14 +88,16 @@ MVP consists of three core components:
 
 MVEP (MainVec Endpoint) specs are JSON or JSONC files validated against a JSON Schema (`2020-12` draft).
 
-**Schema URL:** `https://spec.mainvec.com/mvepspec/0.1/schema/2026-01-15`
+**Schema URL:** `https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15`
+
+Legacy specs using `https://spec.mainvec.com/mvepspec/0.1/schema/...` remain supported for backward compatibility.
 
 ### Spec Structure
 
 ```jsonc
 {
   "$id": "acmeapp",
-  "$schema": "https://spec.mainvec.com/mvepspec/0.1/schema/2026-01-15",
+  "$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
   "name": "acmeapp",
   "namespace": "acmeappns",
   "title": "Acme Application API",
@@ -318,7 +320,7 @@ Create `mvpapi/spec/<name>-spec.json` following the [spec format](#the-mvep-spec
 ```jsonc
 {
   "$id": "acmeapp",
-  "$schema": "https://spec.mainvec.com/mvepspec/0.1/schema/2026-01-15",
+  "$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
   "name": "acmeapp",
   "namespace": "acmeappns",
   "title": "Acme Application API",

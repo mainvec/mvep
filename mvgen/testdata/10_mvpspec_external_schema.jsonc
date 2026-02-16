@@ -1,0 +1,6 @@
+{
+	"$id": "test10Id",
+	"$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
+	"name": "test10Name",
+	"namespace": "test10Namespace"
+}
