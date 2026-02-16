@@ -13,7 +13,7 @@ import (
 )
 
 func runGenerateCmd(ctx context.Context, cmd *api.GenerateCmd) (*api.GenerateCmdResult, error) {
-	err := mvgen.ExecuteGenerate(ctx, cmd.In, cmd.Outdir, cmd.Lang, false)
+	err := mvgen.ExecuteGenerate(ctx, cmd.In, cmd.Outdir, cmd.Lang, false, cmd.Format)
 	if err != nil {
 		return nil, err
 	}

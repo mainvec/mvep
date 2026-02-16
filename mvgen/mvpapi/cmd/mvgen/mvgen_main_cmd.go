@@ -60,6 +60,8 @@ func prepareGenerateCmd(rootCmd *cli.Command) {
 	cliCmd.Flags().StringVar(&cmd.Lang, "lang", "", "")
 	//using field alias:
 	cliCmd.Flags().StringVar(&cmd.Outdir, "outdir", "", "")
+	//format parameter for serialization type
+	cliCmd.Flags().StringVar(&cmd.Format, "format", "", "serialization format (plain=plain json, pb3=protobuf)")
 	rootCmd.AddCommand(cliCmd)
 
 }

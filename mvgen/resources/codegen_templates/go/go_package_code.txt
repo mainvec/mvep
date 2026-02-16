@@ -7,7 +7,7 @@ package api
 import (
 	"context"
 	"errors"
-	"github.com/mainvec/mvpgo/mvp"
+	"github.com/mainvec/mvp/mvpgo/mvp"
 )
 
 var _ mvp.Package = &{{$PKG}}{}

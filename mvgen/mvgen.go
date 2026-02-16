@@ -217,29 +217,16 @@ func validateJSONSchemaContent(defJsonContent []byte) (ValidationResult, error) 
 
 	c := jsonschema.NewCompiler()
 	c.UseLoader(loader)
-	schemaFile := "resources/mvepspec/0.1/schema/2023-09-19.json"
-	schema, err := resources.Open(schemaFile)
-	if err != nil {
-		return nil, err
-	}
-	defer schema.Close()
 
-	schemaBytes, err := resources.ReadFile(schemaFile)
+	vr, err := addResource("https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19", "resources/mvepspec/0.1/schema/2023-09-19.json", c)
 	if err != nil {
-		return nil, err
+		return vr, err
 	}
-	schemaJson, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaBytes))
+	vr, err = addResource("https://spec.mainvec.com/mvepspec/0.1/schema/2026-01-15", "resources/mvepspec/0.1/schema/2026-01-15.json", c)
 	if err != nil {
-		return nil, err
+		return vr, err
 	}
-	err = c.AddResource(schemaFile, schemaJson)
-	if err != nil {
-		return nil, err
-	}
-	err = c.AddResource("https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19", schemaJson)
-	if err != nil {
-		return nil, err
-	}
+
 	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(defJsonContent))
 	if err != nil {
 		return nil, err
@@ -249,7 +236,7 @@ func validateJSONSchemaContent(defJsonContent []byte) (ValidationResult, error) 
 	if !ok {
 		return nil, errors.New("invalid JSON")
 	}
-	jsonSchema := schemaFile
+	jsonSchema := ""
 	if schm, ok := jsonMap["$schema"]; ok {
 		jsonSchema, ok = schm.(string)
 		if !ok {
@@ -276,6 +263,32 @@ func validateJSONSchemaContent(defJsonContent []byte) (ValidationResult, error) 
 
 	return &jsonValidationResult{valid: true}, nil
 
+}
+
+func addResource(resourceUrl string, schemaFile string, c *jsonschema.Compiler) (ValidationResult, error) {
+	schema, err := resources.Open(schemaFile)
+	if err != nil {
+		return nil, err
+	}
+	defer schema.Close()
+
+	schemaBytes, err := resources.ReadFile(schemaFile)
+	if err != nil {
+		return nil, err
+	}
+	schemaJson, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaBytes))
+	if err != nil {
+		return nil, err
+	}
+	err = c.AddResource(schemaFile, schemaJson)
+	if err != nil {
+		return nil, err
+	}
+	err = c.AddResource(resourceUrl, schemaJson)
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 // Validate JSON of WOService Definition against WO JSON Schema
@@ -476,6 +489,55 @@ func LoadTemplate(tmpltName string, templateReader io.Reader) (*template.Templat
 			fmt.Fprintln(os.Stderr, s)
 			return ""
 		},
+		// GoType maps FieldDataType to Go type string for vanilla struct generation
+		"GoType": func(field FieldDef) string {
+			return goTypeFromFieldDef(field)
+		},
+		// GoTypeBase returns the base Go type without slice wrapper
+		"GoTypeBase": func(field FieldDef) string {
+			return goTypeBase(field)
+		},
+		// RecRefName extracts the record name from a $ref like "#/recordsDefs/Address"
+		"RecRefName": func(ref string) string {
+			return strings.TrimPrefix(ref, "#/recordsDefs/")
+		},
+		// NeedsTimeImport checks if any field requires the time package
+		"NeedsTimeImport": NeedsTimeImport,
+		// NeedsUUIDImport checks if any field requires the uuid package
+		"NeedsUUIDImport": NeedsUUIDImport,
+		// SortFieldsByFnum returns fields sorted by their fnum value
+		"SortFieldsByFnum": SortFieldsByFnum,
+		// GoZeroValue returns the zero value for a field type
+		"GoZeroValue": goZeroValue,
+		// JavaScript/TypeScript template functions
+		// JSDocType returns the JSDoc type annotation for a field
+		"JSDocType": func(field FieldDef) string {
+			return jsDocTypeFromFieldDef(field)
+		},
+		// JSDefaultValue returns a default value expression for JavaScript
+		"JSDefaultValue": jsDefaultValue,
+		// JSVerifyCheck returns the JavaScript verification check for a field
+		"JSVerifyCheck": func(field FieldDef) string {
+			return jsVerifyCheck(field)
+		},
+		// JSConvertValue returns the JavaScript conversion expression for a field
+		"JSConvertValue": func(field FieldDef) string {
+			return jsConvertValue(field)
+		},
+		// TSType returns the TypeScript type for a field
+		"TSType": func(field FieldDef) string {
+			return tsTypeFromFieldDef(field)
+		},
+		// TSTypeNullable returns the TypeScript type with | null (protobufjs style)
+		"TSTypeNullable": func(field FieldDef) string {
+			return tsTypeNullable(field)
+		},
+		// TSDefaultValue returns a default value expression for TypeScript
+		"TSDefaultValue": tsDefaultValue,
+		// IsRequiredField determines if a field should be marked as required
+		"IsRequiredField": isRequiredField,
+		// IsLastField checks if this is the last field in the list
+		"IsLastField": isLastField,
 	}
 
 	//Open template
@@ -493,4 +555,160 @@ func LoadTemplate(tmpltName string, templateReader io.Reader) (*template.Templat
 	}
 	return tmpl, nil
 
+}
+
+// goTypeBase returns the base Go type for a field (without slice wrapper)
+func goTypeBase(field FieldDef) string {
+	switch field.Type {
+	case "string":
+		return "string"
+	case "boolean":
+		return "bool"
+	case "int32":
+		return "int32"
+	case "int64":
+		return "int64"
+	case "float":
+		return "float32"
+	case "double":
+		return "float64"
+	case "bytes":
+		return "[]byte"
+	case "uint32":
+		return "uint32"
+	case "sint32":
+		return "int32"
+	case "timestamp":
+		return "time.Time"
+	case "duration":
+		return "time.Duration"
+	case "uuid":
+		return "uuid.UUID"
+	case "map":
+		valueType := field.MapValueType
+		if valueType == "" {
+			valueType = "string"
+		}
+		return "map[string]" + valueType
+	case "recRef":
+		recName := strings.TrimPrefix(field.RecRef, "#/recordsDefs/")
+		return "*" + recName
+	default:
+		return "any"
+	}
+}
+
+// goTypeFromFieldDef returns the full Go type including slice wrapper for repeated fields
+func goTypeFromFieldDef(field FieldDef) string {
+	baseType := goTypeBase(field)
+	if field.Repeated {
+		return "[]" + baseType
+	}
+	return baseType
+}
+
+// NeedsTimeImport checks if any field in the SrvDef requires the time package
+func NeedsTimeImport(srvDef *SrvDef) bool {
+	// Check commands
+	for _, cmd := range srvDef.Commands {
+		for _, field := range cmd.Fields {
+			if field.Type == "timestamp" || field.Type == "duration" {
+				return true
+			}
+		}
+		for _, field := range cmd.ResultFields {
+			if field.Type == "timestamp" || field.Type == "duration" {
+				return true
+			}
+		}
+	}
+	// Check records
+	for _, rec := range srvDef.Records {
+		for _, field := range rec.Fields {
+			if field.Type == "timestamp" || field.Type == "duration" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// NeedsUUIDImport checks if any field in the SrvDef requires the uuid package
+func NeedsUUIDImport(srvDef *SrvDef) bool {
+	// Check commands
+	for _, cmd := range srvDef.Commands {
+		for _, field := range cmd.Fields {
+			if field.Type == "uuid" {
+				return true
+			}
+		}
+		for _, field := range cmd.ResultFields {
+			if field.Type == "uuid" {
+				return true
+			}
+		}
+	}
+	// Check records
+	for _, rec := range srvDef.Records {
+		for _, field := range rec.Fields {
+			if field.Type == "uuid" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// NamedField represents a field with its name for sorting purposes
+type NamedField struct {
+	Name  string
+	Field FieldDef
+}
+
+// SortFieldsByFnum returns fields sorted by their fnum value
+func SortFieldsByFnum(fields FieldDefs) []NamedField {
+	result := make([]NamedField, 0, len(fields))
+	for name, field := range fields {
+		result = append(result, NamedField{Name: name, Field: field})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Field.Fnum < result[j].Field.Fnum
+	})
+	return result
+}
+
+// goZeroValue returns the zero value for a field type as a string
+func goZeroValue(field FieldDef) string {
+	// Handle repeated fields (slices)
+	if field.Repeated {
+		return "nil"
+	}
+
+	switch field.Type {
+	case "string":
+		return `""`
+	case "boolean":
+		return "false"
+	case "int32", "int64", "uint32", "sint32":
+		return "0"
+	case "float":
+		return "0.0"
+	case "double":
+		return "0.0"
+	case "bytes":
+		return "nil"
+	case "timestamp":
+		return "time.Time{}"
+	case "duration":
+		return "0"
+	case "uuid":
+		return "uuid.UUID{}"
+	case "map":
+		return "nil"
+	case "recRef":
+		return "nil"
+	default:
+		//lets panic so this dets added
+		panic("unknown go zero value for:" + field.Type)
+	}
 }

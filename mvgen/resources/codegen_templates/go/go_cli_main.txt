@@ -96,7 +96,7 @@ func prepare{{$name}}(rootCmd *cli.Command) {
 	{{- else if eq $fv.Type "int32"}}
 	cliCmd.Flags().Int32Var(&{{$fname}}Flag, "{{$flagName}}", 0, "{{$fv.Title}}")
 	{{- else}}
-	{{- $CLIWARN := printf "//WARNING: unsupported field type in  $s.$s. Defaulting to string type" $name $fname | printf "%s\n"}}
+	{{- $CLIWARN := printf "//CLI WARNING: unsupported field type in  $s.$s. Defaulting to string type" $name $fname | printf "%s\n"}}
 	{{$CLIWARN }}
 	{{PrintStdErr $CLIWARN}}
 	// cliCmd.Flags().StringVar(&{{$fname}}Flag, "{{$flagName}}", "", "{{$fv.Title}}")

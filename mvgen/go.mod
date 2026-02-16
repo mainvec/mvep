@@ -17,9 +17,9 @@ require (
 )
 
 require (
-	github.com/mainvec/mvpgo v0.4.1
+	github.com/mainvec/mvp/mvpgo v0.4.1
 	github.com/mainvec/ugo v0.5.1
 	google.golang.org/protobuf v1.36.10
 )
 
-replace github.com/mainvec/mvpgo => ../../mvpgo
+replace github.com/mainvec/mvp/mvpgo => ../../mvpgo/mvpgo

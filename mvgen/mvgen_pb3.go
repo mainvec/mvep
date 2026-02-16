@@ -141,6 +141,7 @@ func processOptions(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 
 		case "go_package":
 		case "go_api_package":
+		case "format":
 			continue
 		case "go_default_api_level":
 			switch opt {
@@ -285,6 +286,9 @@ func processField(srvDef *SrvDef, b *pbBuilder.FileBuilder, fname string, fieldD
 		fbuilder = pbBuilder.NewField(fname, pbBuilder.FieldTypeUInt32())
 	case "sint32":
 		fbuilder = pbBuilder.NewField(fname, pbBuilder.FieldTypeSInt32())
+	case "uuid":
+		// UUID is represented as string in protobuf
+		fbuilder = pbBuilder.NewField(fname, pbBuilder.FieldTypeString())
 	case "timestamp":
 		msgDes, err := desc.LoadMessageDescriptor("google.protobuf.Timestamp")
 		if err != nil {

@@ -103,6 +103,11 @@ func GenerateGOAPI(srvDef *SrvDef) ([]byte, error) {
 	return GenerateFromEmbeddTemplate(srvDef, srvname, "resources/codegen_templates/go/go_api_code.txt")
 }
 
+// GenerateGOVanillaStructs generates plain Go structs with JSON tags (no protobuf dependency)
+func GenerateGOVanillaStructs(srvDef *SrvDef) ([]byte, error) {
+	return GenerateFromEmbeddTemplate(srvDef, "go_structs", "resources/codegen_templates/go/go_structs_code.txt")
+}
+
 func prepareTemplateDataMap(srvDef *SrvDef) map[string]interface{} {
 	name := srvDef.Name
 	srvname := name + "srv"
@@ -139,6 +144,7 @@ func prepareTemplateDataMap(srvDef *SrvDef) map[string]interface{} {
 		}
 	} else {
 		data["GOPKG"] = name
+		data["GOIMPORT"] = "/" + name + "/go/" + name + "api"
 	}
 	goApiPkg, ok := srvDef.GenOpts["go_api_package"]
 	if ok {
@@ -153,13 +159,16 @@ func prepareTemplateDataMap(srvDef *SrvDef) map[string]interface{} {
 	} else {
 		base, ok := data["GOIMPORT"]
 		if !ok {
-			panic("GOIMPORT not set")
+			// Fallback when go_package is not set
+			data["GOAPIIMPORT"] = "/" + name + "/go/" + name + "api"
+			data["GOAPIPKG"] = "api"
+		} else {
+			//if no go_api_package is set
+			//use the go_package as the base
+			// and append /api to it
+			data["GOAPIIMPORT"] = fmt.Sprintf("%s/api", base)
+			data["GOAPIPKG"] = ""
 		}
-		//if no go_api_package is set
-		//use the go_package as the base
-		// and append /api to it
-		data["GOAPIIMPORT"] = fmt.Sprintf("%s/api", base)
-		data["GOAPIPKG"] = ""
 	}
 	return data
 }

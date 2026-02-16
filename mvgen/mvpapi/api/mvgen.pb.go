@@ -27,9 +27,10 @@ type GenerateCmd struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	In     string `protobuf:"bytes,1,opt,name=in,proto3" json:"in,omitempty"`
-	Outdir string `protobuf:"bytes,2,opt,name=outdir,proto3" json:"outdir,omitempty"`
-	Lang   string `protobuf:"bytes,3,opt,name=lang,proto3" json:"lang,omitempty"`
+	In      string `protobuf:"bytes,1,opt,name=in,proto3" json:"in,omitempty"`
+	Outdir  string `protobuf:"bytes,2,opt,name=outdir,proto3" json:"outdir,omitempty"`
+	Lang    string `protobuf:"bytes,3,opt,name=lang,proto3" json:"lang,omitempty"`
+	Format  string `protobuf:"bytes,4,opt,name=format,proto3" json:"format,omitempty"`
 }
 
 func (x *GenerateCmd) Reset() {

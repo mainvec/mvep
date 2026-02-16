@@ -391,7 +391,7 @@ Templates available:
 ### MainVec Ecosystem
 
 - `github.com/mainvec/ugo` - Utilities (CLI framework, validation)
-- `github.com/mainvec/mvpgo` - MainVec platform Go library
+- `github.com/mainvec/mvp/mvpgo` - MainVec platform Go library
 
 ## Best Practices
 

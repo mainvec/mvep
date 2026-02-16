@@ -4,18 +4,16 @@ package api
 import (
 	"context"
 	"errors"
-	"github.com/mainvec/mvpgo/mvp"
+
+	"github.com/mainvec/mvp/mvpgo/mvp"
 )
 
 var _ mvp.Package = &mvgenPackage{}
 var _ mvp.CommandRunner = &PkgCommandRunner{}
 
-
- 
-type GenerateCmdHandler func(context.Context, *GenerateCmd) (*GenerateCmdResult, error) 
-type InitializeCmdHandler func(context.Context, *InitializeCmd) (*InitializeCmdResult, error) 
+type GenerateCmdHandler func(context.Context, *GenerateCmd) (*GenerateCmdResult, error)
+type InitializeCmdHandler func(context.Context, *InitializeCmd) (*InitializeCmdResult, error)
 type ValidateCmdHandler func(context.Context, *ValidateCmd) (*ValidateCmdResult, error)
-
 
 type mvgenPackage struct {
 }
@@ -24,16 +22,14 @@ func NewPackage() mvp.Package {
 	return &mvgenPackage{}
 }
 
-
 type PkgCommandRunner struct {
- 
-	RunGenerateCmd GenerateCmdHandler 
-	RunInitializeCmd InitializeCmdHandler 
-	RunValidateCmd ValidateCmdHandler
+	RunGenerateCmd   GenerateCmdHandler
+	RunInitializeCmd InitializeCmdHandler
+	RunValidateCmd   ValidateCmdHandler
 }
 
 func (p *mvgenPackage) GetName() string {
-	return "mvgenPackage" 
+	return "mvgenPackage"
 }
 
 func (p *mvgenPackage) InstanceOf(compName string) (any, bool) {
@@ -49,50 +45,49 @@ func NewCommandRunner() *PkgCommandRunner {
 }
 func (r *PkgCommandRunner) RunCmd(ctx context.Context, cmd any) (any, error) {
 	switch cmd := cmd.(type) {
- 
+
 	case *GenerateCmd:
-		return r.RunGenerateCmd(ctx,cmd) 
+		return r.RunGenerateCmd(ctx, cmd)
 	case *InitializeCmd:
-		return r.RunInitializeCmd(ctx,cmd) 
+		return r.RunInitializeCmd(ctx, cmd)
 	case *ValidateCmd:
-		return r.RunValidateCmd(ctx,cmd)
+		return r.RunValidateCmd(ctx, cmd)
 	default:
 		return nil, errors.New("invalid command")
 	}
 }
 
-
 func InstanceOf(compName string) (any, bool) {
 	switch compName {
- 
+
 	case "GenerateCmd":
-		return &GenerateCmd{},true
+		return &GenerateCmd{}, true
 	case "GenerateCmdResult":
-		return &GenerateCmdResult{},true 
+		return &GenerateCmdResult{}, true
 	case "InitializeCmd":
-		return &InitializeCmd{},true
+		return &InitializeCmd{}, true
 	case "InitializeCmdResult":
-		return &InitializeCmdResult{},true 
+		return &InitializeCmdResult{}, true
 	case "ValidateCmd":
-		return &ValidateCmd{},true
+		return &ValidateCmd{}, true
 	case "ValidateCmdResult":
-		return &ValidateCmdResult{},true
+		return &ValidateCmdResult{}, true
 	default:
-		return nil,false
+		return nil, false
 	}
 }
 
 func NameOf(comp any) string {
 	switch comp.(type) {
- 
+
 	case *GenerateCmd:
 		return "GenerateCmd"
 	case *GenerateCmdResult:
-		return "GenerateCmdResult" 
+		return "GenerateCmdResult"
 	case *InitializeCmd:
 		return "InitializeCmd"
 	case *InitializeCmdResult:
-		return "InitializeCmdResult" 
+		return "InitializeCmdResult"
 	case *ValidateCmd:
 		return "ValidateCmd"
 	case *ValidateCmdResult:
@@ -101,4 +96,3 @@ func NameOf(comp any) string {
 		return ""
 	}
 }
-

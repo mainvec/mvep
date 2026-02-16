@@ -19,7 +19,7 @@ func main() {
 	in := filepath.Join(wd, "mvgen.jsonc")
 	lang := "go"
 	outdir := filepath.Join(wd, "..", "mvpapi")
-	err = mvgen.ExecuteGenerate(context.Background(), in, outdir, lang, false)
+	err = mvgen.ExecuteGenerate(context.Background(), in, outdir, lang, false, "plain")
 	if err != nil {
 		log.Fatalf("error executing generate: %v", err)
 	}
