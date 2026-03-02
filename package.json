@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "MVP (Mainvec Protocol) client library for JavaScript/TypeScript",
   "main": "dist/index.js",
-  "module": "dist/index.mjs",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "type": "module",
   "files": [
     "dist",
     "src"
@@ -30,7 +31,7 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/index.mjs",
+      "import": "./dist/index.js",
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }

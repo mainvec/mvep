@@ -2,7 +2,7 @@
 
 MVP (Mainvec Protocol) client library for JavaScript/TypeScript.
 
-This library provides a TypeScript/JavaScript client for communicating with MVP servers, mirroring the Go implementation in `github.com/mainvec/mvpgo`.
+This library provides a TypeScript/JavaScript client for communicating with MVP servers, mirroring the Go implementation in `github.com/mainvec/mvp/mvpgo/mvp`.
 
 ## Installation
 
