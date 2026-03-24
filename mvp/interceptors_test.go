@@ -633,3 +633,49 @@ func TestSkipCommandsClient(t *testing.T) {
 		t.Error("Interceptor SHOULD be called for non-skipped command")
 	}
 }
+
+func TestAuthInterceptor_LocalTrustBypass(t *testing.T) {
+	validator := &mockTokenValidator{} // No valid tokens
+	interceptor := AuthInterceptor(validator)
+	req := NewCmdReq("ProtectedCmd", []byte("{}"))
+	// No auth token set — would normally fail.
+
+	handlerCalled := false
+	handler := func(ctx context.Context, req *CmdReq) *CmdResp {
+		handlerCalled = true
+		return NewCmdResp([]byte("ok"))
+	}
+
+	// With local trust, auth should be skipped.
+	ctx := ContextWithLocalTrust(context.Background())
+	resp := interceptor(ctx, req, handler)
+
+	if !handlerCalled {
+		t.Error("Handler SHOULD have been called for locally trusted request")
+	}
+	if resp.HasError() {
+		t.Errorf("Response should not have error for locally trusted request, got: %s", resp.Error.Message)
+	}
+}
+
+func TestAuthInterceptor_LocalTrustDoesNotBypassWithoutMarker(t *testing.T) {
+	validator := &mockTokenValidator{} // No valid tokens
+	interceptor := AuthInterceptor(validator)
+	req := NewCmdReq("ProtectedCmd", []byte("{}"))
+
+	handlerCalled := false
+	handler := func(ctx context.Context, req *CmdReq) *CmdResp {
+		handlerCalled = true
+		return NewCmdResp([]byte("ok"))
+	}
+
+	// Without local trust marker, should fail.
+	resp := interceptor(context.Background(), req, handler)
+
+	if handlerCalled {
+		t.Error("Handler should NOT have been called without auth or local trust")
+	}
+	if !resp.HasError() {
+		t.Error("Response should have error without auth or local trust")
+	}
+}

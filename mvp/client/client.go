@@ -187,9 +187,11 @@ func (c *Client) SendCmd(ctx context.Context, cmd any) (any, error) {
 	return nil, errors.New("no registered package found for command")
 }
 
-// SendCmd sends a command through this package client
+// SendCmd sends a command through this package client.
+// Routes through the interceptor chain (auth, logging, etc.) when available.
 func (p *PackageClient) SendCmd(ctx context.Context, cmd any) (any, error) {
-	return p.handler.SendCmd(ctx, cmd, p.encoder)
+	result, _, err := p.sendCmdReqInternal(ctx, cmd, nil, p.encoder)
+	return result, err
 }
 
 // SendCmdWithEncoder sends a command with a specific encoder

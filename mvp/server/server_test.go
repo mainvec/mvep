@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -12,12 +13,10 @@ import (
 	"github.com/mainvec/mvp/mvpgo/mvp"
 )
 
-// Example demonstrates how to create a server using the MVP server
+// TestExampleServer demonstrates server creation with the Listeners API.
 func TestExampleServer(t *testing.T) {
-	// Create server configuration
 	config := &ServerConfig{
-		ListenAddress:     "127.0.0.1:8080",
-		BasePath:          "",
+		Listeners:         []ListenerConfig{{Address: "127.0.0.1:0"}},
 		EnableHealthCheck: true,
 		HealthCheckPath:   "/health",
 		EnableCORS:        true,
@@ -26,26 +25,12 @@ func TestExampleServer(t *testing.T) {
 		},
 	}
 
-	// Create the server
 	server, err := NewServer(config)
 	if err != nil {
 		log.Fatalf("Failed to create server: %v", err)
 	}
 
-	// Create your package and command runner
-	// (This example assumes you have a generated package)
-	// myPackage := api.NewPackage()
-	// myCommandRunner := implementation.GetCommandRunner()
-
-	// Register your package(s)
-	// err = server.RegisterPackage(myPackage, myCommandRunner)
-	// if err != nil {
-	//     log.Fatalf("Failed to register package: %v", err)
-	// }
-
-	// Start the server in a goroutine
 	go func() {
-		slog.Info("Starting server...")
 		err := server.Start()
 		if err != nil {
 			log.Fatalf("Server error: %v", err)
@@ -53,10 +38,13 @@ func TestExampleServer(t *testing.T) {
 	}()
 
 	// Wait for the server to start
-	time.Sleep(100 * time.Millisecond)
+	for server.GetListener() == nil {
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	// Check health endpoint
-	resp, err := http.Get("http://127.0.0.1:8080/health")
+	url := "http://" + server.GetListener().Addr().String() + "/health"
+	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatalf("Failed to make health check request: %v", err)
 	}
@@ -75,13 +63,11 @@ func TestExampleServer(t *testing.T) {
 		t.Errorf("Expected health check response 'OK', got '%s'", string(body))
 	}
 
-	// Shutdown the server
 	err = server.Shutdown()
 	if err != nil {
 		t.Fatalf("Failed to shutdown server: %v", err)
 	}
 
-	// Wait a bit for shutdown to complete
 	time.Sleep(100 * time.Millisecond)
 }
 
@@ -94,7 +80,7 @@ func TestServerWithInterceptor(t *testing.T) {
 	}
 
 	config := &ServerConfig{
-		ListenAddress:     "127.0.0.1:8082",
+		Listeners:         []ListenerConfig{{Address: "127.0.0.1:0"}},
 		BasePath:          "/api",
 		EnableHealthCheck: true,
 		Interceptor:       testInterceptor,
@@ -137,7 +123,7 @@ func TestServerWithChainedInterceptors(t *testing.T) {
 	}
 
 	config := &ServerConfig{
-		ListenAddress:     "127.0.0.1:8083",
+		Listeners:         []ListenerConfig{{Address: "127.0.0.1:0"}},
 		BasePath:          "/api",
 		EnableHealthCheck: true,
 		Interceptor: mvp.Chain(
@@ -172,7 +158,7 @@ func TestServerWithSkipCommands(t *testing.T) {
 	}
 
 	config := &ServerConfig{
-		ListenAddress:     "127.0.0.1:8084",
+		Listeners:         []ListenerConfig{{Address: "127.0.0.1:0"}},
 		BasePath:          "/api",
 		EnableHealthCheck: true,
 		Interceptor: mvp.Chain(
@@ -194,4 +180,136 @@ func TestServerWithSkipCommands(t *testing.T) {
 	_ = authCalled
 
 	server.Shutdown()
+}
+
+// TestMultipleListeners verifies that the server serves on multiple listeners.
+func TestMultipleListeners(t *testing.T) {
+	// Create a pre-created listener for the second entry.
+	extraLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to create extra listener: %v", err)
+	}
+
+	config := &ServerConfig{
+		Listeners: []ListenerConfig{
+			{Address: "127.0.0.1:0"},
+			{Listener: extraLn},
+		},
+		EnableHealthCheck: true,
+		HealthCheckPath:   "/health",
+	}
+
+	svr, err := NewServer(config)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+
+	go svr.Start()
+
+	// Wait for the first listener to be ready.
+	for svr.GetListener() == nil {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Verify first listener serves health check.
+	primaryURL := "http://" + svr.GetListener().Addr().String() + "/health"
+	resp, err := http.Get(primaryURL)
+	if err != nil {
+		t.Fatalf("Failed to reach first listener: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("First listener health check: expected 200, got %d", resp.StatusCode)
+	}
+
+	// Verify second listener serves the same health check.
+	extraURL := "http://" + extraLn.Addr().String() + "/health"
+	resp2, err := http.Get(extraURL)
+	if err != nil {
+		t.Fatalf("Failed to reach second listener: %v", err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("Second listener health check: expected 200, got %d", resp2.StatusCode)
+	}
+
+	svr.Shutdown()
+}
+
+// TestListenerWithMiddleware verifies per-listener middleware is applied.
+func TestListenerWithMiddleware(t *testing.T) {
+	middlewareCalled := false
+	testMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			middlewareCalled = true
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	extraLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to create extra listener: %v", err)
+	}
+
+	config := &ServerConfig{
+		Listeners: []ListenerConfig{
+			{Address: "127.0.0.1:0"},
+			{Listener: extraLn, Middleware: testMiddleware},
+		},
+		EnableHealthCheck: true,
+		HealthCheckPath:   "/health",
+	}
+
+	svr, err := NewServer(config)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+
+	go svr.Start()
+	for svr.GetListener() == nil {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Hit the listener with middleware — it should fire.
+	resp, err := http.Get("http://" + extraLn.Addr().String() + "/health")
+	if err != nil {
+		t.Fatalf("Failed to reach listener with middleware: %v", err)
+	}
+	resp.Body.Close()
+	if !middlewareCalled {
+		t.Error("Middleware should have been called on listener")
+	}
+
+	svr.Shutdown()
+}
+
+// TestDeprecatedListenAddress verifies backward compat with ListenAddress.
+func TestDeprecatedListenAddress(t *testing.T) {
+	config := &ServerConfig{
+		ListenAddress:     "127.0.0.1:0",
+		EnableHealthCheck: true,
+		HealthCheckPath:   "/health",
+	}
+
+	svr, err := NewServer(config)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+
+	go svr.Start()
+	for svr.GetListener() == nil {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	url := "http://" + svr.GetListener().Addr().String() + "/health"
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("Failed to reach server via deprecated ListenAddress: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected 200, got %d", resp.StatusCode)
+	}
+
+	svr.Shutdown()
 }

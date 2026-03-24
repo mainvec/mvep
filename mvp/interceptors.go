@@ -43,9 +43,15 @@ type TokenValidator interface {
 type userContextKey struct{}
 
 // AuthInterceptor validates the "auth" header using the provided validator
-// On success, it stores the user info in the context accessible via UserFromContext
+// On success, it stores the user info in the context accessible via UserFromContext.
+// Requests marked as locally trusted (see LocalTrustMiddleware) bypass token validation.
 func AuthInterceptor(validator TokenValidator) CmdInterceptor {
 	return func(ctx context.Context, req *CmdReq, next CmdHandler) *CmdResp {
+		// Skip auth for locally trusted connections (e.g. Unix socket).
+		if IsLocalTrusted(ctx) {
+			return next(ctx, req)
+		}
+
 		token := req.Headers["auth"]
 		if token == "" {
 			return NewCmdRespError("unauthorized", "missing auth token")

@@ -13,9 +13,27 @@ import (
 	"github.com/mainvec/mvp/mvpgo/mvp"
 )
 
+// ListenerConfig describes a listener the server should serve on.
+type ListenerConfig struct {
+	// Address to listen on (e.g., "127.0.0.1:8080", "unix:///tmp/socket").
+	// Ignored when Listener is set.
+	Address string
+	// Listener allows passing a pre-created net.Listener (e.g. a TLS listener).
+	// When set, Address is ignored.
+	Listener net.Listener
+	// Middleware wraps the server mux for this listener (e.g. LocalTrustMiddleware).
+	Middleware func(http.Handler) http.Handler
+}
+
 // ServerConfig holds configuration for the MVP server
 type ServerConfig struct {
-	// ListenAddress is the address to listen on (e.g., "127.0.0.1:8080", "unix:///tmp/socket")
+	// Listeners defines the set of listeners the server will serve on.
+	// Each can specify Address (to auto-create) or Listener (pre-created),
+	// with optional per-listener Middleware.
+	Listeners []ListenerConfig
+	// Deprecated: ListenAddress is kept for backward compatibility.
+	// Use Listeners instead. If Listeners is empty and ListenAddress is
+	// set, it is auto-converted to a single Listeners entry with a warning.
 	ListenAddress string
 	// BasePath is the base URL path for endpoints (e.g., "/api")
 	BasePath string
@@ -29,17 +47,14 @@ type ServerConfig struct {
 	OnShutdown func()
 	// Interceptor is the global interceptor chain applied to all commands
 	Interceptor mvp.CmdInterceptor
-	// Listener allows passing a pre-created net.Listener (e.g. a TLS listener).
-	// When set, Start() uses this listener instead of creating one from ListenAddress.
-	Listener net.Listener
 }
 
 // Server represents an MVP package server
 type Server struct {
-	config   *ServerConfig
-	listener net.Listener
-	mux      *http.ServeMux
-	packages []*PackageRegistration
+	config    *ServerConfig
+	listeners []net.Listener
+	mux       *http.ServeMux
+	packages  []*PackageRegistration
 }
 
 // PackageRegistration represents a registered package with its command runner
@@ -52,9 +67,6 @@ type PackageRegistration struct {
 func NewServer(config *ServerConfig) (*Server, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
-	}
-	if len(config.ListenAddress) == 0 {
-		config.ListenAddress = "127.0.0.1:8080"
 	}
 	if config.EnableHealthCheck && len(config.HealthCheckPath) == 0 {
 		config.HealthCheckPath = "/health"
@@ -108,25 +120,16 @@ func (s *Server) Handle(pattern string, handler http.Handler) {
 
 // Start starts the server
 func (s *Server) Start() error {
-	var ln net.Listener
-
-	if s.config.Listener != nil {
-		// Use pre-created listener (e.g. TLS)
-		ln = s.config.Listener
-	} else {
-		options, err := parseListenAddr(s.config.ListenAddress)
-		if err != nil {
-			return err
+	listeners := s.config.Listeners
+	if len(listeners) == 0 {
+		addr := s.config.ListenAddress
+		if addr != "" {
+			slog.Warn("ServerConfig.ListenAddress is deprecated, use Listeners instead")
+		} else {
+			addr = "127.0.0.1:8080"
 		}
-
-		var listenErr error
-		ln, listenErr = net.Listen(options.Network(), options.String())
-		if listenErr != nil {
-			return listenErr
-		}
+		listeners = []ListenerConfig{{Address: addr}}
 	}
-
-	s.listener = ln
 
 	// Setup health check if enabled
 	if s.config.EnableHealthCheck {
@@ -146,12 +149,34 @@ func (s *Server) Start() error {
 		}
 	}
 
-	slog.Info("MVP Server started", "addr", ln.Addr(), "packages", len(s.packages))
+	// Start all listeners
+	for _, lc := range listeners {
+		var ln net.Listener
+		if lc.Listener != nil {
+			ln = lc.Listener
+		} else {
+			options, err := parseListenAddr(lc.Address)
+			if err != nil {
+				return err
+			}
+			var listenErr error
+			ln, listenErr = net.Listen(options.Network(), options.String())
+			if listenErr != nil {
+				return listenErr
+			}
+		}
+		s.listeners = append(s.listeners, ln)
 
-	// Start HTTP server in goroutine
-	go func() {
-		http.Serve(ln, s.mux)
-	}()
+		handler := http.Handler(s.mux)
+		if lc.Middleware != nil {
+			handler = lc.Middleware(s.mux)
+		}
+
+		go http.Serve(ln, handler)
+		slog.Info("Listener started", "addr", ln.Addr())
+	}
+
+	slog.Info("MVP Server started", "listeners", len(s.listeners), "packages", len(s.packages))
 
 	// Wait for shutdown signal
 	quitChan := make(chan bool)
@@ -163,15 +188,21 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown() error {
-	if s.listener != nil {
-		return s.listener.Close()
+	var firstErr error
+	for _, ln := range s.listeners {
+		if err := ln.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
-	return nil
+	return firstErr
 }
 
-// GetListener returns the current listener (useful for getting the actual address)
+// GetListener returns the primary listener (useful for getting the actual address)
 func (s *Server) GetListener() net.Listener {
-	return s.listener
+	if len(s.listeners) == 0 {
+		return nil
+	}
+	return s.listeners[0]
 }
 
 // parseListenAddr parses the listen address and returns a net.Addr.
