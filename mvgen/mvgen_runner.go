@@ -237,6 +237,19 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 		if err != nil {
 			log.Fatalf("error writing go cli file %v,%e", gocliMainFile, err)
 		}
+
+		// generate version file (generate-once, protected by isAllowMVGen)
+		goVersionFile := filepath.Join(goMainCmdDir, srvDef.Name+"_version.go")
+		if allow, _ := isAllowMVGen(goVersionFile); allow {
+			goVersion, err := GenerateFromEmbeddTemplate(srvDef, "go_cli_version", "resources/codegen_templates/go/go_cli_version.txt")
+			if err != nil {
+				log.Fatalf("error generating go cli version: %v", err)
+			}
+			err = os.WriteFile(goVersionFile, goVersion, os.ModePerm)
+			if err != nil {
+				log.Fatalf("error writing go cli version file %v,%e", goVersionFile, err)
+			}
+		}
 	}
 
 	//package

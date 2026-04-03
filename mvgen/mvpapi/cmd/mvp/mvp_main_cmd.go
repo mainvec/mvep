@@ -14,7 +14,8 @@ func main() {
 	app := NewCli()
 	err := app.Run(context.Background())
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
 }
 

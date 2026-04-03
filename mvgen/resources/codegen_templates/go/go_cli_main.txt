@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	{{ if .GOIMPORT}}{{.GOPKG}} "{{.GOIMPORT}}"{{ end }}
 	{{ if .GOAPIPKG}}{{.GOAPIPKG}} "{{.GOAPIIMPORT}}" {{ end }}	
 	"github.com/mainvec/ugo/cli"
@@ -19,7 +20,8 @@ func main() {
 	app := NewCli()
 	err := app.Run(context.Background())
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -29,8 +31,8 @@ func NewCli() *cli.Framework {
 	rootCmd := &cli.Command{
 		Usage:   "{{.SPEC.Name}}",
 		{{ if .SPEC.Title -}}Short:   "{{.SPEC.Title}}",{{ end }}
-		{{ if .SPEC.Desc -}}Long:   "{{.SPEC.Desc}}",{{ end }}
-		{{ if .SPEC.Version -}}Version:   "{{.SPEC.Version}}",{{ end }}
+		{{ if .SPEC.Desc -}}Long:   "{{.SPEC.Desc}}{{ if .SPEC.Version }} (API: {{.SPEC.Version}}){{ end }}",{{ end }}
+		Version:   {{.VERSIONCONST}},
 	}
 	{{range $name, $v :=  .CMDS }} 
 	prepare{{$name}}(rootCmd)

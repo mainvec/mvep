@@ -126,6 +126,7 @@ func prepareTemplateDataMap(srvDef *SrvDef) map[string]interface{} {
 	data["CMDS"] = commands
 	data["BASE"] = base
 	data["SPEC"] = srvDef
+	data["VERSIONCONST"] = strings.ToUpper(name) + "_VERSION"
 
 	//if go_package is set in the spec file
 	//use it to set the go package and import
