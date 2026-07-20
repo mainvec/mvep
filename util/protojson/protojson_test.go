@@ -57,7 +57,11 @@ func TestProtobuffHttpHandelr(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	// protojson is registered under the short name "protojson" (NOT under
+	// "application/json", which belongs to the plain JSON encoder). The
+	// server resolves the encoder by the raw Content-Type header value, so
+	// the client must send Content-Type: protojson.
+	req.Header.Set("Content-Type", "protojson")
 	req.Header.Set("x-mainvec-cmd", pkg.NameOf(cmd))
 	// Add other headers here
 
@@ -73,8 +77,9 @@ func TestProtobuffHttpHandelr(t *testing.T) {
 
 	result := &iunetApi.HubCreateCmdResult{}
 
+	// The server echoes the encoder name as the response Content-Type.
 	respType := resp.Header.Get("Content-Type")
-	if respType != "application/json" {
+	if respType != "protojson" {
 		t.Fatal("content type mismatch")
 	}
 

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/mainvec/mvp/mvpgo/mvp"
@@ -53,6 +54,7 @@ type ServerConfig struct {
 type Server struct {
 	config    *ServerConfig
 	listeners []net.Listener
+	mu        sync.Mutex // protects listeners
 	mux       *http.ServeMux
 	packages  []*PackageRegistration
 }
@@ -165,7 +167,9 @@ func (s *Server) Start() error {
 				return listenErr
 			}
 		}
+		s.mu.Lock()
 		s.listeners = append(s.listeners, ln)
+		s.mu.Unlock()
 
 		handler := http.Handler(s.mux)
 		if lc.Middleware != nil {
@@ -176,7 +180,10 @@ func (s *Server) Start() error {
 		slog.Info("Listener started", "addr", ln.Addr())
 	}
 
-	slog.Info("MVP Server started", "listeners", len(s.listeners), "packages", len(s.packages))
+	s.mu.Lock()
+	listenerCount := len(s.listeners)
+	s.mu.Unlock()
+	slog.Info("MVP Server started", "listeners", listenerCount, "packages", len(s.packages))
 
 	// Wait for shutdown signal
 	quitChan := make(chan bool)
@@ -188,8 +195,13 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown() error {
+	s.mu.Lock()
+	listeners := make([]net.Listener, len(s.listeners))
+	copy(listeners, s.listeners)
+	s.mu.Unlock()
+
 	var firstErr error
-	for _, ln := range s.listeners {
+	for _, ln := range listeners {
 		if err := ln.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
@@ -199,6 +211,8 @@ func (s *Server) Shutdown() error {
 
 // GetListener returns the primary listener (useful for getting the actual address)
 func (s *Server) GetListener() net.Listener {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if len(s.listeners) == 0 {
 		return nil
 	}

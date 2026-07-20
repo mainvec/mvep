@@ -11,7 +11,10 @@ var ()
 
 func init() {
 	proto := &ProtoJsonEncoding{}
-	//enc.RegisterEncoding("application/json", proto)
+	// Register under the short name only. Do NOT register under
+	// "application/json" — that MIME type belongs to the plain JSON encoder
+	// (github.com/mainvec/ugo/oencoding/json). Clients that want protojson
+	// must request it explicitly by name (Content-Type: protojson).
 	enc.RegisterEncoding("protojson", proto)
 
 }
