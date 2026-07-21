@@ -18,5 +18,6 @@ docs/design/.$wo.drawio.svg.bkp
 docs/dev-docs/
 go.work
 go.work.sum
-cli/cmd/wog_main
-cmd/wog_main_cmd
+
+# Local editor/agent settings
+.claude/
