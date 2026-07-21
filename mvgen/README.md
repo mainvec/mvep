@@ -473,11 +473,11 @@ go mod tidy
 
 ## Contributing
 
-MVP Toolkit is an internal MainVec tool. For issues or feature requests, contact the MainVec platform team.
+Contributions are welcome! Please open an issue or pull request on [GitHub](https://github.com/mainvec/mvep).
 
 ## License
 
-Copyright © MainVec. All rights reserved.
+Licensed under the Apache License, Version 2.0. See the [LICENSE](../LICENSE) file for details.
 
 ## See Also
 
