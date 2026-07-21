@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/mainvec/mvep/mvgen"
@@ -64,87 +63,6 @@ func TestGenerateGOProtoBuffAPI(t *testing.T) {
 				return
 			}
 			fmt.Printf("Golang==== \n%v\n====", string(pb3GOAPI))
-		})
-	}
-}
-
-func TestGenerateGOSRV(t *testing.T) {
-	t.Skip()
-	tests := []struct {
-		name          string
-		testfile_path string
-		want          bool
-		wantErr       bool
-	}{
-		{"TEST07 :Valid/pizzahub", "07_pizzahub.jsonc", true, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			wd, err := getTestFilePath(tt.testfile_path)
-			if err != nil {
-				log.Fatal(err.Error())
-			}
-			specfile, err := os.Open(wd)
-			if err != nil {
-				log.Fatalf("error reading test file %v,%e", tt.testfile_path, err)
-			}
-			defer specfile.Close()
-			srvDef, err := mvgen.BuildSrvDefFromJSON(specfile)
-			if err != nil {
-				log.Fatalf("error BuildSrvDefFromJSON test file %v,%e", tt.testfile_path, err)
-			}
-
-			//generate GO MOD
-			goMod, err := mvgen.GenerateGOMod(srvDef)
-			if err == nil && len(goMod) == 0 {
-				t.Errorf(" no GO goMod generated ")
-				return
-			}
-			saveTestTempFile(srvDef, "go", "go.mod", goMod)
-
-			//generate .proto
-			buff := &bytes.Buffer{}
-			mvgen.GenerateProtobuf3FromSrvDef(srvDef, buff)
-			saveTestTempFile(srvDef, "model", srvDef.Name+".proto", buff.Bytes())
-
-			//generate GO PB3 API
-			pb3GOAPI, err := mvgen.GenerateGOProtoBuffAPIFromProto(srvDef, buff.Bytes())
-			if (err != nil) && !tt.wantErr {
-				t.Errorf("got error[%v], wanted error[%v], error[%v]", err != nil, tt.wantErr, err)
-				return
-			}
-
-			if err == nil && len(pb3GOAPI) == 0 {
-				t.Errorf(" no GO Pb3 API generated ")
-				return
-			}
-			saveTestTempFile(srvDef, filepath.Join("go", "api"), srvDef.Name+".pb.go", pb3GOAPI)
-
-			//generate GO SRV
-			goSRV, err := mvgen.GenerateGOSRV(srvDef)
-			if (err != nil) && !tt.wantErr {
-				t.Errorf("got error[%v], wanted error[%v], error[%v]", err != nil, tt.wantErr, err)
-				return
-			}
-
-			if err == nil && len(goSRV) == 0 {
-				t.Errorf(" no GO SRV generated ")
-				return
-			}
-			//saveTestTempFile(srvDef, filepath.Join("go", "srv"), srvDef.Name+".srv.go", goSRV)
-
-			////generate GO Client
-			goClient, err := mvgen.GenerateGOClient(srvDef)
-			if err != nil {
-				log.Fatalf("error GenerateGOClient test file %v,%e", tt.testfile_path, err)
-			}
-
-			if err == nil && len(goClient) == 0 {
-				t.Errorf(" no GO Client generated ")
-				return
-			}
-			//saveTestTempFile(srvDef, filepath.Join("go", "client"), srvDef.Name+".client.go", goClient)
-
 		})
 	}
 }
