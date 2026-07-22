@@ -5,10 +5,10 @@ package api
 
 // GenerateCmd is a command request
 type GenerateCmd struct {
-	In string `json:"in,omitempty" cbor:"in,omitempty" mvp:"1,in"`
-	Outdir string `json:"outdir,omitempty" cbor:"outdir,omitempty" mvp:"2,outdir"`
-	Lang string `json:"lang,omitempty" cbor:"lang,omitempty" mvp:"3,lang"`
-	Format string `json:"format,omitempty" cbor:"format,omitempty" mvp:"4,format"`
+	In string `json:"in,omitempty" cbor:"in,omitempty" mvep:"1,in"`
+	Outdir string `json:"outdir,omitempty" cbor:"outdir,omitempty" mvep:"2,outdir"`
+	Lang string `json:"lang,omitempty" cbor:"lang,omitempty" mvep:"3,lang"`
+	Format string `json:"format,omitempty" cbor:"format,omitempty" mvep:"4,format"`
 }
 
 // GetIn returns the in field value
@@ -69,8 +69,8 @@ type GenerateCmdResult struct {
 
 // InitializeCmd is a command request
 type InitializeCmd struct {
-	Name string `json:"name,omitempty" cbor:"name,omitempty" mvp:"1,name"`
-	Namespace string `json:"namespace,omitempty" cbor:"namespace,omitempty" mvp:"2,namespace"`
+	Name string `json:"name,omitempty" cbor:"name,omitempty" mvep:"1,name"`
+	Namespace string `json:"namespace,omitempty" cbor:"namespace,omitempty" mvep:"2,namespace"`
 }
 
 // GetName returns the name field value
@@ -105,7 +105,7 @@ type InitializeCmdResult struct {
 
 // ValidateCmd is a command request
 type ValidateCmd struct {
-	In string `json:"in,omitempty" cbor:"in,omitempty" mvp:"1,in"`
+	In string `json:"in,omitempty" cbor:"in,omitempty" mvep:"1,in"`
 }
 
 // GetIn returns the in field value
@@ -123,9 +123,9 @@ func (x *ValidateCmd) SetIn(v string) {
 
 // ValidateCmdResult is the response for ValidateCmd
 type ValidateCmdResult struct {
-	Valid bool `json:"valid,omitempty" cbor:"valid,omitempty" mvp:"1,valid"`
-	Errors []string `json:"errors,omitempty" cbor:"errors,omitempty" mvp:"5,errors"`
-	Warnings []string `json:"warnings,omitempty" cbor:"warnings,omitempty" mvp:"10,warnings"`
+	Valid bool `json:"valid,omitempty" cbor:"valid,omitempty" mvep:"1,valid"`
+	Errors []string `json:"errors,omitempty" cbor:"errors,omitempty" mvep:"5,errors"`
+	Warnings []string `json:"warnings,omitempty" cbor:"warnings,omitempty" mvep:"10,warnings"`
 }
 
 // GetValid returns the valid field value

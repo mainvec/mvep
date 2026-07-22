@@ -18,7 +18,7 @@ func main() {
 	}
 	in := filepath.Join(wd, "toolkit_plain.jsonc")
 	lang := "go"
-	outdir := filepath.Join(wd, "..", "mvpapi")
+	outdir := filepath.Join(wd, "..", "mvepapi")
 	err = toolkit.ExecuteGenerate(context.Background(), in, outdir, lang, false, "plain")
 	if err != nil {
 		log.Fatalf("error executing plain generate: %v", err)

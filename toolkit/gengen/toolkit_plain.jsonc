@@ -1,18 +1,18 @@
 {
-	"$id": "mvp",
-	"$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
-	"name": "mvp",
-	"title": "Mainvec Platform Toolkit",
-	"desc": "Command-line toolkit for Mainvec Platform",
+	"$id": "mvep",
+	"$schema": "https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15",
+	"name": "mvep",
+	"title": "Mainvec Engineering Platform Toolkit",
+	"desc": "Command-line toolkit for the Mainvec Engineering Platform",
 	"version": "v0.1",
-	"namespace": "mvpNS",
+	"namespace": "mvepNS",
 	"gen_options": {
-		"go_package": "github.com/mainvec/mvep/toolkit/mvpapi;mvp",
-		"go_api_package": "github.com/mainvec/mvep/toolkit/mvpapi/api;api"
+		"go_package": "github.com/mainvec/mvep/toolkit/mvepapi;mvep",
+		"go_api_package": "github.com/mainvec/mvep/toolkit/mvepapi/api;api"
 	},
 	"commands": {
 		"InitializeCmd": {
-			"title": "Initialize a new MVP spec",
+			"title": "Initialize a new MVEP spec",
 			"alias": "init",
 			"fields": {
 				"name": {
@@ -30,13 +30,13 @@
 			}
 		},
 		"GenerateCmd": {
-			"title": "Generate code from MVP schema",
+			"title": "Generate code from an MVEP spec",
 			"alias": "generate",
 			"fields": {
 				"in": {
 					"fnum": 1,
 					"alias": "in",
-					"title": "input mvp spec file",
+					"title": "input MVEP spec file",
 					"type": "string",
 					"tags": [
 						"required"
@@ -61,13 +61,13 @@
 			}
 		},
 		"ValidateCmd": {
-			"title": "Validate MVP spec",
+			"title": "Validate MVEP spec",
 			"alias": "validate",
 			"fields": {
 				"in": {
 					"fnum": 1,
 					"alias": "in",
-					"title": "input mvp spec file",
+					"title": "input MVEP spec file",
 					"type": "string",
 					"tags": [
 						"required"

@@ -23,10 +23,10 @@ func NewCli() *cli.Framework {
 	app := &cli.Framework{}
 
 	rootCmd := &cli.Command{
-		Usage:   "mvp",
+		Usage:   "mvep",
 		Short:   "Mainvec Platform Toolkit",
 		Long:    "Command-line toolkit for Mainvec Platform",
-		Version: MVP_VERSION,
+		Version: MVEP_VERSION,
 	}
 
 	prepareGenerateCmd(rootCmd)
@@ -55,7 +55,7 @@ func prepareGenerateCmd(rootCmd *cli.Command) {
 		},
 	}
 	cliCmd.Flags().StringVar(&formatFlag, "format", "plain", "serialization format (plain=plain json, pb3=protobuf)")
-	cliCmd.Flags().StringVar(&inFlag, "in", "", "input mvp spec file")
+	cliCmd.Flags().StringVar(&inFlag, "in", "", "input mvep spec file")
 	cliCmd.Flags().StringVar(&langFlag, "lang", "", "")
 	cliCmd.Flags().StringVar(&outdirFlag, "outdir", "", "")
 	rootCmd.AddCommand(cliCmd)
@@ -79,7 +79,7 @@ func prepareGenCmd(rootCmd *cli.Command) {
 		},
 	}
 	cliCmd.Flags().StringVar(&formatFlag, "format", "plain", "serialization format (plain=plain json, pb3=protobuf)")
-	cliCmd.Flags().StringVar(&inFlag, "in", "", "input mvp spec file")
+	cliCmd.Flags().StringVar(&inFlag, "in", "", "input mvep spec file")
 	cliCmd.Flags().StringVar(&langFlag, "lang", "", "")
 	cliCmd.Flags().StringVar(&outdirFlag, "outdir", "", "")
 	rootCmd.AddCommand(cliCmd)
@@ -131,7 +131,7 @@ func prepareValidateCmd(rootCmd *cli.Command) {
 			fmt.Println("valid!.")
 		},
 	}
-	cliCmd.Flags().StringVar(&inFlag, "in", "", "input mvp spec file")
+	cliCmd.Flags().StringVar(&inFlag, "in", "", "input mvep spec file")
 	rootCmd.AddCommand(cliCmd)
 
 }
