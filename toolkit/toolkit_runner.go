@@ -174,7 +174,7 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 			log.Fatalf("no plain Go structs generated")
 		}
 		plainFile := filepath.Join(goApiDir, srvDef.Name+".plain.go")
-		err = os.WriteFile(plainFile, plainAPI, os.ModePerm)
+		err = os.WriteFile(plainFile, formatGoSource(plainFile, plainAPI), os.ModePerm)
 		if err != nil {
 			log.Fatalf("error writing plain Go file %v,%e", plainFile, err)
 		}
@@ -223,19 +223,23 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 	// }
 
 	if !skipCmd {
-		gocli, err := GenerateFromEmbeddTemplate(srvDef, "go_cli_main", "resources/codegen_templates/go/go_cli_main.txt")
-		if err != nil {
-			log.Fatalf("error generating go cli: %v", err)
-		}
 		goMainCmdDir := filepath.Join(outdir, "cmd", srvDef.Name)
 		err = os.MkdirAll(goMainCmdDir, os.ModePerm)
 		if err != nil {
 			log.Fatalf("error creating go main cmd dir: %v,%v", goMainCmdDir, err)
 		}
+		// cli main is protectable: honor NOMVEP/NOMVGEN/NOWOGEN markers so
+		// hand-customized entry points are not overwritten on regeneration.
 		gocliMainFile := filepath.Join(goMainCmdDir, srvDef.Name+"_main_cmd.go")
-		err = os.WriteFile(gocliMainFile, gocli, os.ModePerm)
-		if err != nil {
-			log.Fatalf("error writing go cli file %v,%e", gocliMainFile, err)
+		if allow, _ := isAllowMVGen(gocliMainFile); allow {
+			gocli, err := GenerateFromEmbeddTemplate(srvDef, "go_cli_main", "resources/codegen_templates/go/go_cli_main.txt")
+			if err != nil {
+				log.Fatalf("error generating go cli: %v", err)
+			}
+			err = os.WriteFile(gocliMainFile, formatGoSource(gocliMainFile, gocli), os.ModePerm)
+			if err != nil {
+				log.Fatalf("error writing go cli file %v,%e", gocliMainFile, err)
+			}
 		}
 
 		// generate version file (generate-once, protected by isAllowMVGen)
@@ -245,7 +249,7 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 			if err != nil {
 				log.Fatalf("error generating go cli version: %v", err)
 			}
-			err = os.WriteFile(goVersionFile, goVersion, os.ModePerm)
+			err = os.WriteFile(goVersionFile, formatGoSource(goVersionFile, goVersion), os.ModePerm)
 			if err != nil {
 				log.Fatalf("error writing go cli version file %v,%e", goVersionFile, err)
 			}
@@ -261,7 +265,7 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 			log.Fatalf("error generating go package: %v", err)
 		}
 
-		err = os.WriteFile(goPkgFile, gopkg, os.ModePerm)
+		err = os.WriteFile(goPkgFile, formatGoSource(goPkgFile, gopkg), os.ModePerm)
 		if err != nil {
 			log.Fatalf("error writing go package file %v,%e", goPkgFile, err)
 		}
@@ -277,7 +281,7 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 			log.Fatalf("error generating go impl: %v", err)
 		}
 
-		err = os.WriteFile(goImplFile, goimpl, os.ModePerm)
+		err = os.WriteFile(goImplFile, formatGoSource(goImplFile, goimpl), os.ModePerm)
 		if err != nil {
 			log.Fatalf("error writing go impl file %v,%e", goImplFile, err)
 		}
@@ -299,6 +303,9 @@ func generateFileFromTemplate(srvDef *SrvDef, tmplName string, tmplPath string, 
 			log.Fatalf("error generating [%v]: %v", tmplName, err)
 		}
 
+		if strings.HasSuffix(filename, ".go") {
+			fileContent = formatGoSource(outFile, fileContent)
+		}
 		err = os.WriteFile(outFile, fileContent, os.ModePerm)
 		if err != nil {
 			log.Fatalf("error writing [%v] to file %v:%e", tmplName, outFile, err)

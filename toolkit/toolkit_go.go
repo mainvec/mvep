@@ -3,11 +3,25 @@ package toolkit
 import (
 	"bytes"
 	"fmt"
+	"go/format"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
 )
+
+// formatGoSource gofmt-normalizes generated Go source. It is a no-op fallback
+// (returns the input) when the bytes are not valid Go, so callers can safely
+// apply it to any generated file that is expected to be Go.
+func formatGoSource(name string, src []byte) []byte {
+	formatted, err := format.Source(src)
+	if err != nil {
+		log.Printf("warning: could not gofmt generated %s: %v", name, err)
+		return src
+	}
+	return formatted
+}
 
 func GenerateGOProtoBuffAPIFromProto(srvDef *SrvDef, protoContent []byte) ([]byte, error) {
 	//Using protoc wiht
