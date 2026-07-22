@@ -15,9 +15,15 @@ test_temp/
 # vendor/
 .history/
 docs/design/.$wo.drawio.svg.bkp
-go.work
 go.work.sum
 .vscode/settings.json
+
+# Node (runtime/ts)
+runtime/ts/node_modules/
+runtime/ts/dist/
+runtime/ts/coverage/
+runtime/ts/.nyc_output/
+*.tsbuildinfo
 
 # macOS
 .DS_Store

@@ -1,7 +1,7 @@
 {
-  "name": "@mainvec/mvpjs",
-  "version": "0.5.0",
-  "description": "MVP (Mainvec Protocol) client library for JavaScript/TypeScript",
+  "name": "@mainvec/mvep",
+  "version": "0.6.0",
+  "description": "MVEP runtime — Mainvec protocol client library for JavaScript/TypeScript",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -30,14 +30,14 @@
   ],
   "author": "Mainvec",
   "license": "MIT",
-  "homepage": "https://github.com/mainvec/mvpgo/tree/main/mvpjs",
+  "homepage": "https://github.com/mainvec/mvep/tree/main/runtime/ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mainvec/mvpgo.git",
-    "directory": "mvpjs"
+    "url": "git+https://github.com/mainvec/mvep.git",
+    "directory": "runtime/ts"
   },
   "bugs": {
-    "url": "https://github.com/mainvec/mvpgo/issues"
+    "url": "https://github.com/mainvec/mvep/issues"
   },
   "publishConfig": {
     "access": "public"
