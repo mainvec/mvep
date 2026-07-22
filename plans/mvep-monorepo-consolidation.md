@@ -2,22 +2,23 @@
 
 **GitHub Issue**: [#3](https://github.com/mainvec/mvep/issues/3)
 
-> Status: **IN PROGRESS** — branch `chore/3-mvep-monorepo-consolidation`.
+> Status: **IMPLEMENTED** on branch `chore/3-mvep-monorepo-consolidation` (all T1–T12 committed, builds/tests green, gofmt-clean, residual scan clean).
+> Remaining manual follow-ups (outside this branch): (1) archive the `mvpgo` GitHub repo with a redirect pointer to `mainvec/mvep`; (2) migrate downstream consumers (droy, girafa, linkvec, mboxy, mvp-codegen skill) — keep the local `mvpgo/` dir until they migrate; (3) cut release tags (`toolkit/vX.Y.Z`, `runtime/go/vX.Y.Z`, `runtime/ts/vX.Y.Z`) and open the PR.
 
 ## Progress
 
-- [ ] T1: Move mvpgo runtimes into the mvep repo (preserve history)
-- [ ] T2: Rename generator `mvgen` → `toolkit`
-- [ ] T3: Rename Go runtime module + package (`mvp` → `mvep`)
-- [ ] T4: Rewire toolkit deps + add root `go.work`
-- [ ] T5: Rename npm package `@mainvec/mvpjs` → `@mainvec/mvep`
-- [ ] T6: Rename CLI `mvp` → `mvep`
-- [ ] T7: Naming pass (struct tag, output dir, spec label)
-- [ ] T8: Add `mvepspec/0.2` schema + keep `mvpspec/0.2` alias
-- [ ] T9: Update generator templates
-- [ ] T10: Regenerate self-code via gengen
-- [ ] T11: Merge CI/CD + versioning
-- [ ] T12: Docs, CHANGELOG, archive mvpgo repo
+- [x] T1: Move mvpgo runtimes into the mvep repo (preserve history)
+- [x] T2: Rename generator `mvgen` → `toolkit`
+- [x] T3: Rename Go runtime module + package (`mvp` → `mvep`)
+- [x] T4: Rewire toolkit deps + add root `go.work`
+- [x] T5: Rename npm package `@mainvec/mvpjs` → `@mainvec/mvep`
+- [x] T6: Rename CLI `mvp` → `mvep`
+- [x] T7: Naming pass (struct tag, output dir, spec label)
+- [x] T8: Add `mvepspec/0.2` schema + keep `mvpspec/0.2` alias
+- [x] T9: Update generator templates
+- [x] T10: Regenerate self-code via gengen
+- [x] T11: Merge CI/CD + versioning
+- [x] T12: Docs, CHANGELOG, archive mvpgo repo
 
 ## Problem / Goal
 
