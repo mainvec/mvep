@@ -1,0 +1,88 @@
+name: npm publish
+
+# Publishes @mainvec/mvep to npm when a runtime TS version tag is pushed.
+#
+# Versioning (hybrid): the Go and TS runtimes share a version number.
+#   - Go runtime:  tag `runtime/go/vX.Y.Z`  (consumed via the Go module proxy)
+#   - TS runtime:  tag `runtime/ts/vX.Y.Z`  (triggers this workflow)
+#   - Generator:   tag `toolkit/vX.Y.Z`     (independent cadence)
+#
+# Runs a dry-run pack on pull requests to catch metadata/build issues without
+# publishing. Requires the `NPM_TOKEN` repository secret (automation-scoped npm
+# access token). See runtime/ts/NPM_PUBLISH.md for setup instructions.
+
+on:
+  push:
+    tags:
+      - "runtime/ts/v*"
+  pull_request:
+    branches: [main]
+
+defaults:
+  run:
+    working-directory: runtime/ts
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build & publish
+    runs-on: ubuntu-latest
+    # Only publish on runtime/ts tag pushes; PRs run the dry-run path below.
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/runtime/ts/v') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: runtime/ts/package-lock.json
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Verify package is publishable (dry-run)
+        run: npm publish --dry-run
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  dry-run:
+    name: Build & dry-run pack
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: runtime/ts/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Verify package is publishable (dry-run)
+        run: npm publish --dry-run
