@@ -4,11 +4,11 @@ package api
 import (
 	"context"
 	"errors"
-	"github.com/mainvec/mvp/mvpgo/mvp"
+	"github.com/mainvec/mvep/runtime/go/mvep"
 )
 
-var _ mvp.Package = &mvpPackage{}
-var _ mvp.CommandRunner = &PkgCommandRunner{}
+var _ mvep.Package = &mvpPackage{}
+var _ mvep.CommandRunner = &PkgCommandRunner{}
 
 
  
@@ -20,7 +20,7 @@ type ValidateCmdHandler func(context.Context, *ValidateCmd) (*ValidateCmdResult,
 type mvpPackage struct {
 }
 
-func NewPackage() mvp.Package {
+func NewPackage() mvep.Package {
 	return &mvpPackage{}
 }
 
