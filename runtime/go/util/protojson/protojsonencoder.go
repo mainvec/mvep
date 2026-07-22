@@ -1,7 +1,7 @@
 package protojson
 
 import (
-	"github.com/mainvec/mvp/mvpgo/util/protobuf"
+	"github.com/mainvec/mvep/runtime/go/util/protobuf"
 	enc "github.com/mainvec/ugo/oencoding"
 	protojson "google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"

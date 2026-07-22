@@ -1,4 +1,4 @@
-module github.com/mainvec/mvp/mvpgo
+module github.com/mainvec/mvep/runtime/go
 
 go 1.23.2
 

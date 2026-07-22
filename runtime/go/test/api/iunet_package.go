@@ -5,11 +5,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/mainvec/mvp/mvpgo/mvp"
+	"github.com/mainvec/mvep/runtime/go/mvep"
 )
 
-var _ mvp.Package = &iunetPackage{}
-var _ mvp.CommandRunner = &PkgCommandRunner{}
+var _ mvep.Package = &iunetPackage{}
+var _ mvep.CommandRunner = &PkgCommandRunner{}
 
 type BrokerCreateCmdHandler func(context.Context, *BrokerCreateCmd) (*BrokerCreateCmdResult, error)
 type BrokerListCmdHandler func(context.Context, *BrokerListCmd) (*BrokerListCmdResult, error)
@@ -25,7 +25,7 @@ type ServerletOpCmdHandler func(context.Context, *ServerletOpCmd) (*ServerletOpC
 type iunetPackage struct {
 }
 
-func NewPackage() mvp.Package {
+func NewPackage() mvep.Package {
 	return &iunetPackage{}
 }
 

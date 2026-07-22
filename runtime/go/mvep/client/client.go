@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mainvec/mvp/mvpgo/mvp"
+	"github.com/mainvec/mvep/runtime/go/mvep"
 )
 
 // DefaultEncoder is the default content type for encoding commands
@@ -31,7 +31,7 @@ type ClientConfig struct {
 	// If BaseURL is a Unix socket, this will be ignored
 	HTTPClient *http.Client
 	// Interceptor is the client interceptor chain for all outgoing requests
-	Interceptor mvp.ClientInterceptor
+	Interceptor mvep.ClientInterceptor
 }
 
 // Client represents an MVP client for communicating with an MVP server
@@ -40,14 +40,14 @@ type Client struct {
 	httpClient  *http.Client
 	packages    map[string]*PackageClient
 	httpBaseURL string // The actual HTTP base URL (for unix sockets this is "http://unixsocket")
-	interceptor mvp.ClientInterceptor
+	interceptor mvep.ClientInterceptor
 }
 
 // PackageClient represents a client for a specific MVP package
 type PackageClient struct {
 	client  *Client
-	pkg     mvp.Package
-	handler *mvp.PackageHandler
+	pkg     mvep.Package
+	handler *mvep.PackageHandler
 	encoder string
 }
 
@@ -102,7 +102,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 }
 
 // RegisterPackage registers an MVP package with the client
-func (c *Client) RegisterPackage(pkg mvp.Package) (*PackageClient, error) {
+func (c *Client) RegisterPackage(pkg mvep.Package) (*PackageClient, error) {
 	if pkg == nil {
 		return nil, errors.New("package is required")
 	}
@@ -115,12 +115,12 @@ func (c *Client) RegisterPackage(pkg mvp.Package) (*PackageClient, error) {
 	// Build the package path: basePath + "/" + packageName + "/cmd"
 	pkgPath := c.config.BasePath + "/" + pkgName + "/cmd"
 
-	transporter, err := mvp.NewHttpTransporterWithClient(c.httpBaseURL, pkgPath, c.httpClient)
+	transporter, err := mvep.NewHttpTransporterWithClient(c.httpBaseURL, pkgPath, c.httpClient)
 	if err != nil {
 		return nil, err
 	}
 
-	handler := &mvp.PackageHandler{
+	handler := &mvep.PackageHandler{
 		Package:     pkg,
 		Transporter: transporter,
 	}
@@ -226,22 +226,22 @@ func (p *PackageClient) GetEncoder() string {
 }
 
 // Package returns the underlying MVP package
-func (p *PackageClient) Package() mvp.Package {
+func (p *PackageClient) Package() mvep.Package {
 	return p.pkg
 }
 
 // SendCmdReq sends a command with headers and returns the result along with response headers
-func (p *PackageClient) SendCmdReq(ctx context.Context, cmd any, headers map[string]string) (any, *mvp.CmdResp, error) {
+func (p *PackageClient) SendCmdReq(ctx context.Context, cmd any, headers map[string]string) (any, *mvep.CmdResp, error) {
 	return p.sendCmdReqInternal(ctx, cmd, headers, p.encoder)
 }
 
 // SendCmdReqWithEncoder sends a command with headers using a specific encoder
-func (p *PackageClient) SendCmdReqWithEncoder(ctx context.Context, cmd any, headers map[string]string, encoder string) (any, *mvp.CmdResp, error) {
+func (p *PackageClient) SendCmdReqWithEncoder(ctx context.Context, cmd any, headers map[string]string, encoder string) (any, *mvep.CmdResp, error) {
 	return p.sendCmdReqInternal(ctx, cmd, headers, encoder)
 }
 
 // sendCmdReqInternal handles the actual sending with optional interceptor
-func (p *PackageClient) sendCmdReqInternal(ctx context.Context, cmd any, headers map[string]string, encoder string) (any, *mvp.CmdResp, error) {
+func (p *PackageClient) sendCmdReqInternal(ctx context.Context, cmd any, headers map[string]string, encoder string) (any, *mvep.CmdResp, error) {
 	// If no interceptor, call handler directly
 	if p.client.interceptor == nil {
 		return p.handler.SendCmdReq(ctx, cmd, headers, encoder)
@@ -253,7 +253,7 @@ func (p *PackageClient) sendCmdReqInternal(ctx context.Context, cmd any, headers
 		return nil, nil, errors.New("invalid command")
 	}
 
-	req := mvp.NewCmdReq(cmdName, nil)
+	req := mvep.NewCmdReq(cmdName, nil)
 	if headers != nil {
 		for k, v := range headers {
 			req.Headers[k] = v
@@ -264,8 +264,8 @@ func (p *PackageClient) sendCmdReqInternal(ctx context.Context, cmd any, headers
 	var result any
 
 	// Define the invoker that calls the actual handler
-	invoker := func(ctx context.Context, req *mvp.CmdReq) (*mvp.CmdResp, error) {
-		var resp *mvp.CmdResp
+	invoker := func(ctx context.Context, req *mvep.CmdReq) (*mvep.CmdResp, error) {
+		var resp *mvep.CmdResp
 		var err error
 		result, resp, err = p.handler.SendCmdReq(ctx, cmd, req.Headers, encoder)
 		return resp, err

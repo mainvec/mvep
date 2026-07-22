@@ -1,4 +1,4 @@
-package mvp
+package mvep
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	//_ "github.com/mainvec/mvp/mvpgo/mvp/util/protojson"
+	//_ "github.com/mainvec/mvep/runtime/go/mvep/util/protojson"
 	_ "github.com/mainvec/ugo/oencoding/json"
 )
 

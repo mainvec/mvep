@@ -9,9 +9,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mainvec/mvp/mvpgo/mvp"
-	iunetApi "github.com/mainvec/mvp/mvpgo/test/api"
-	_ "github.com/mainvec/mvp/mvpgo/util/protobuf"
+	"github.com/mainvec/mvep/runtime/go/mvep"
+	iunetApi "github.com/mainvec/mvep/runtime/go/test/api"
+	_ "github.com/mainvec/mvep/runtime/go/util/protobuf"
 	enc "github.com/mainvec/ugo/oencoding"
 )
 
@@ -32,7 +32,7 @@ func TestProtobuffHttpHandelr(t *testing.T) {
 			},
 		}, nil
 	}
-	pkgHandler := &mvp.PackageHandler{
+	pkgHandler := &mvep.PackageHandler{
 		Package:       pkg,
 		CommandRunner: runner,
 	}

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/mainvec/mvp/mvpgo/mvp"
+	"github.com/mainvec/mvep/runtime/go/mvep"
 )
 
 // ListenerConfig describes a listener the server should serve on.
@@ -47,7 +47,7 @@ type ServerConfig struct {
 	// OnShutdown is called when the server receives a shutdown signal
 	OnShutdown func()
 	// Interceptor is the global interceptor chain applied to all commands
-	Interceptor mvp.CmdInterceptor
+	Interceptor mvep.CmdInterceptor
 }
 
 // Server represents an MVP package server
@@ -61,8 +61,8 @@ type Server struct {
 
 // PackageRegistration represents a registered package with its command runner
 type PackageRegistration struct {
-	Package       mvp.Package
-	CommandRunner mvp.CommandRunner
+	Package       mvep.Package
+	CommandRunner mvep.CommandRunner
 }
 
 // NewServer creates a new MVP server with the given configuration
@@ -82,7 +82,7 @@ func NewServer(config *ServerConfig) (*Server, error) {
 }
 
 // RegisterPackage registers an MVP package with its command runner
-func (s *Server) RegisterPackage(pkg mvp.Package, runner mvp.CommandRunner) error {
+func (s *Server) RegisterPackage(pkg mvep.Package, runner mvep.CommandRunner) error {
 	if pkg == nil {
 		return errors.New("package is required")
 	}
@@ -97,7 +97,7 @@ func (s *Server) RegisterPackage(pkg mvp.Package, runner mvp.CommandRunner) erro
 	s.packages = append(s.packages, registration)
 
 	// Create the package handler
-	pkgHandler := &mvp.PackageHandler{
+	pkgHandler := &mvep.PackageHandler{
 		Package:       pkg,
 		CommandRunner: runner,
 		Interceptor:   s.config.Interceptor,

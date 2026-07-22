@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mainvec/mvp/mvpgo/mvp"
+	"github.com/mainvec/mvep/runtime/go/mvep"
 )
 
 // TestExampleServer demonstrates server creation with the Listeners API.
@@ -74,7 +74,7 @@ func TestExampleServer(t *testing.T) {
 // TestServerWithInterceptor demonstrates server configuration with middleware
 func TestServerWithInterceptor(t *testing.T) {
 	interceptorCalled := false
-	testInterceptor := func(ctx context.Context, req *mvp.CmdReq, next mvp.CmdHandler) *mvp.CmdResp {
+	testInterceptor := func(ctx context.Context, req *mvep.CmdReq, next mvep.CmdHandler) *mvep.CmdResp {
 		interceptorCalled = true
 		return next(ctx, req)
 	}
@@ -108,14 +108,14 @@ func TestServerWithInterceptor(t *testing.T) {
 func TestServerWithChainedInterceptors(t *testing.T) {
 	var callOrder []string
 
-	interceptor1 := func(ctx context.Context, req *mvp.CmdReq, next mvp.CmdHandler) *mvp.CmdResp {
+	interceptor1 := func(ctx context.Context, req *mvep.CmdReq, next mvep.CmdHandler) *mvep.CmdResp {
 		callOrder = append(callOrder, "interceptor1-before")
 		resp := next(ctx, req)
 		callOrder = append(callOrder, "interceptor1-after")
 		return resp
 	}
 
-	interceptor2 := func(ctx context.Context, req *mvp.CmdReq, next mvp.CmdHandler) *mvp.CmdResp {
+	interceptor2 := func(ctx context.Context, req *mvep.CmdReq, next mvep.CmdHandler) *mvep.CmdResp {
 		callOrder = append(callOrder, "interceptor2-before")
 		resp := next(ctx, req)
 		callOrder = append(callOrder, "interceptor2-after")
@@ -126,7 +126,7 @@ func TestServerWithChainedInterceptors(t *testing.T) {
 		Listeners:         []ListenerConfig{{Address: "127.0.0.1:0"}},
 		BasePath:          "/api",
 		EnableHealthCheck: true,
-		Interceptor: mvp.Chain(
+		Interceptor: mvep.Chain(
 			interceptor1,
 			interceptor2,
 		),
@@ -148,11 +148,11 @@ func TestServerWithChainedInterceptors(t *testing.T) {
 // TestServerWithSkipCommands demonstrates skip pattern
 func TestServerWithSkipCommands(t *testing.T) {
 	authCalled := false
-	authInterceptor := func(ctx context.Context, req *mvp.CmdReq, next mvp.CmdHandler) *mvp.CmdResp {
+	authInterceptor := func(ctx context.Context, req *mvep.CmdReq, next mvep.CmdHandler) *mvep.CmdResp {
 		authCalled = true
 		// Simulate auth check
 		if req.Headers["auth"] == "" {
-			return mvp.NewCmdRespError("unauthorized", "missing auth")
+			return mvep.NewCmdRespError("unauthorized", "missing auth")
 		}
 		return next(ctx, req)
 	}
@@ -161,9 +161,9 @@ func TestServerWithSkipCommands(t *testing.T) {
 		Listeners:         []ListenerConfig{{Address: "127.0.0.1:0"}},
 		BasePath:          "/api",
 		EnableHealthCheck: true,
-		Interceptor: mvp.Chain(
-			mvp.LoggingInterceptor(),
-			mvp.SkipCommands(authInterceptor, "HealthCheck", "PublicQuery"),
+		Interceptor: mvep.Chain(
+			mvep.LoggingInterceptor(),
+			mvep.SkipCommands(authInterceptor, "HealthCheck", "PublicQuery"),
 		),
 	}
 
