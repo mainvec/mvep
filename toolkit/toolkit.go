@@ -195,6 +195,12 @@ var supportedSchemaResources = []schemaResource{
 		ResourceFile: "resources/mvepspec/0.1/schema/2026-01-15.json",
 	},
 	{
+		URL:          "https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15",
+		ResourceFile: "resources/mvepspec/0.2/schema/2026-01-15.json",
+	},
+	// Alias: legacy mvpspec/0.2 URL kept resolvable so existing spec files that
+	// pin the old $schema continue to validate. Prefer mvepspec/0.2 for new specs.
+	{
 		URL:          "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
 		ResourceFile: "resources/mvpspec/0.2/schema/2026-01-15.json",
 	},
@@ -254,7 +260,7 @@ func validateJSONSchemaContent(defJsonContent []byte) (ValidationResult, error) 
 	if !ok {
 		return nil, errors.New("invalid JSON")
 	}
-	jsonSchema := "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15"
+	jsonSchema := "https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15"
 	if schm, ok := jsonMap["$schema"]; ok {
 		jsonSchema, ok = schm.(string)
 		if !ok {
