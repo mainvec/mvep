@@ -1,0 +1,57 @@
+{
+  "name": "@mainvec/mvpjs",
+  "version": "0.5.0",
+  "description": "MVP (Mainvec Protocol) client library for JavaScript/TypeScript",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "!src/**/*.test.ts",
+    "!dist/__tests__",
+    "!dist/**/*.test.*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "keywords": [
+    "mvp",
+    "mainvec",
+    "rpc",
+    "client",
+    "protocol",
+    "typescript"
+  ],
+  "author": "Mainvec",
+  "license": "MIT",
+  "homepage": "https://github.com/mainvec/mvpgo/tree/main/mvpjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mainvec/mvpgo.git",
+    "directory": "mvpjs"
+  },
+  "bugs": {
+    "url": "https://github.com/mainvec/mvpgo/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  }
+}
