@@ -1,0 +1,255 @@
+syntax = "proto3";
+
+package mainvec.iunet;
+
+import "google/protobuf/duration.proto";
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/mainvec/wonet/iunet/api;api";
+
+message Serverlet {
+  string name = 1;
+
+  string uuid = 2;
+
+  string hubUUID = 3;
+
+  string desc = 5;
+
+  int32 port = 10;
+
+  string serverletAddress = 12;
+
+  bool disabled = 14;
+
+  bool manualStartup = 15;
+
+  int32 connState = 16;
+}
+
+message Clientlet {
+  string name = 1;
+
+  string uuid = 2;
+
+  string hubUUID = 3;
+
+  string listeningAddr = 5;
+
+  string desc = 7;
+
+  string serverletAddress = 10;
+
+  int32 clientletPort = 12;
+
+  bool disabled = 14;
+
+  bool manualStartup = 15;
+
+  int32 connState = 16;
+}
+
+message Hub {
+  string name = 1;
+
+  string uuid = 2;
+
+  string desc = 4;
+
+  repeated Serverlet serverlets = 10;
+
+  repeated Clientlet clientlets = 11;
+
+  bool disabled = 14;
+
+  bool manualStartup = 15;
+}
+
+message Broker {
+  string name = 1;
+
+  string uuid = 2;
+
+  string desc = 3;
+
+  string type = 4;
+
+  string connParams = 6;
+
+  string authParams = 8;
+
+  bool disabled = 10;
+}
+
+message OperationResult {
+  bool success = 1;
+
+  string statusCode = 3;
+
+  string details = 5;
+
+  map<string, string> additional = 10;
+}
+
+message BrokerCreateCmd {
+  string name = 1;
+
+  string desc = 3;
+
+  string type = 4;
+
+  string connParams = 6;
+
+  string authParams = 8;
+
+  bool persist = 10;
+
+  bool skiptest = 11;
+
+  bool disabled = 12;
+}
+
+message BrokerCreateCmdResult {
+  Broker broker = 1;
+}
+
+message BrokerListCmd {
+  string filter = 1;
+}
+
+message BrokerListCmdResult {
+  repeated Broker brokers = 1;
+}
+
+message ClientletCreateCmd {
+  string name = 1;
+
+  string serverletAddress = 2;
+
+  string hubUUID = 3;
+
+  string broker = 5;
+
+  int32 port = 6;
+
+  bool persist = 7;
+
+  string brokerUUID = 8;
+
+  bool disabled = 9;
+
+  bool manualStartup = 10;
+
+  string desc = 12;
+}
+
+message ClientletCreateCmdResult {
+  Clientlet clientlet = 1;
+}
+
+message ClientletOpCmd {
+  string uuid = 1;
+
+  string op = 3;
+}
+
+message ClientletOpCmdResult {
+  OperationResult result = 1;
+}
+
+message ConnectCmd {
+  string name = 1;
+
+  string serverletAddress = 2;
+
+  string hubUUID = 3;
+
+  string broker = 5;
+
+  int32 port = 6;
+
+  string brokerUUID = 8;
+}
+
+message ConnectCmdResult {
+  Clientlet clientlet = 1;
+}
+
+message ExposeCmd {
+  string name = 1;
+
+  int32 port = 2;
+
+  string broker = 5;
+
+  string brokerUUID = 8;
+}
+
+message ExposeCmdResult {
+  Serverlet serverlet = 1;
+}
+
+message HubCreateCmd {
+  string name = 1;
+
+  string broker = 3;
+
+  string desc = 5;
+
+  bool persist = 7;
+
+  string brokerUUID = 8;
+
+  bool disabled = 9;
+
+  bool manualStartup = 10;
+}
+
+message HubCreateCmdResult {
+  Hub hub = 1;
+}
+
+message HubListCmd {
+  string filter = 1;
+
+  bool includeChildren = 3;
+}
+
+message HubListCmdResult {
+  repeated Hub hubs = 1;
+}
+
+message ServerletCreateCmd {
+  string name = 1;
+
+  int32 port = 2;
+
+  string hubUUID = 3;
+
+  string broker = 5;
+
+  bool persist = 7;
+
+  string brokerUUID = 8;
+
+  bool disabled = 9;
+
+  bool manualStartup = 10;
+
+  string desc = 12;
+}
+
+message ServerletCreateCmdResult {
+  Serverlet serverlet = 1;
+}
+
+message ServerletOpCmd {
+  string uuid = 1;
+
+  string op = 3;
+}
+
+message ServerletOpCmdResult {
+  OperationResult result = 1;
+}
