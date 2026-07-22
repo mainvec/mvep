@@ -8,12 +8,35 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime/debug"
 	{{ if .GOIMPORT}}{{.GOPKG}} "{{.GOIMPORT}}"{{ end }}
 	{{ if .GOAPIPKG}}{{.GOAPIPKG}} "{{.GOAPIIMPORT}}" {{ end }}	
 	"github.com/mainvec/ugo/cli"
 )
 
 var commandRunner *api.PkgCommandRunner
+
+// version is injected at release build time via the linker:
+//
+//	go build -ldflags "-X main.version=vX.Y.Z"
+//
+// When empty, resolveVersion falls back to the module version (populated for
+// `go install …@vX.Y.Z`) and finally to the {{.VERSIONCONST}} constant.
+var version = ""
+
+// resolveVersion resolves the CLI version in order of preference:
+//  1. the linker-injected `version` (release binaries),
+//  2. the module version from build info (`go install …@vX.Y.Z`),
+//  3. the {{.VERSIONCONST}} constant (see {{.NAME}}_version.go).
+func resolveVersion() string {
+	if version != "" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return {{.VERSIONCONST}}
+}
 
 func main() {
 	commandRunner = {{.NAME}}.GetCommandRunner()
@@ -32,7 +55,7 @@ func NewCli() *cli.Framework {
 		Usage:   "{{.SPEC.Name}}",
 		{{ if .SPEC.Title -}}Short:   "{{.SPEC.Title}}",{{ end }}
 		{{ if .SPEC.Desc -}}Long:   "{{.SPEC.Desc}}{{ if .SPEC.Version }} (API: {{.SPEC.Version}}){{ end }}",{{ end }}
-		Version:   {{.VERSIONCONST}},
+		Version:   resolveVersion(),
 	}
 	{{range $name, $v :=  .CMDS }} 
 	prepare{{$name}}(rootCmd)
