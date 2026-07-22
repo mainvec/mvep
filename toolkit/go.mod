@@ -21,7 +21,3 @@ require (
 	github.com/mainvec/ugo v0.5.1
 	google.golang.org/protobuf v1.36.10
 )
-
-// Local resolution for monorepo dev/CI (via go.work too). Ignored on external `go install`,
-// which uses the required runtime/go version above (tag runtime/go/v0.6.0).
-replace github.com/mainvec/mvep/runtime/go => ../runtime/go
