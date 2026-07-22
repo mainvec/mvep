@@ -1,0 +1,189 @@
+package toolkit
+
+import (
+	"bytes"
+	"fmt"
+	"go/format"
+	"io"
+	"log"
+	"os"
+	"os/exec"
+	"strings"
+)
+
+// formatGoSource gofmt-normalizes generated Go source. It is a no-op fallback
+// (returns the input) when the bytes are not valid Go, so callers can safely
+// apply it to any generated file that is expected to be Go.
+func formatGoSource(name string, src []byte) []byte {
+	formatted, err := format.Source(src)
+	if err != nil {
+		log.Printf("warning: could not gofmt generated %s: %v", name, err)
+		return src
+	}
+	return formatted
+}
+
+func GenerateGOProtoBuffAPIFromProto(srvDef *SrvDef, protoContent []byte) ([]byte, error) {
+	//Using protoc wiht
+
+	protocPath, err := exec.LookPath("protoc")
+	if err != nil {
+		return nil, fmt.Errorf("error finding path for 'protoc' command: %v", err)
+	}
+
+	goapiDir, err := os.MkdirTemp("", "mvep-go-temp-*")
+	if err != nil {
+		return nil, fmt.Errorf("error creating go temp dir: %v", err)
+	}
+	defer os.RemoveAll(goapiDir) // clean up
+	woproto3File, err := os.CreateTemp(goapiDir, "wo-proto3-*.tmp")
+	if err != nil {
+		return nil, fmt.Errorf("error creating go temp file: %v", err)
+	}
+	defer woproto3File.Close()
+	woproto3File.Write(protoContent)
+	//fpath := filepath.Join(goapiDir, woproto3File.Name())
+	//,
+
+	// Build command arguments
+	args := []string{"-I=" + goapiDir, "--go_opt=paths=source_relative"}
+	args = append(args, srvDef.ProtocOpts...)
+	args = append(args, "--go_out="+goapiDir, woproto3File.Name())
+
+	cmd := exec.Command(protocPath, args...)
+	cmd.Stdin = bytes.NewReader(protoContent)
+
+	var out bytes.Buffer
+	cmd.Stderr = &out
+
+	//log.Printf("runing protoc: %v\n", cmd.String())
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("error running protoc: %v,[%v]", err, out.String())
+	}
+	goAPIBytes, err := os.ReadFile(woproto3File.Name() + ".pb.go")
+	if err != nil {
+		return nil, fmt.Errorf("error reading go api temp file: %v", err)
+	}
+	return goAPIBytes, nil
+}
+
+func GenerateFromEmbeddTemplate(srvDef *SrvDef, templateName, templateEmbeddPath string) ([]byte, error) {
+
+	templateReader, err := resources.Open(templateEmbeddPath)
+	if err != nil {
+		return nil, err
+	}
+	return GenerateFromTemplate(srvDef, templateName, templateReader)
+}
+
+func GenerateFromTemplate(srvDef *SrvDef, templateName string, templateReader io.Reader) ([]byte, error) {
+
+	data := prepareTemplateDataMap(srvDef)
+
+	tmpl, err := LoadTemplate(templateName, templateReader)
+	if err != nil {
+
+		return nil, err
+	}
+	srvBuff := &bytes.Buffer{}
+	err = tmpl.Execute(srvBuff, data)
+	if err != nil {
+		return nil, err
+	}
+	return srvBuff.Bytes(), nil
+}
+
+func GenerateGOSRV(srvDef *SrvDef) ([]byte, error) {
+	srvname := srvDef.Name + "srv"
+	return GenerateFromEmbeddTemplate(srvDef, srvname, "resources/codegen_templates/go/go_srv_code.txt")
+}
+
+func GenerateGOClient(srvDef *SrvDef) ([]byte, error) {
+
+	name := srvDef.Name
+	clientname := name + "client"
+	return GenerateFromEmbeddTemplate(srvDef, clientname, "resources/codegen_templates/go/go_client_code.txt")
+}
+
+func GenerateGOMod(srvDef *SrvDef) ([]byte, error) {
+
+	name := srvDef.Name
+	srvname := name + "srv"
+	return GenerateFromEmbeddTemplate(srvDef, srvname, "resources/codegen_templates/go/go_srv_mod.txt")
+}
+
+func GenerateGOAPI(srvDef *SrvDef) ([]byte, error) {
+	srvname := srvDef.Name + "api"
+	return GenerateFromEmbeddTemplate(srvDef, srvname, "resources/codegen_templates/go/go_api_code.txt")
+}
+
+// GenerateGOVanillaStructs generates plain Go structs with JSON tags (no protobuf dependency)
+func GenerateGOVanillaStructs(srvDef *SrvDef) ([]byte, error) {
+	return GenerateFromEmbeddTemplate(srvDef, "go_structs", "resources/codegen_templates/go/go_structs_code.txt")
+}
+
+func prepareTemplateDataMap(srvDef *SrvDef) map[string]interface{} {
+	name := srvDef.Name
+	srvname := name + "srv"
+	namespace := srvDef.Namespace
+
+	base := srvDef.Base
+
+	commands := srvDef.Commands
+
+	data := make(map[string]interface{})
+	data["NAME"] = name
+	data["NS"] = namespace
+	data["SRVNAME"] = srvname
+	data["CLTNAME"] = name + "client"
+	data["APINAME"] = name + "api"
+	data["CMDS"] = commands
+	data["BASE"] = base
+	data["SPEC"] = srvDef
+	data["VERSIONCONST"] = strings.ToUpper(name) + "_VERSION"
+
+	//if go_package is set in the spec file
+	//use it to set the go package and import
+	//otherwise use the name of the service
+	//as the package name. only if the go_package
+	//is set with 'importpath;packagename'
+	goPkg, ok := srvDef.GenOpts["go_package"]
+	if ok {
+		idx := strings.Index(goPkg, ";")
+		if idx > 0 {
+			data["GOPKG"] = goPkg[idx+1:]
+			data["GOIMPORT"] = goPkg[:idx]
+		} else {
+			data["GOIMPORT"] = goPkg
+			data["GOPKG"] = name
+		}
+	} else {
+		data["GOPKG"] = name
+		data["GOIMPORT"] = "/" + name + "/go/" + name + "api"
+	}
+	goApiPkg, ok := srvDef.GenOpts["go_api_package"]
+	if ok {
+		idx := strings.Index(goApiPkg, ";")
+		if idx > 0 {
+			data["GOAPIPKG"] = goApiPkg[idx+1:]
+			data["GOAPIIMPORT"] = goApiPkg[:idx]
+		} else {
+			data["GOAPIIMPORT"] = goApiPkg
+			data["GOAPIPKG"] = "api"
+		}
+	} else {
+		base, ok := data["GOIMPORT"]
+		if !ok {
+			// Fallback when go_package is not set
+			data["GOAPIIMPORT"] = "/" + name + "/go/" + name + "api"
+			data["GOAPIPKG"] = "api"
+		} else {
+			//if no go_api_package is set
+			//use the go_package as the base
+			// and append /api to it
+			data["GOAPIIMPORT"] = fmt.Sprintf("%s/api", base)
+			data["GOAPIPKG"] = ""
+		}
+	}
+	return data
+}

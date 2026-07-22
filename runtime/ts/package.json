@@ -1,0 +1,57 @@
+{
+  "name": "@mainvec/mvep",
+  "version": "0.6.0",
+  "description": "MVEP runtime — Mainvec protocol client library for JavaScript/TypeScript",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "!src/**/*.test.ts",
+    "!dist/__tests__",
+    "!dist/**/*.test.*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "keywords": [
+    "mvp",
+    "mainvec",
+    "rpc",
+    "client",
+    "protocol",
+    "typescript"
+  ],
+  "author": "Mainvec",
+  "license": "MIT",
+  "homepage": "https://github.com/mainvec/mvep/tree/main/runtime/ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mainvec/mvep.git",
+    "directory": "runtime/ts"
+  },
+  "bugs": {
+    "url": "https://github.com/mainvec/mvep/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  }
+}

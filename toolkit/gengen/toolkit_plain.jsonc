@@ -1,0 +1,95 @@
+{
+	"$id": "mvep",
+	"$schema": "https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15",
+	"name": "mvep",
+	"title": "Mainvec Engineering Platform Toolkit",
+	"desc": "Command-line toolkit for the Mainvec Engineering Platform",
+	"version": "v0.1",
+	"namespace": "mvepNS",
+	"gen_options": {
+		"go_package": "github.com/mainvec/mvep/toolkit/mvepapi;mvep",
+		"go_api_package": "github.com/mainvec/mvep/toolkit/mvepapi/api;api"
+	},
+	"commands": {
+		"InitializeCmd": {
+			"title": "Initialize a new MVEP spec",
+			"alias": "init",
+			"fields": {
+				"name": {
+					"fnum": 1,
+					"type": "string",
+					"tags": [
+						"required"
+					]
+				},
+				"namespace": {
+					"fnum": 2,
+					"type": "string",
+					"alias": "ns"
+				}
+			}
+		},
+		"GenerateCmd": {
+			"title": "Generate code from an MVEP spec",
+			"alias": "generate",
+			"fields": {
+				"in": {
+					"fnum": 1,
+					"alias": "in",
+					"title": "input MVEP spec file",
+					"type": "string",
+					"tags": [
+						"required"
+					]
+				},
+				"outdir": {
+					"fnum": 2,
+					"type": "string"
+				},
+				"lang": {
+					"fnum": 3,
+					"type": "string",
+					"tags": [
+						"required"
+					]
+				},
+				"format": {
+					"fnum": 4,
+					"type": "string",
+					"title": "serialization format (plain=plain json, pb3=protobuf)"
+				}
+			}
+		},
+		"ValidateCmd": {
+			"title": "Validate MVEP spec",
+			"alias": "validate",
+			"fields": {
+				"in": {
+					"fnum": 1,
+					"alias": "in",
+					"title": "input MVEP spec file",
+					"type": "string",
+					"tags": [
+						"required"
+					]
+				}
+			},
+			"resultFields": {
+				"valid": {
+					"fnum": 1,
+					"type": "boolean"
+				},
+				"errors": {
+					"fnum": 5,
+					"type": "string",
+					"repeated": true
+				},
+				"warnings": {
+					"fnum": 10,
+					"type": "string",
+					"repeated": true
+				}
+			}
+		}
+	}
+}

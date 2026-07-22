@@ -1,0 +1,11 @@
+# Exclude non-runtime files from the published tarball.
+# `files` in package.json already allowlists `dist` and `src`,
+# but this keeps the packed view tidy if `files` ever changes.
+node_modules
+__tests__
+*.test.ts
+tsconfig.json
+.vscode
+.idea
+.DS_Store
+*.log
