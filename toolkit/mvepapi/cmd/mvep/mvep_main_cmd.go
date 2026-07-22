@@ -26,7 +26,7 @@ func NewCli() *cli.Framework {
 		Usage:   "mvep",
 		Short:   "Mainvec Platform Toolkit",
 		Long:    "Command-line toolkit for Mainvec Platform",
-		Version: MVEP_VERSION,
+		Version: MVEPVersion(),
 	}
 
 	prepareGenerateCmd(rootCmd)
