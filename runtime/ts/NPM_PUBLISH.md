@@ -1,6 +1,6 @@
-# Publishing `@mainvec/mvpjs` to npm
+# Publishing `@mainvec/mvep` to npm
 
-The [`npm-publish.yml`](../.github/workflows/npm-publish.yml) GitHub Actions workflow publishes `@mainvec/mvpjs` to the npm registry automatically when a version tag (`v*`) is pushed. On pull requests it runs a **dry-run** (`npm publish --dry-run`) to catch metadata and build issues without publishing.
+The [`npm-publish.yml`](../.github/workflows/npm-publish.yml) GitHub Actions workflow publishes `@mainvec/mvep` to the npm registry automatically when a version tag (`v*`) is pushed. On pull requests it runs a **dry-run** (`npm publish --dry-run`) to catch metadata and build issues without publishing.
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@ Create a **granular automation** access token on npm:
 1. Sign in at https://www.npmjs.com/ as the package owner (the account that owns the `mainvec` organization).
 2. Go to **Access Tokens** → **Generate New Token** → **Granular Access Token**.
 3. Configure the token:
-   - **Name**: `mvpgo-github-actions-publish`
+   - **Name**: `runtime/go-github-actions-publish`
    - **Expiration**: choose a sensible rotation window (e.g. 90 days)
    - **Packages and scopes**: select the `@mainvec` scope, **Read and write** for packages
    - **Organizations**: `mainvec`
@@ -24,7 +24,7 @@ If the package requires two-factor authentication for publish, ensure the token 
 ### 2. Add the token as a GitHub repository secret
 
 ```bash
-gh secret set NPM_TOKEN --repo mainvec/mvpgo --body "npm_xxx..."
+gh secret set NPM_TOKEN --repo mainvec/runtime/go --body "npm_xxx..."
 ```
 
 The workflow reads this secret via `${{ secrets.NPM_TOKEN }}` and sets it as `NODE_AUTH_TOKEN` for the `npm publish` step.
@@ -48,13 +48,13 @@ If your npm account enforces 2FA for publishes, the token **must** be an automat
    - verifies with `npm publish --dry-run`
    - publishes with `npm publish --access public`
 
-`--access public` is required because `@mainvec/mvpjs` is a **scoped** package, and scoped packages are private by default on the free npm tier.
+`--access public` is required because `@mainvec/mvep` is a **scoped** package, and scoped packages are private by default on the free npm tier.
 
 ## Verifying a publish
 
 ```bash
-npm view @mainvec/mvpjs version           # latest published version
-npm view @mainvec/mvpjs versions --json   # all published versions
+npm view @mainvec/mvep version           # latest published version
+npm view @mainvec/mvep versions --json   # all published versions
 ```
 
 ## What gets published
@@ -68,7 +68,7 @@ The `files` field in `package.json` allowlists `dist` and `src`. The `.npmignore
 Inspect locally with:
 
 ```bash
-cd mvpjs
+cd runtime/ts
 npm pack --dry-run   # lists files that would be published
 ```
 
@@ -77,7 +77,7 @@ npm pack --dry-run   # lists files that would be published
 npm does not allow unpublishing once a package has been depended on for more than 24 hours. To retract a broken release, **deprecate** it instead:
 
 ```bash
-npm deprecate @mainvec/mvpjs@0.5.0 "use 0.5.1 instead"
+npm deprecate @mainvec/mvep@0.5.0 "use 0.5.1 instead"
 ```
 
 Then publish a fixed version (e.g. `0.5.1`) with a new tag.

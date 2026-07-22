@@ -1,8 +1,8 @@
 # @mainvec/mvp
 
-MVP (Mainvec Protocol) client library for JavaScript/TypeScript.
+MVEP (Mainvec Protocol) client library for JavaScript/TypeScript.
 
-This library provides a TypeScript/JavaScript client for communicating with MVP servers, mirroring the Go implementation in `github.com/mainvec/mvp/mvpgo/mvp`.
+This library provides a TypeScript/JavaScript client for communicating with MVEP servers, mirroring the Go implementation in `github.com/mainvec/mvep/runtime/go/mvep`.
 
 ## Installation
 
@@ -152,7 +152,7 @@ console.log('Server health:', health);
 
 ### Client
 
-- `newClient(config: ClientConfig): Client` - Creates a new MVP client
+- `newClient(config: ClientConfig): Client` - Creates a new MVEP client
 - `client.registerPackage(pkg: Package): PackageClient` - Registers a package
 - `client.getPackage(name: string): PackageClient | undefined` - Gets a registered package
 - `client.ping(): Promise<string>` - Health check
@@ -174,7 +174,7 @@ console.log('Server health:', health);
 
 ## Server-side Interceptors
 
-For server-side usage (if implementing an MVP server in Node.js):
+For server-side usage (if implementing an MVEP server in Node.js):
 
 ```typescript
 import {

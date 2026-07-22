@@ -1,12 +1,12 @@
-# MVP Toolkit - Agent Development Guide
+# MVEP Toolkit - Agent Development Guide
 
-This document provides comprehensive information for AI agents working with MVP Toolkit codebases.
+This document provides comprehensive information for AI agents working with MVEP Toolkit codebases.
 
-Preferred CLI path for toolkit usage is `mvpapi/cmd/mvp` (`mvp` command).
+Preferred CLI path for toolkit usage is `mvepapi/cmd/mvep` (`mvep` command).
 
-## What is MVP Toolkit?
+## What is MVEP Toolkit?
 
-MVP Toolkit is a code generation tool that transforms declarative service specifications (MVP format) into production-ready code. It's a metaprogramming tool that generates:
+MVEP Toolkit is a code generation tool that transforms declarative service specifications (MVEP format) into production-ready code. It's a metaprogramming tool that generates:
 - Protocol Buffer 3 definitions
 - Go implementations
 - CLI tools with command handlers
@@ -14,14 +14,14 @@ MVP Toolkit is a code generation tool that transforms declarative service specif
 
 ## Core Concepts
 
-### MVP Specifications
+### MVEP Specifications
 
-MVP specifications are JSON/JSONC files that describe services:
+MVEP specifications are JSON/JSONC files that describe services:
 
 ```json
 {
   "$id": "service-id",
-  "$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
+  "$schema": "https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15",
   "name": "service",
   "namespace": "namespace",
   "gen_options": {
@@ -149,15 +149,15 @@ func prepareCreateUserCmd(rootCmd *cli.Command) {
 }
 ```
 
-## Working with MVP Toolkit Projects
+## Working with MVEP Toolkit Projects
 
-### Identifying MVP Toolkit Projects
+### Identifying MVEP Toolkit Projects
 
 Look for:
-1. `spec/` directory with `.json` or `.jsonc` files using MVP schema
+1. `spec/` directory with `.json` or `.jsonc` files using MVEP schema
 2. Generated files with header: `// code generated`
-3. `mvpapi/` directory structure
-4. Dependencies on `github.com/mainvec/mvp/mvpgo` or `github.com/mainvec/ugo`
+3. `mvepapi/` directory structure
+4. Dependencies on `github.com/mainvec/mvep/runtime/go` or `github.com/mainvec/ugo`
 
 ### Common Task Patterns
 
@@ -177,7 +177,7 @@ Look for:
   }
 }
 ```
-3. Regenerate: `mvp generate --in spec/myservice-spec.json --lang go --outdir . --format plain`
+3. Regenerate: `mvep generate --in spec/myservice-spec.json --lang go --outdir . --format plain`
 4. Implement the handler in `*_impl.go`
 
 #### Adding a Field to Existing Command
@@ -272,13 +272,13 @@ func runCreateUserCmd(ctx context.Context, cmd *api.CreateUserCmd) (*api.CreateU
 2. See `api/*.pb.go` for generated Go structs
 3. Messages follow pattern: `{CommandName}Cmd` and `{CommandName}CmdResult`
 
-## MVP Toolkit Codebase Architecture
+## MVEP Toolkit Codebase Architecture
 
 ### Core Files
 
 | File | Purpose | Key Functions |
 |------|---------|---------------|
-| `mvgen.go` | Core structures, validation | `BuildSrvDefFromString()`, `ValidateAgainstSchema()` |
+| `toolkit.go` | Core structures, validation | `BuildSrvDefFromString()`, `ValidateAgainstSchema()` |
 | `mvgen_pb3.go` | Protobuf generation | `BuildProtoBuffDefFromSrvDef()` |
 | `mvgen_go.go` | Go code generation | `GenerateGOProtoBuffAPIFromProto()`, `GenerateFromEmbeddTemplate()` |
 | `mvgen_runner.go` | Command execution | `ExecuteGenerate()`, `ExecuteValidateCmd()` |
@@ -337,17 +337,17 @@ Templates use Go `text/template` with custom functions:
 
 ## Best Practices for Agents
 
-### When Modifying MVP Toolkit Projects
+### When Modifying MVEP Toolkit Projects
 
 1. **Always read the spec file first** - Understand the current commands and structure
 2. **Check for existing implementations** - Don't recreate existing functionality
 3. **Use consistent field numbering** - Never reuse field numbers
-4. **Validate before generating** - Run `mvp validate` first
+4. **Validate before generating** - Run `mvep validate` first
 5. **Preserve manual code** - Check for `NOMVGEN`/`NOWOGEN` markers
 
 ### When Creating New Services
 
-1. Start with `mvp init`
+1. Start with `mvep init`
 2. Define core records first
 3. Design commands with clear input/output
 4. Use meaningful aliases for CLI
@@ -398,7 +398,7 @@ Templates use Go `text/template` with custom functions:
 
 **Problem:** Spec changes don't appear in code.
 
-**Solution:** Always run `mvp generate` after spec modifications.
+**Solution:** Always run `mvep generate` after spec modifications.
 
 ## Integration Patterns
 
@@ -418,29 +418,29 @@ Templates use Go `text/template` with custom functions:
 
 ## Resources
 
-- **Schema:** https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15
+- **Schema:** https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15
 - **Legacy compatible schemas:** `https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19`, `https://spec.mainvec.com/mvepspec/0.1/schema/2026-01-15`
 - **Protobuf Docs:** https://protobuf.dev/
 - **MainVec Libraries:**
   - `github.com/mainvec/ugo` - CLI framework
-  - `github.com/mainvec/mvp/mvpgo` - Platform interfaces
+  - `github.com/mainvec/mvep/runtime/go` - Platform interfaces
 
 ## Quick Reference
 
-### MVP CLI Commands
+### MVEP CLI Commands
 
 ```bash
 # Generate code
-mvp generate --in spec.json --lang go --outdir ./out --format plain
+mvep generate --in spec.json --lang go --outdir ./out --format plain
 
 # Generate code (alias)
-mvp gen --in spec.json --lang go --outdir ./out --format plain
+mvep gen --in spec.json --lang go --outdir ./out --format plain
 
 # Validate spec
-mvp validate --in spec.json
+mvep validate --in spec.json
 
 # Initialize new spec
-mvp init --name myservice --ns myns
+mvep init --name myservice --ns myns
 ```
 
 ### Spec Structure

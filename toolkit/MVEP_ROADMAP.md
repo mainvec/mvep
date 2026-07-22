@@ -1,14 +1,14 @@
-# MVP Roadmap — Mainvec Platform
+# MVEP Roadmap — Mainvec Platform
 
-> Feature roadmap for the MVP toolkit (mvgen, mvpgo, ugo).
+> Feature roadmap for the MVEP toolkit (toolkit, runtime/go, ugo).
 >
-> For current features and usage, see [MVP_SKILL.md](MVP_SKILL.md).
+> For current features and usage, see [MVEP_SKILL.md](MVEP_SKILL.md).
 
 ---
 
 ## Phase 1 — Spec Completeness (Foundation)
 
-> Goal: Bring the MVP spec to feature parity with what developers expect from any API definition format.
+> Goal: Bring the MVEP spec to feature parity with what developers expect from any API definition format.
 
 | Feature | Description | Scope |
 |---------|-------------|-------|
@@ -20,7 +20,7 @@
 
 ## Phase 2 — Developer Experience (Tooling)
 
-> Goal: Make MVP specs self-documenting and safe to evolve.
+> Goal: Make MVEP specs self-documenting and safe to evolve.
 
 | Feature | Description | Scope |
 |---------|-------------|-------|
@@ -32,17 +32,17 @@
 
 ## Phase 3 — Ecosystem Interop (Reach)
 
-> Goal: Let MVP projects participate in the broader API ecosystem without maintaining parallel specs.
+> Goal: Let MVEP projects participate in the broader API ecosystem without maintaining parallel specs.
 
 | Feature | Description | Scope |
 |---------|-------------|-------|
-| **OpenAPI export** | `mvp export --format openapi` → generates `openapi.yaml` from MVP spec | New mvp command |
+| **OpenAPI export** | `mvp export --format openapi` → generates `openapi.yaml` from MVEP spec | New mvp command |
 | **Mock server** | `mvp mock --in spec.json --port 8080` → serves fake responses with example data for frontend dev | New mvp command |
-| **Postman collection export** | Generate Postman/Insomnia collection from spec | New mvgen command |
+| **Postman collection export** | Generate Postman/Insomnia collection from spec | New toolkit command |
 
 ## Phase 4 — Multi-Language (Scale)
 
-> Goal: Extend MVP beyond Go and JS to enable cross-team adoption.
+> Goal: Extend MVEP beyond Go and JS to enable cross-team adoption.
 
 | Feature | Description | Scope |
 |---------|-------------|-------|
@@ -57,7 +57,7 @@
 | Feature | Description | Scope |
 |---------|-------------|-------|
 | **Streaming** | `"stream": true` on `resultFields` → SSE/WebSocket server handler + client consumer | Spec schema + codegen + runtime |
-| **Multi-spec composition** | `$ref` across spec files for shared records between microservices | Spec schema + mvgen resolver |
+| **Multi-spec composition** | `$ref` across spec files for shared records between microservices | Spec schema + toolkit resolver |
 | **Pagination pattern** | `"paginated": true` on commands → auto-generates cursor/limit fields + iterator client helpers | Spec schema + codegen |
 | **Event/webhook definitions** | `"events"` section in spec for async notifications | Spec schema + codegen |
 

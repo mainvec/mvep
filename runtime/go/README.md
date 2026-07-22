@@ -1,11 +1,11 @@
-# mvpgo
+# runtime/go
 mainvec platform for golang
-A Go library for building MVP (MainVec Package) servers and clients with HTTP/Unix socket transport.
+A Go library for building MVEP (MainVec Package) servers and clients with HTTP/Unix socket transport.
 
 ## Features
 
-- **Server**: Create MVP package servers with HTTP or Unix socket transports
-- **Client Library**: Connect to MVP servers with automatic command encoding/decoding
+- **Server**: Create MVEP package servers with HTTP or Unix socket transports
+- **Client Library**: Connect to MVEP servers with automatic command encoding/decoding
 - **Multiple Transports**: Support for HTTP, HTTPS, and Unix sockets
 - **Flexible Encoding**: Built-in support for JSON, Protocol Buffers, and custom encoders
 - **Request/Response Headers**: Pass authentication tokens, trace IDs, and custom metadata
@@ -15,7 +15,7 @@ A Go library for building MVP (MainVec Package) servers and clients with HTTP/Un
 ## Installation
 
 ```bash
-go get github.com/mainvec/mvp/mvpgo/mvp
+go get github.com/mainvec/mvep/runtime/go/mvep
 ```
 
 ## Server Usage
@@ -29,7 +29,7 @@ import (
     "context"
     "log"
     
-    "github.com/mainvec/mvp/mvpgo/mvp/server"
+    "github.com/mainvec/mvep/runtime/go/mvep/server"
 )
 
 // Implement your Package interface
@@ -136,7 +136,7 @@ import (
     "context"
     "log"
     
-    "github.com/mainvec/mvp/mvpgo/mvp/client"
+    "github.com/mainvec/mvep/runtime/go/mvep/client"
 )
 
 func main() {
@@ -247,14 +247,14 @@ func (r *MyCommandRunner) RunCmd(ctx context.Context, cmd any) (any, error) {
     switch c := cmd.(type) {
     case *MyCommand:
         // Get request headers from context
-        authToken := mvp.GetRequestHeader(ctx, "auth")
-        requestID := mvp.GetRequestHeader(ctx, "request-id")
+        authToken := mvep.GetRequestHeader(ctx, "auth")
+        requestID := mvep.GetRequestHeader(ctx, "request-id")
         
         // Validate auth token...
         
         // Set response headers
-        ctx = mvp.SetResponseHeader(ctx, "new-token", "refreshed-token")
-        ctx = mvp.SetResponseHeader(ctx, "rate-limit", "99")
+        ctx = mvep.SetResponseHeader(ctx, "new-token", "refreshed-token")
+        ctx = mvep.SetResponseHeader(ctx, "rate-limit", "99")
         
         return &MyCommandResult{Data: "result"}, nil
     }
@@ -265,7 +265,7 @@ func (r *MyCommandRunner) RunCmd(ctx context.Context, cmd any) (any, error) {
 ### Configuration Options
 
 **ClientConfig** fields:
-- `BaseURL` - Base URL of the MVP server (e.g., "http://127.0.0.1:8080" or "unix:///tmp/socket")
+- `BaseURL` - Base URL of the MVEP server (e.g., "http://127.0.0.1:8080" or "unix:///tmp/socket")
 - `BasePath` - Base URL path for endpoints (e.g., "/api")
 - `Encoder` - Content type for encoding (default: "application/json")
 - `Timeout` - HTTP client timeout (default: 30 seconds)
@@ -279,7 +279,7 @@ func (r *MyCommandRunner) RunCmd(ctx context.Context, cmd any) (any, error) {
 - `SendCmdReqWithEncoder(ctx, cmd, headers, encoder)` - Send with headers and specific encoder
 - `SendRawCmd(ctx, cmdName, data)` - Send raw bytes
 - `SetEncoder(encoder)` / `GetEncoder()` - Manage default encoder
-- `Package()` - Get underlying MVP package
+- `Package()` - Get underlying MVEP package
 
 ## Transport Support
 
@@ -299,7 +299,7 @@ Built-in support for:
 
 ## Using with curl
 
-You can test MVP endpoints directly with curl:
+You can test MVEP endpoints directly with curl:
 
 ```bash
 # Simple command
@@ -328,7 +328,7 @@ Custom headers use the `x-mvp-` prefix. For example, `x-mvp-auth` becomes `auth`
 ## Project Structure
 
 ```
-mvpgo/
+runtime/go/
 ├── mvp/
 │   ├── envelope.go        # CmdReq/CmdResp types for headers support
 │   ├── http_transport.go  # HTTP transport layer

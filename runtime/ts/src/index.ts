@@ -1,8 +1,8 @@
 /**
- * MVP (Mainvec Protocol) Client Library for JavaScript/TypeScript
+ * MVEP (Mainvec Protocol) Client Library for JavaScript/TypeScript
  * 
- * This library provides a client for communicating with MVP servers,
- * mirroring the Go implementation in github.com/mainvec/mvp/mvpgo/mvp.
+ * This library provides a client for communicating with MVEP servers,
+ * mirroring the Go implementation in github.com/mainvec/mvep/runtime/go/mvep.
  * 
  * @example
  * ```typescript

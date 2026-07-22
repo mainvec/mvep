@@ -1,8 +1,8 @@
-# MVP_SKILL — Mainvec Platform (MVP) Integration Guide
+# MVEP_SKILL — Mainvec Platform (MVEP) Integration Guide
 
-> **Audience:** AI coding agents and human developers integrating MVP into their projects.
+> **Audience:** AI coding agents and human developers integrating MVEP into their projects.
 >
-> **What is MVP?** The Mainvec Platform is a **spec-driven, command-based API framework** that standardizes how applications define their commands and APIs. You write a declarative JSON spec, and the toolchain generates type-safe server code, client code, CLI tools, and API definitions in Go and JavaScript/TypeScript.
+> **What is MVEP?** The Mainvec Platform is a **spec-driven, command-based API framework** that standardizes how applications define their commands and APIs. You write a declarative JSON spec, and the toolchain generates type-safe server code, client code, CLI tools, and API definitions in Go and JavaScript/TypeScript.
 
 ---
 
@@ -10,12 +10,12 @@
 
 - [Ecosystem Overview](#ecosystem-overview)
 - [Architecture](#architecture)
-- [The MVP Spec Format](#the-mvp-spec-format)
-- [MVP CLI Reference](#mvp-cli-reference)
+- [The MVEP Spec Format](#the-mvp-spec-format)
+- [MVEP CLI Reference](#mvp-cli-reference)
 - [Project Integration Guide](#project-integration-guide)
 - [Generated Code Structure](#generated-code-structure)
 - [Core Generated Patterns](#core-generated-patterns)
-- [mvpgo Runtime](#mvpgo-runtime)
+- [runtime/go Runtime](#runtime/go-runtime)
 - [ugo Utilities](#ugo-utilities)
 - [Best Practices](#best-practices)
 - [Common Pitfalls](#common-pitfalls)
@@ -25,12 +25,12 @@
 
 ## Ecosystem Overview
 
-MVP consists of three core components:
+MVEP consists of three core components:
 
 | Component | Module | Purpose |
 |-----------|--------|---------|
-| **mvp generator** | `github.com/mainvec/mvep/toolkit` | Code generator — transforms MVP specs into Go, JS/TS, and Protobuf code |
-| **mvpgo** | `github.com/mainvec/mvp/mvpgo` | Runtime library — `mvp.Package` and `mvp.CommandRunner` interfaces, HTTP/Unix socket server & client, middleware/interceptor system |
+| **mvp generator** | `github.com/mainvec/mvep/toolkit` | Code generator — transforms MVEP specs into Go, JS/TS, and Protobuf code |
+| **runtime/go** | `github.com/mainvec/mvep/runtime/go` | Runtime library — `mvep.Package` and `mvep.CommandRunner` interfaces, HTTP/Unix socket server & client, middleware/interceptor system |
 | **ugo** | `github.com/mainvec/ugo` | Go utilities — CLI framework (`cli`), ordered maps (`omap`), encoding registry (`oencoding`), validation, collections |
 
 ---
@@ -39,7 +39,7 @@ MVP consists of three core components:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                        MVP Spec (JSON/JSONC)                     │
+│                        MVEP Spec (JSON/JSONC)                     │
 │                    (your-service-spec.json)                       │
 └──────────────────────┬───────────────────────────────────────────┘
                        │
@@ -61,9 +61,9 @@ MVP consists of three core components:
         │               │
         ▼               ▼
   ┌──────────────────────────────────────────┐
-  │   Implements mvp.Package &               │
-  │   mvp.CommandRunner interfaces           │
-  │            (from mvpgo)                  │
+  │   Implements mvep.Package &               │
+  │   mvep.CommandRunner interfaces           │
+  │            (from runtime/go)                  │
   └──────────────────┬───────────────────────┘
                      │
                      ▼
@@ -80,15 +80,15 @@ MVP consists of three core components:
        (mvp/server)   (mvp/client)
 ```
 
-**Foundation layer:** `ugo` provides the CLI framework (used by generated `cmd/` code), ordered maps (used by the generator for deterministic output), and the encoding registry (used by mvpgo for JSON/Protobuf serialization).
+**Foundation layer:** `ugo` provides the CLI framework (used by generated `cmd/` code), ordered maps (used by the generator for deterministic output), and the encoding registry (used by runtime/go for JSON/Protobuf serialization).
 
 ---
 
-## The MVP Spec Format
+## The MVEP Spec Format
 
-MVP specs are JSON or JSONC files validated against a JSON Schema (`2020-12` draft).
+MVEP specs are JSON or JSONC files validated against a JSON Schema (`2020-12` draft).
 
-**Schema URL:** `https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15`
+**Schema URL:** `https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15`
 
 Legacy specs using `https://spec.mainvec.com/mvepspec/0.1/schema/...` remain supported for backward compatibility.
 
@@ -97,7 +97,7 @@ Legacy specs using `https://spec.mainvec.com/mvepspec/0.1/schema/...` remain sup
 ```jsonc
 {
   "$id": "acmeapp",
-  "$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
+  "$schema": "https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15",
   "name": "acmeapp",
   "namespace": "acmeappns",
   "title": "Acme Application API",
@@ -105,8 +105,8 @@ Legacy specs using `https://spec.mainvec.com/mvepspec/0.1/schema/...` remain sup
   "version": "v0.1",
 
   "gen_options": {
-    "go_package": "github.com/acme/acmeapp/mvpapi/go;acmeapp",
-    "go_api_package": "github.com/acme/acmeapp/mvpapi/go/api;api",
+    "go_package": "github.com/acme/acmeapp/mvepapi/go;acmeapp",
+    "go_api_package": "github.com/acme/acmeapp/mvepapi/go/api;api",
     "format": "plain",           // "plain" (Go structs + JSON) or "pb3" (protobuf)
     "edition": "2023",
     "go_default_api_level": "API_OPAQUE"
@@ -250,28 +250,28 @@ Legacy specs using `https://spec.mainvec.com/mvepspec/0.1/schema/...` remain sup
 
 ---
 
-## MVP CLI Reference
+## MVEP CLI Reference
 
 ### Installation
 
 ```bash
-go install <module>/mvpapi/cmd/mvp@latest
+go install <module>/mvepapi/cmd/mvep@latest
 ```
 
 ### Commands
 
 | Command | Description | Required Flags |
 |---------|-------------|----------------|
-| `generate` | Generate code from an MVP spec | `--in`, `--lang` |
+| `generate` | Generate code from an MVEP spec | `--in`, `--lang` |
 | `gen` | Alias of `generate` | `--in`, `--lang` |
 | `validate` | Validate a spec against the JSON Schema | `--in` |
-| `init` | Initialize a new MVP spec file | `--name`, `--ns` |
+| `init` | Initialize a new MVEP spec file | `--name`, `--ns` |
 
 ### Flags
 
 | Flag | Commands | Description |
 |------|----------|-------------|
-| `--in` | `generate`, `gen`, `validate` | Path to the MVP spec file |
+| `--in` | `generate`, `gen`, `validate` | Path to the MVEP spec file |
 | `--lang` | `generate`, `gen` | Target language(s): `go`, `js`, or comma-separated `go,js` |
 | `--outdir` | `generate` | Output directory for generated code |
 | `--format` | `generate`, `gen` | Output format: `plain` (default) or `pb3` |
@@ -282,25 +282,25 @@ go install <module>/mvpapi/cmd/mvp@latest
 
 ```bash
 # Generate Go code (plain structs mode)
-mvp generate --in ./spec/acmeapp-spec.json --lang go --outdir ./go --format=plain
+mvep generate --in ./spec/acmeapp-spec.json --lang go --outdir ./go --format=plain
 
 # Generate Go code (alias)
-mvp gen --in ./spec/acmeapp-spec.json --lang go --outdir ./go --format=plain
+mvep gen --in ./spec/acmeapp-spec.json --lang go --outdir ./go --format=plain
 
 # Generate JavaScript/TypeScript code
-mvp generate --in ./spec/acmeapp-spec.json --lang js --outdir ./js --format=plain
+mvep generate --in ./spec/acmeapp-spec.json --lang js --outdir ./js --format=plain
 
 # Generate both Go and JS in one invocation
-mvp generate --in ./spec/acmeapp-spec.json --lang go,js --outdir ./out
+mvep generate --in ./spec/acmeapp-spec.json --lang go,js --outdir ./out
 
 # Generate Go code with protobuf
-mvp generate --in ./spec/acmeapp-spec.json --lang go --outdir ./go --format=pb3
+mvep generate --in ./spec/acmeapp-spec.json --lang go --outdir ./go --format=pb3
 
 # Validate a spec
-mvp validate --in ./spec/acmeapp-spec.json
+mvep validate --in ./spec/acmeapp-spec.json
 
 # Initialize a new spec
-mvp init --name myservice --ns myservicens
+mvep init --name myservice --ns myservicens
 ```
 
 ---
@@ -311,27 +311,27 @@ mvp init --name myservice --ns myservicens
 
 ```
 your-project/
-└── mvpapi/
+└── mvepapi/
     ├── generate_api.sh          # Code generation script
     └── spec/
-        └── acmeapp-spec.json    # Your MVP specification
+        └── acmeapp-spec.json    # Your MVEP specification
 ```
 
-### Step 2: Write Your MVP Spec
+### Step 2: Write Your MVEP Spec
 
-Create `mvpapi/spec/<name>-spec.json` following the [spec format](#the-mvp-spec-format) above. Start with:
+Create `mvepapi/spec/<name>-spec.json` following the [spec format](#the-mvp-spec-format) above. Start with:
 
 ```jsonc
 {
   "$id": "acmeapp",
-  "$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
+  "$schema": "https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15",
   "name": "acmeapp",
   "namespace": "acmeappns",
   "title": "Acme Application API",
   "version": "v0.1",
   "gen_options": {
-    "go_package": "github.com/acme/acmeapp/mvpapi/go;acmeapp",
-    "go_api_package": "github.com/acme/acmeapp/mvpapi/go/api;api",
+    "go_package": "github.com/acme/acmeapp/mvepapi/go;acmeapp",
+    "go_api_package": "github.com/acme/acmeapp/mvepapi/go/api;api",
     "format": "plain"
   },
   "commands": {},
@@ -341,19 +341,19 @@ Create `mvpapi/spec/<name>-spec.json` following the [spec format](#the-mvp-spec-
 
 ### Step 3: Create the Generation Script
 
-Create `mvpapi/generate_api.sh`:
+Create `mvepapi/generate_api.sh`:
 
 ```bash
 #!/bin/bash
 
-# Generate API code from MVP spec
-# Usage: cd mvpapi && bash generate_api.sh
+# Generate API code from MVEP spec
+# Usage: cd mvepapi && bash generate_api.sh
 
 SPEC="./spec/acmeapp-spec.json"
 
-mvp generate -in "$SPEC" -lang go -outdir ./go -format=plain \
+mvep generate -in "$SPEC" -lang go -outdir ./go -format=plain \
 && \
-mvp generate -in "$SPEC" -lang js -outdir ./js -format=plain
+mvep generate -in "$SPEC" -lang js -outdir ./js -format=plain
 
 if [ $? -eq 0 ]; then
   echo "✓ API generated successfully"
@@ -364,13 +364,13 @@ fi
 ```
 
 ```bash
-chmod +x mvpapi/generate_api.sh
+chmod +x mvepapi/generate_api.sh
 ```
 
 ### Step 4: Generate the Code
 
 ```bash
-cd mvpapi
+cd mvepapi
 bash generate_api.sh
 ```
 
@@ -403,27 +403,27 @@ func runUserRegisterCmd(ctx context.Context, cmd *api.UserRegisterCmd) (*api.Use
 }
 ```
 
-### Step 6: Wire Up the Server (with mvpgo)
+### Step 6: Wire Up the Server (with runtime/go)
 
 ```go
 package main
 
 import (
-    "github.com/acme/acmeapp/mvpapi/go/api"
-    acmeapp "github.com/acme/acmeapp/mvpapi/go"
-    "github.com/mainvec/mvp/mvpgo/mvp"
-    "github.com/mainvec/mvp/mvpgo/mvp/server"
+    "github.com/acme/acmeapp/mvepapi/go/api"
+    acmeapp "github.com/acme/acmeapp/mvepapi/go"
+    "github.com/mainvec/mvep/runtime/go/mvep"
+    "github.com/mainvec/mvep/runtime/go/mvep/server"
 )
 
 func main() {
     pkg := api.NewPackage()
     runner := acmeapp.GetCommandRunner()
 
-    handler := mvp.NewPackageHandler(pkg, nil, runner,
-        mvp.Chain(
-            mvp.RecoveryInterceptor(),
-            mvp.LoggingInterceptor(),
-            mvp.RequestIDInterceptor(nil),
+    handler := mvep.NewPackageHandler(pkg, nil, runner,
+        mvep.Chain(
+            mvep.RecoveryInterceptor(),
+            mvep.LoggingInterceptor(),
+            mvep.RequestIDInterceptor(nil),
         ),
     )
 
@@ -440,13 +440,13 @@ func main() {
 
 ## Generated Code Structure
 
-After running `mvp generate`, your `mvpapi/` directory will look like:
+After running `mvep generate`, your `mvepapi/` directory will look like:
 
 ```
-mvpapi/
+mvepapi/
 ├── generate_api.sh
 ├── spec/
-│   └── acmeapp-spec.json           # Your MVP specification (you write this)
+│   └── acmeapp-spec.json           # Your MVEP specification (you write this)
 ├── go/
 │   ├── go.mod                      # Generated Go module file
 │   ├── acmeapp_impl.go             # ✏️  EDIT THIS — command implementations
@@ -517,7 +517,7 @@ type OrderCreateCmdHandler func(context.Context, *OrderCreateCmd) (*OrderCreateC
 
 ### PkgCommandRunner (in `*_package.go`)
 
-A struct holding one handler per command, implementing `mvp.CommandRunner`:
+A struct holding one handler per command, implementing `mvep.CommandRunner`:
 
 ```go
 type PkgCommandRunner struct {
@@ -527,7 +527,7 @@ type PkgCommandRunner struct {
     RunOrderCreateCmd       OrderCreateCmdHandler
 }
 
-// Implements mvp.CommandRunner — dispatches by type
+// Implements mvep.CommandRunner — dispatches by type
 func (r *PkgCommandRunner) RunCmd(ctx context.Context, cmd any) (any, error) {
     switch cmd := cmd.(type) {
     case *UserRegisterCmd:
@@ -544,7 +544,7 @@ func (r *PkgCommandRunner) RunCmd(ctx context.Context, cmd any) (any, error) {
 
 ### Package Interface (in `*_package.go`)
 
-Implements `mvp.Package` for component resolution:
+Implements `mvep.Package` for component resolution:
 
 ```go
 // InstanceOf creates a zero-value instance by command name
@@ -601,21 +601,21 @@ func runOrderCreateCmd(ctx context.Context, cmd *api.OrderCreateCmd) (*api.Order
 
 ---
 
-## mvpgo Runtime
+## runtime/go Runtime
 
-`github.com/mainvec/mvp/mvpgo` provides the runtime infrastructure for serving and consuming MVP APIs.
+`github.com/mainvec/mvep/runtime/go` provides the runtime infrastructure for serving and consuming MVEP APIs.
 
 ### Core Interfaces
 
 ```go
-// mvp.Package — component registry for a service
+// mvep.Package — component registry for a service
 type Package interface {
     GetName() string
     InstanceOf(compName string) (any, bool)  // factory: name → zero-value instance
     NameOf(comp any) string                   // reverse: instance → name
 }
 
-// mvp.CommandRunner — command execution
+// mvep.CommandRunner — command execution
 type CommandRunner interface {
     RunCmd(ctx context.Context, cmd any) (any, error)
 }
@@ -644,7 +644,7 @@ type CmdResp struct {
 The bridge between your package, command runner, and transport layer:
 
 ```go
-handler := mvp.NewPackageHandler(pkg, transporter, runner, interceptor)
+handler := mvep.NewPackageHandler(pkg, transporter, runner, interceptor)
 
 // Server-side: handle incoming commands
 handler.ServeCmdReq(ctx, req) *CmdResp
@@ -675,20 +675,20 @@ type CmdInterceptor func(ctx context.Context, req *CmdReq, next CmdHandler) *Cmd
 
 ```go
 // Chain multiple interceptors
-chain := mvp.Chain(
-    mvp.RecoveryInterceptor(),
-    mvp.LoggingInterceptor(),
-    mvp.AuthInterceptor(myValidator),
+chain := mvep.Chain(
+    mvep.RecoveryInterceptor(),
+    mvep.LoggingInterceptor(),
+    mvep.AuthInterceptor(myValidator),
 )
 
 // Skip auth for specific commands
-auth := mvp.SkipCommands(
-    mvp.AuthInterceptor(myValidator),
+auth := mvep.SkipCommands(
+    mvep.AuthInterceptor(myValidator),
     "UserRegisterCmd", "UserLoginCmd",
 )
 
 // Apply only to specific commands
-admin := mvp.OnlyCommands(
+admin := mvep.OnlyCommands(
     adminCheckInterceptor,
     "AdminDeleteUserCmd", "AdminResetCmd",
 )
@@ -710,7 +710,7 @@ srv.Start()
 
 ### Go Client
 
-`github.com/mainvec/mvp/mvpgo/mvp/client` provides a full-featured Go client for calling MVP services.
+`github.com/mainvec/mvep/runtime/go/mvep/client` provides a full-featured Go client for calling MVEP services.
 
 #### `ClientConfig`
 
@@ -721,7 +721,7 @@ type ClientConfig struct {
     Encoder     string              // Content type, default "application/json"
     Timeout     time.Duration       // HTTP timeout, default 30s
     HTTPClient  *http.Client        // Optional custom HTTP client
-    Interceptor mvp.ClientInterceptor // Optional interceptor chain
+    Interceptor mvep.ClientInterceptor // Optional interceptor chain
 }
 ```
 
@@ -729,9 +729,9 @@ type ClientConfig struct {
 
 ```go
 import (
-    "github.com/mainvec/mvp/mvpgo/mvp/client"
-    "github.com/mainvec/mvp/mvpgo/mvp"
-    "github.com/acme/acmeapp/mvpapi/go/api"
+    "github.com/mainvec/mvep/runtime/go/mvep/client"
+    "github.com/mainvec/mvep/runtime/go/mvep"
+    "github.com/acme/acmeapp/mvepapi/go/api"
 )
 
 mvpClient, err := client.NewClient(client.ClientConfig{
@@ -811,9 +811,9 @@ import (
     "fmt"
     "sync"
 
-    "github.com/mainvec/mvp/mvpgo/mvp"
-    "github.com/mainvec/mvp/mvpgo/mvp/client"
-    "github.com/acme/acmeapp/mvpapi/go/api"
+    "github.com/mainvec/mvep/runtime/go/mvep"
+    "github.com/mainvec/mvep/runtime/go/mvep/client"
+    "github.com/acme/acmeapp/mvepapi/go/api"
 )
 
 type AcmeClient struct {
@@ -843,10 +843,10 @@ func NewAcmeClient(cfg AcmeClientConfig) (*AcmeClient, error) {
         BaseURL:  cfg.BaseURL,
         BasePath: cfg.BasePath,
         Timeout:  cfg.Timeout,
-        Interceptor: mvp.ChainClient(
-            mvp.ClientLoggingInterceptor(),
-            mvp.AuthHeaderInterceptor(tokenProvider),
-            mvp.RetryInterceptor(3, time.Second),
+        Interceptor: mvep.ChainClient(
+            mvep.ClientLoggingInterceptor(),
+            mvep.AuthHeaderInterceptor(tokenProvider),
+            mvep.RetryInterceptor(3, time.Second),
         ),
     })
     if err != nil {
@@ -970,7 +970,7 @@ The client auto-detects the `unix://` scheme and configures the HTTP transport a
 
 ## ugo Utilities
 
-`github.com/mainvec/ugo` provides foundational Go utilities used across the MVP ecosystem.
+`github.com/mainvec/ugo` provides foundational Go utilities used across the MVEP ecosystem.
 
 ### `cli` — CLI Framework
 
@@ -1008,7 +1008,7 @@ m.IteratorByKey(func(k string, v int) bool {
 
 ### `oencoding` — Encoding Registry
 
-Pluggable encoding interface with global registry. Used by mvpgo for JSON and Protobuf serialization.
+Pluggable encoding interface with global registry. Used by runtime/go for JSON and Protobuf serialization.
 
 ```go
 type Encoding interface {
@@ -1022,7 +1022,7 @@ type Encoding interface {
 
 ## JavaScript / TypeScript Client Usage
 
-The generated JS/TS code provides everything you need to build a type-safe client for your MVP API from browser or Node.js applications.
+The generated JS/TS code provides everything you need to build a type-safe client for your MVEP API from browser or Node.js applications.
 
 ### What Gets Generated (JS side)
 
@@ -1163,16 +1163,16 @@ export function nameOf(cmd) {
 }
 ```
 
-### Building a TypeScript Client with `@mainvec/mvpjs`
+### Building a TypeScript Client with `@mainvec/mvep`
 
-The `@mainvec/mvpjs` npm package provides the client-side runtime for sending commands to an MVP server. Projects typically create a typed client wrapper in a `client/` directory alongside the generated code.
+The `@mainvec/mvep` npm package provides the client-side runtime for sending commands to an MVEP server. Projects typically create a typed client wrapper in a `client/` directory alongside the generated code.
 
 #### Package Adapter (`client/acmeapp_package.ts`)
 
-Wraps the generated `acmeapp_package.js` to implement the mvpjs `Package` interface:
+Wraps the generated `acmeapp_package.js` to implement the runtime/ts `Package` interface:
 
 ```typescript
-import type { Package } from '@mainvec/mvpjs';
+import type { Package } from '@mainvec/mvep';
 import * as acmeappPkg from '../acmeapp_package.js';
 
 export class AcmeAppPackage implements Package {
@@ -1202,7 +1202,7 @@ import {
   type ClientConfig,
   type ClientInterceptor,
   chainClient,
-} from '@mainvec/mvpjs';
+} from '@mainvec/mvep';
 import { AcmeAppPackage } from './acmeapp_package';
 import { acmeappns } from '../acmeapp';
 import type { acmeappns as types } from '../acmeapp';
@@ -1368,7 +1368,7 @@ export type { acmeappns as AcmeAppTypes } from '../acmeapp';
 ### Using the Client (Example)
 
 ```typescript
-import { newAcmeClient } from './mvpapi/js/api/client';
+import { newAcmeClient } from './mvepapi/js/api/client';
 
 const client = await newAcmeClient({
   baseUrl: 'http://localhost:8080',
@@ -1407,7 +1407,7 @@ js/
     ├── acmeapp_package.d.ts        # ⛔ Generated
     └── client/                     # ✏️  Hand-written
         ├── acmeapp_client.ts       # Typed client with auth & command methods
-        ├── acmeapp_package.ts      # Package adapter (mvpjs Package interface)
+        ├── acmeapp_package.ts      # Package adapter (runtime/ts Package interface)
         └── index.ts                # Barrel exports
 ```
 
@@ -1432,8 +1432,8 @@ The `client/` directory is **hand-written** (not generated). It wraps the genera
 ### Workflow
 
 1. **Edit the spec** (`spec/*.json`) — add/modify commands, fields, or records.
-2. **Validate** — run `mvp validate --in ./spec/your-spec.json`.
-3. **Regenerate** — run `bash generate_api.sh` from the `mvpapi/` directory.
+2. **Validate** — run `mvep validate --in ./spec/your-spec.json`.
+3. **Regenerate** — run `bash generate_api.sh` from the `mvepapi/` directory.
 4. **Implement** — update `*_impl.go` with business logic for new commands.
 5. **Protect** — add `// NOMVGEN` to `*_impl.go` once you've customized it, so regeneration won't overwrite your work.
 
@@ -1453,7 +1453,7 @@ The `client/` directory is **hand-written** (not generated). It wraps the genera
 | Duplicate `fnum` within a command/record | Each `fnum` must be unique within its parent. |
 | Missing `$ref` for `recRef` fields | `recRef` fields require `"$ref": "#/recordsDefs/RecordName"`. |
 | Case sensitivity in command names | Command names are PascalCase and case-sensitive. |
-| Running generate without validating | Always `mvp validate` first to catch spec errors before generating. |
+| Running generate without validating | Always `mvep validate` first to catch spec errors before generating. |
 | Forgetting `NOMVGEN` on customized files | Add `// NOMVGEN` as the first line of any generated file you've customized. |
 | Wrong `go_package` path | Must match your actual Go module path. |
 
@@ -1461,14 +1461,14 @@ The `client/` directory is **hand-written** (not generated). It wraps the genera
 
 ## For AI Agents — Quick Reference
 
-> This section is structured for AI coding agents operating on projects that use MVP. It can be embedded in a project's `mvpapi/README.md` or `AGENT.md`.
+> This section is structured for AI coding agents operating on projects that use MVEP. It can be embedded in a project's `mvepapi/README.md` or `AGENT.md`.
 
-Preferred toolkit implementation in this repository is `mvpapi/cmd/mvp`.
+Preferred toolkit implementation in this repository is `mvepapi/cmd/mvep`.
 
-### Identifying an MVP Project
+### Identifying an MVEP Project
 
-A project uses MVP if it has a `mvpapi/` directory containing:
-- `spec/*.json` or `spec/*.jsonc` — MVP specification file(s)
+A project uses MVEP if it has a `mvepapi/` directory containing:
+- `spec/*.json` or `spec/*.jsonc` — MVEP specification file(s)
 - `generate_api.sh` — Code generation script
 - `go/` and/or `js/` — Generated output directories
 
@@ -1477,12 +1477,12 @@ A project uses MVP if it has a `mvpapi/` directory containing:
 1. **NEVER edit generated files** except `*_impl.go`. Look for the header comment `// code generated` to identify generated files.
 2. **ONLY edit `*_impl.go`** for command implementations. This is the single file where business logic lives.
 3. **Preserve field numbers** — when adding fields, use the next `fnum` after the highest existing one. Never reuse or change existing field numbers.
-4. **Regenerate after spec changes** — run `bash generate_api.sh` from the `mvpapi/` directory.
-5. **Validate before generating** — run `mvp validate --in ./spec/<name>-spec.json` first.
+4. **Regenerate after spec changes** — run `bash generate_api.sh` from the `mvepapi/` directory.
+5. **Validate before generating** — run `mvep validate --in ./spec/<name>-spec.json` first.
 
 ### Adding a New Command
 
-1. Open the spec file (`mvpapi/spec/*.json`).
+1. Open the spec file (`mvepapi/spec/*.json`).
 2. Add the command under `"commands"`:
    ```json
    "NewCommandCmd": {
@@ -1496,7 +1496,7 @@ A project uses MVP if it has a `mvpapi/` directory containing:
      }
    }
    ```
-3. Regenerate: `cd mvpapi && bash generate_api.sh`
+3. Regenerate: `cd mvepapi && bash generate_api.sh`
 4. Implement in `*_impl.go`: fill in the generated `runNewCommandCmd` stub.
 
 ### Adding a Field to an Existing Command
@@ -1526,7 +1526,7 @@ A project uses MVP if it has a `mvpapi/` directory containing:
 
 | Pattern | Purpose | Edit? |
 |---------|---------|-------|
-| `spec/*-spec.json` | MVP specification | Yes — source of truth |
+| `spec/*-spec.json` | MVEP specification | Yes — source of truth |
 | `generate_api.sh` | Regeneration script | Yes — if paths change |
 | `go/*_impl.go` | Command implementations | **Yes** — your business logic |
 | `go/*_commands.go` | Command runner factory | No |
@@ -1539,22 +1539,22 @@ A project uses MVP if it has a `mvpapi/` directory containing:
 
 ### Condensed Template for Project README
 
-Projects can include this in their `mvpapi/README.md`:
+Projects can include this in their `mvepapi/README.md`:
 
 ```markdown
-## MVP API
+## MVEP API
 
-This project uses the [Mainvec Platform](https://github.com/mainvec/mvep/toolkit) (MVP) for API generation.
+This project uses the [Mainvec Platform](https://github.com/mainvec/mvep/toolkit) (MVEP) for API generation.
 
 ### Regenerate API Code
 
-    cd mvpapi && bash generate_api.sh
+    cd mvepapi && bash generate_api.sh
 
 ### Spec Location
 
-    mvpapi/spec/<name>-spec.json
+    mvepapi/spec/<name>-spec.json
 
 ### Implementation
 
-Business logic lives in `mvpapi/go/<name>_impl.go`. Do not edit other generated files.
+Business logic lives in `mvepapi/go/<name>_impl.go`. Do not edit other generated files.
 ```

@@ -1,6 +1,6 @@
-# MVP Server
+# MVEP Server
 
-The MVP Server is a reusable server component that eliminates boilerplate code when creating HTTP servers for MVP packages. It handles common tasks like:
+The MVEP Server is a reusable server component that eliminates boilerplate code when creating HTTP servers for MVEP packages. It handles common tasks like:
 
 - HTTP server setup and lifecycle management
 - CORS configuration
@@ -11,7 +11,7 @@ The MVP Server is a reusable server component that eliminates boilerplate code w
 ## Features
 
 - **Zero Boilerplate**: Create a production-ready server with just a few lines of code
-- **Multi-Package Support**: Register multiple MVP packages on the same server
+- **Multi-Package Support**: Register multiple MVEP packages on the same server
 - **Flexible Configuration**: Support for TCP and Unix socket listeners
 - **Built-in Health Checks**: Optional health check endpoint
 - **CORS Support**: Enable CORS headers with a single flag
@@ -24,8 +24,8 @@ package main
 
 import (
     "log"
-    "github.com/mainvec/mvp/mvpgo/mvp"
-    "github.com/mainvec/mvp/mvpgo/mvp/server"
+    "github.com/mainvec/mvep/runtime/go/mvep"
+    "github.com/mainvec/mvep/runtime/go/mvep/server"
     "github.com/yourorg/yourproject/api"
     "github.com/yourorg/yourproject/impl"
 )
@@ -45,7 +45,7 @@ func main() {
         log.Fatalf("Failed to create server: %v", err)
     }
 
-    // Register your MVP package
+    // Register your MVEP package
     pkg := api.NewPackage()
     runner := impl.GetCommandRunner()
 
@@ -92,7 +92,7 @@ type ServerConfig struct {
 
 ## Multiple Packages
 
-You can register multiple MVP packages on the same server:
+You can register multiple MVEP packages on the same server:
 
 ```go
 srv, _ := server.NewServer(config)
@@ -159,7 +159,7 @@ func main() {
     // Setup package handler
     pkg := api.NewPackage()
     runner := impl.GetCommandRunner()
-    handler := &mvp.PackageHandler{
+    handler := &mvep.PackageHandler{
         Package: pkg,
         CommandRunner: runner,
     }
@@ -177,7 +177,7 @@ func main() {
 // Plus CORS middleware functions, address parsing, etc.
 ```
 
-### After (With MVP Server)
+### After (With MVEP Server)
 
 ```go
 // ~20 lines of code
@@ -206,9 +206,9 @@ See [droy-dashboard/backend/backend.go](../../droy/droy-dashboard/backend/backen
 package backend
 
 import (
-    dashboard "github.com/mainvec/droy/droy-dashboard/mvpapi/go"
-    dashapi "github.com/mainvec/droy/droy-dashboard/mvpapi/go/api"
-    "github.com/mainvec/mvp/mvpgo/mvp/server"
+    dashboard "github.com/mainvec/droy/droy-dashboard/mvepapi/go"
+    dashapi "github.com/mainvec/droy/droy-dashboard/mvepapi/go/api"
+    "github.com/mainvec/mvep/runtime/go/mvep/server"
 )
 
 type DashServer struct {
@@ -244,4 +244,4 @@ func (d *DashServer) Start() error {
 
 ## License
 
-Part of the MVP Go framework.
+Part of the MVEP Go framework.

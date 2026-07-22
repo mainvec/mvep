@@ -1,11 +1,11 @@
-# MVP Toolkit - Mainvec Platform Code Generator
+# MVEP Toolkit - Mainvec Platform Code Generator
 
-MVP Toolkit is an internal code generation tool for the Mainvec Platform that converts service specifications into production-ready code. It generates Go implementations, JavaScript/TypeScript APIs, CLI tools, and Protocol Buffer artifacts from declarative JSON specifications.
+MVEP Toolkit is an internal code generation tool for the Mainvec Platform that converts service specifications into production-ready code. It generates Go implementations, JavaScript/TypeScript APIs, CLI tools, and Protocol Buffer artifacts from declarative JSON specifications.
 
 ## Overview
 
-MVP Toolkit enables declarative API development by:
-- Converting MVP specifications to working code
+MVEP Toolkit enables declarative API development by:
+- Converting MVEP specifications to working code
 - Generating Protocol Buffer 3 schemas
 - Creating complete Go implementations with CLI tools
 - Validating specifications against JSON schemas
@@ -17,17 +17,17 @@ MVP Toolkit enables declarative API development by:
 ## Installation
 
 ```bash
-go install <module>/mvpapi/cmd/mvp@latest
+go install <module>/mvepapi/cmd/mvep@latest
 ```
 
-Preferred implementation path in this repository is `mvpapi` (plain format) with the `mvp` command.
+Preferred implementation path in this repository is `mvepapi` (plain format) with the `mvep` command.
 
 Or build from source:
 
 ```bash
 git clone https://github.com/mainvec/mvep
-cd mvep/mvgen
-go build -o mvp ./mvpapi/cmd/mvp
+cd mvep/toolkit
+go build -o mvep ./mvepapi/cmd/mvep
 ```
 
 ## Quick Start
@@ -35,10 +35,10 @@ go build -o mvp ./mvpapi/cmd/mvp
 ### 1. Initialize a New Service Specification
 
 ```bash
-mvp init --name myservice --ns myservicens
+mvep init --name myservice --ns myservicens
 ```
 
-This creates a basic MVP specification file.
+This creates a basic MVEP specification file.
 
 ### 2. Define Your Service
 
@@ -47,13 +47,13 @@ Create a file `myservice.jsonc`:
 ```json
 {
   "$id": "myservice",
-  "$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
+  "$schema": "https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15",
   "name": "myservice",
   "namespace": "myservicens",
   "version": "v0.1",
   "gen_options": {
-    "go_package": "github.com/myorg/myservice/mvpapi;myservice",
-    "go_api_package": "github.com/myorg/myservice/mvpapi/api;api"
+    "go_package": "github.com/myorg/myservice/mvepapi;myservice",
+    "go_api_package": "github.com/myorg/myservice/mvepapi/api;api"
   },
   "commands": {
     "CreateUserCmd": {
@@ -74,13 +74,13 @@ Create a file `myservice.jsonc`:
 ### 3. Validate Your Specification
 
 ```bash
-mvp validate --in myservice.jsonc
+mvep validate --in myservice.jsonc
 ```
 
 ### 4. Generate Code
 
 ```bash
-mvp generate --in myservice.jsonc --lang go --outdir ./output --format plain
+mvep generate --in myservice.jsonc --lang go --outdir ./output --format plain
 ```
 
 This generates:
@@ -118,14 +118,14 @@ go build -o myservice ./cmd/myservice
 ./myservice create_user --name "John Doe" --email "john@example.com"
 ```
 
-## MVP Specification Format
+## MVEP Specification Format
 
 ### Basic Structure
 
 ```json
 {
   "$id": "service-id",
-  "$schema": "https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15",
+  "$schema": "https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15",
   "name": "service-name",
   "namespace": "namespace",
   "version": "v0.1",
@@ -268,14 +268,14 @@ Place these at the top of files you want to protect from regeneration.
 
 ### generate
 
-Generate code from MVP specification:
+Generate code from MVEP specification:
 
 ```bash
-mvp generate --in <spec-file> --lang <language> [--outdir <directory>] [--format plain|pb3]
+mvep generate --in <spec-file> --lang <language> [--outdir <directory>] [--format plain|pb3]
 ```
 
 **Flags:**
-- `--in` (required) - Input MVP specification file
+- `--in` (required) - Input MVEP specification file
 - `--lang` (required) - Target language (`go`, `js`, or `go,js`)
 - `--outdir` - Output directory (default: current directory)
 - `--format` - Output format (`plain` default, `pb3` optional)
@@ -285,26 +285,26 @@ mvp generate --in <spec-file> --lang <language> [--outdir <directory>] [--format
 Alias of `generate`:
 
 ```bash
-mvp gen --in <spec-file> --lang <language> [--outdir <directory>] [--format plain|pb3]
+mvep gen --in <spec-file> --lang <language> [--outdir <directory>] [--format plain|pb3]
 ```
 
 ### validate
 
-Validate an MVP specification against the schema:
+Validate an MVEP specification against the schema:
 
 ```bash
-mvp validate --in <spec-file>
+mvep validate --in <spec-file>
 ```
 
 **Flags:**
-- `--in` (required) - Input MVP specification file
+- `--in` (required) - Input MVEP specification file
 
 ### init
 
-Initialize a new MVP specification:
+Initialize a new MVEP specification:
 
 ```bash
-mvp init --name <service-name> --ns <namespace>
+mvep init --name <service-name> --ns <namespace>
 ```
 
 **Flags:**
@@ -315,7 +315,7 @@ mvp init --name <service-name> --ns <namespace>
 
 ### Example: mboxy Project
 
-The [mboxy](https://github.com/mainvec/mboxy) project uses MVP Toolkit to generate a message box service:
+The [mboxy](https://github.com/mainvec/mboxy) project uses MVEP Toolkit to generate a message box service:
 
 **Specification:** `spec/mboxy-spec.json` defines 11 commands:
 - Account management (create, list)
@@ -341,7 +341,7 @@ The [iulink](https://github.com/mainvec/iulink) project uses a related tool (wog
 ### Code Generation Pipeline
 
 ```
-MVP JSON Spec
+MVEP JSON Spec
     ↓
 Schema Validation
     ↓
@@ -367,7 +367,7 @@ Build SrvDef Structure
 
 | File | Purpose |
 |------|---------|
-| [mvgen.go](mvgen.go) | Core structures, validation, spec parsing |
+| [toolkit.go](toolkit.go) | Core structures, validation, spec parsing |
 | [mvgen_pb3.go](mvgen_pb3.go) | Protocol Buffer 3 generation |
 | [mvgen_go.go](mvgen_go.go) | Go code generation, protoc compilation |
 | [mvgen_runner.go](mvgen_runner.go) | Command execution, file generation |
@@ -402,7 +402,7 @@ Templates available:
 ### MainVec Ecosystem
 
 - `github.com/mainvec/ugo` - Utilities (CLI framework, validation)
-- `github.com/mainvec/mvp/mvpgo` - MainVec platform Go library
+- `github.com/mainvec/mvep/runtime/go` - MainVec platform Go library
 
 ## Best Practices
 
@@ -481,7 +481,7 @@ Licensed under the Apache License, Version 2.0. See the [LICENSE](../LICENSE) fi
 
 ## See Also
 
-- [MVP Specification Schema](https://spec.mainvec.com/mvpspec/0.2/schema/2026-01-15)
+- [MVEP Specification Schema](https://spec.mainvec.com/mvepspec/0.2/schema/2026-01-15)
 - Legacy compatibility: `https://spec.mainvec.com/mvepspec/0.1/schema/2023-09-19` and `.../2026-01-15` remain supported.
 - [Protocol Buffers Documentation](https://protobuf.dev/)
 - [MainVec Platform Documentation](https://docs.mainvec.com/)
