@@ -1,11 +1,11 @@
-package mvgen_test
+package toolkit_test
 
 import (
 	"log"
 	"os"
 	"testing"
 
-	"github.com/mainvec/mvep/mvgen"
+	"github.com/mainvec/mvep/toolkit"
 )
 
 // Protobuf Def test data
@@ -132,18 +132,18 @@ func TestBuildProtoBuffDefFromJSON(t *testing.T) {
 				log.Fatalf("error reading test file %v,%e", tt.testfile_path, err)
 			}
 
-			result, err := mvgen.BuildProtoBuffDefFromJSON(specfile)
+			result, err := toolkit.BuildProtoBuffDefFromJSON(specfile)
 			if (err != nil) != tt.wantErr {
 				t.Errorf(" error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			wantPb3Descrp, err := mvgen.ParseProto3Definition(string(result.Name()), []byte(tt.wantPB3))
+			wantPb3Descrp, err := toolkit.ParseProto3Definition(string(result.Name()), []byte(tt.wantPB3))
 
 			if err != nil {
 				log.Fatal(err.Error())
 			}
 
-			if !mvgen.FileDescriptorEqual(result, wantPb3Descrp) {
+			if !toolkit.FileDescriptorEqual(result, wantPb3Descrp) {
 				//println("[======")
 				//GenerateProtobuf3FromFileDesc(result, os.Stdout)
 				//println("======]")

@@ -1,4 +1,4 @@
-package mvgen
+package toolkit
 
 import (
 	"strings"

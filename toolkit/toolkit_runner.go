@@ -1,4 +1,4 @@
-package mvgen
+package toolkit
 
 import (
 	"bufio"
@@ -317,7 +317,7 @@ func isAllowMVGen(fileName string) (bool, error) {
 			//file doesn ot exists, allow generation
 			return true, nil
 		} else {
-			log.Printf("could not check file[%v] for mvgen, err:%v", fileName, err)
+			log.Printf("could not check file[%v] for toolkit, err:%v", fileName, err)
 			return false, err
 		}
 	}
@@ -337,7 +337,7 @@ func isAllowMVGen(fileName string) (bool, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Printf("could not check first line in file[%v] for mvgen, err:%v", fileName, err)
+		log.Printf("could not check first line in file[%v] for toolkit, err:%v", fileName, err)
 		return false, err
 	}
 	return true, nil

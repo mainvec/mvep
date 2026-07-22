@@ -1,4 +1,4 @@
-package mvgen_test
+package toolkit_test
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/mainvec/mvep/mvgen"
+	"github.com/mainvec/mvep/toolkit"
 )
 
 func TestValidateJSONSchema(t *testing.T) {
@@ -42,7 +42,7 @@ func TestValidateJSONSchema(t *testing.T) {
 			}
 			defer specfile.Close()
 
-			result, err := mvgen.ValidateJSONSchema(specfile)
+			result, err := toolkit.ValidateJSONSchema(specfile)
 			if !result.Valid() {
 				for _, v := range result.ValidationErrors() {
 					fmt.Printf("err:%v", v.String())
@@ -67,53 +67,53 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 	tests := []struct {
 		name          string
 		testfile_path string
-		want          mvgen.SrvDef
+		want          toolkit.SrvDef
 		wantErr       bool
 		numOfErrors   int
 	}{
 		{"TEST01 :Valid - basic ServiceDef", "01_basic_wo_valid_no_comments.json",
-			mvgen.SrvDef{
+			toolkit.SrvDef{
 				Id:        "test1Id",
 				Name:      "test1Name",
 				Namespace: "test1Namespace",
 			}, false, 0},
 		{"TEST02 :Valid - basic with comments", "02_basic_wo_valid_with_comments.jsonc",
-			mvgen.SrvDef{
+			toolkit.SrvDef{
 				Id:        "test2Id",
 				Name:      "test2Name",
 				Namespace: "test2Namespace",
 			}, false, 0},
-		{"TEST03 :InValid - basic", "03_basic_wo_invalid.jsonc", mvgen.SrvDef{}, true, 0},
+		{"TEST03 :InValid - basic", "03_basic_wo_invalid.jsonc", toolkit.SrvDef{}, true, 0},
 		{"TEST04 :Valid - basic cmd", "04_valid_wosrv_command.jsonc",
-			mvgen.SrvDef{
+			toolkit.SrvDef{
 				Id:        "test4Id",
 				Name:      "test4Name",
 				Namespace: "test4Namespace",
-				GenOpts: mvgen.GenOptsDef{
+				GenOpts: toolkit.GenOptsDef{
 					"go_package": "github.com/mainvec/wo/mvep/wopdb/wopdb2api",
 				},
-				Commands: mvgen.CommandDefs{
-					"OrderPizzaCmd": mvgen.CommandDef{
+				Commands: toolkit.CommandDefs{
+					"OrderPizzaCmd": toolkit.CommandDef{
 						Title: "Order a pizza",
 					},
 				},
 			}, false, 0},
 		{"TEST05 :Valid - cmd with fields", "05_command_withfields.jsonc",
-			mvgen.SrvDef{
+			toolkit.SrvDef{
 				Id:        "test5Id",
 				Name:      "test5Name",
 				Namespace: "test5Namespace",
-				Commands: mvgen.CommandDefs{
-					"OrderPizzaCmd": mvgen.CommandDef{
+				Commands: toolkit.CommandDefs{
+					"OrderPizzaCmd": toolkit.CommandDef{
 						Title: "Order a pizza",
-						Fields: mvgen.FieldDefs{
+						Fields: toolkit.FieldDefs{
 							"size": {
 								Fnum: 1,
-								Type: mvgen.INT32,
+								Type: toolkit.INT32,
 							},
 							"type": {
 								Fnum: 2,
-								Type: mvgen.STRING,
+								Type: toolkit.STRING,
 							},
 							"toppings": {
 								Fnum:     3,
@@ -125,24 +125,24 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 				},
 			}, false, 0},
 		{"TEST06 :Valid/comands with refs", "06_command_with_ref.jsonc",
-			mvgen.SrvDef{
+			toolkit.SrvDef{
 				Id:        "test6Id",
 				Name:      "test6Name",
 				Namespace: "test6Namespace",
-				GenOpts: mvgen.GenOptsDef{
+				GenOpts: toolkit.GenOptsDef{
 					"go_package": "github.com/mainvec/wo/mvep/wopdb/wopdb2api",
 				},
-				Commands: mvgen.CommandDefs{
-					"OrderPizzaCmd": mvgen.CommandDef{
+				Commands: toolkit.CommandDefs{
+					"OrderPizzaCmd": toolkit.CommandDef{
 						Title: "Order a pizza",
-						Fields: mvgen.FieldDefs{
+						Fields: toolkit.FieldDefs{
 							"size": {
 								Fnum: 1,
-								Type: mvgen.STRING,
+								Type: toolkit.STRING,
 							},
 							"type": {
 								Fnum: 2,
-								Type: mvgen.STRING,
+								Type: toolkit.STRING,
 							},
 							"toppings": {
 								Fnum:     3,
@@ -157,17 +157,17 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 						},
 					},
 				},
-				Records: mvgen.RecordsDefs{
-					"Address": mvgen.RecordDef{
+				Records: toolkit.RecordsDefs{
+					"Address": toolkit.RecordDef{
 						Name: "Address",
-						Fields: mvgen.FieldDefs{
+						Fields: toolkit.FieldDefs{
 							"street": {
 								Fnum: 1,
-								Type: mvgen.STRING,
+								Type: toolkit.STRING,
 							},
 							"city": {
 								Fnum: 2,
-								Type: mvgen.STRING,
+								Type: toolkit.STRING,
 							},
 							"country": {
 								Fnum: 3,
@@ -178,54 +178,54 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 				},
 			}, false, 0},
 		{"TEST07 :Valid/command with result", "07_command_with_result.jsonc",
-			mvgen.SrvDef{
+			toolkit.SrvDef{
 				Id:        "test7Id",
 				Name:      "test7Name",
 				Namespace: "test7Namespace",
 				Title:     "test7Title",
 				Desc:      "test7Description",
 				Version:   "v0.1",
-				Commands: mvgen.CommandDefs{
-					"OrderPizzaCmd": mvgen.CommandDef{
+				Commands: toolkit.CommandDefs{
+					"OrderPizzaCmd": toolkit.CommandDef{
 						Title: "Order a pizza",
 						Alias: "order",
 						Desc:  "command description",
-						Fields: mvgen.FieldDefs{
+						Fields: toolkit.FieldDefs{
 							"size": {
 								Fnum: 1,
-								Type: mvgen.STRING,
+								Type: toolkit.STRING,
 								Desc: "field description",
 							},
 						},
-						ResultFields: mvgen.FieldDefs{
+						ResultFields: toolkit.FieldDefs{
 							"orderStatus": {
 								Fnum: 1,
-								Type: mvgen.STRING,
+								Type: toolkit.STRING,
 							},
 						},
 					},
 				},
 			}, false, 0},
 		{"TEST08 :Valid - map field", "08_maps.jsonc",
-			mvgen.SrvDef{
+			toolkit.SrvDef{
 				Id:        "mapsTest",
 				Name:      "mapstest",
 				Namespace: "test8",
 				Base:      "github.com/mainvec/mapstest",
-				GenOpts: mvgen.GenOptsDef{
+				GenOpts: toolkit.GenOptsDef{
 					"go_package": "github.com/mainvec/mvep/won/mapstest",
 				},
-				Records: mvgen.RecordsDefs{
-					"WOReqTest": mvgen.RecordDef{
+				Records: toolkit.RecordsDefs{
+					"WOReqTest": toolkit.RecordDef{
 						Name: "WOReqTest",
-						Fields: mvgen.FieldDefs{
+						Fields: toolkit.FieldDefs{
 							"woservs": {
 								Fnum: 1,
-								Type: mvgen.STRING,
+								Type: toolkit.STRING,
 							},
 							"headers": {
 								Fnum:         2,
-								Type:         mvgen.MAP,
+								Type:         toolkit.MAP,
 								MapValueType: "string",
 							},
 						},
@@ -245,7 +245,7 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 				log.Fatalf("error reading test file %v,%e", tt.testfile_path, err)
 			}
 
-			result, err := mvgen.BuildSrvDefFromJSON(specfile)
+			result, err := toolkit.BuildSrvDefFromJSON(specfile)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf(" error = %v, wantErr %v", err, tt.wantErr)
@@ -264,7 +264,7 @@ func TestBuildSrvDefFromJSON(t *testing.T) {
 
 			//Marsal SrvDef to json and validate
 			var buf bytes.Buffer
-			err = mvgen.MarshalSrvDefToJSON(&buf, result)
+			err = toolkit.MarshalSrvDefToJSON(&buf, result)
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
@@ -282,7 +282,7 @@ func getTestFilePath(testfilename string) (string, error) {
 	return wd, nil
 }
 
-func saveTestTempFile(srvDef *mvgen.SrvDef, dir, testfilename string, content []byte) error {
+func saveTestTempFile(srvDef *toolkit.SrvDef, dir, testfilename string, content []byte) error {
 	wd, err := os.Getwd()
 	if err != nil {
 		return err

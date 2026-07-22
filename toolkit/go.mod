@@ -1,4 +1,4 @@
-module github.com/mainvec/mvep/mvgen
+module github.com/mainvec/mvep/toolkit
 
 go 1.24.0
 

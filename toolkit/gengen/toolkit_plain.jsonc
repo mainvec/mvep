@@ -7,8 +7,8 @@
 	"version": "v0.1",
 	"namespace": "mvpNS",
 	"gen_options": {
-		"go_package": "github.com/mainvec/mvep/mvgen/mvpapi;mvp",
-		"go_api_package": "github.com/mainvec/mvep/mvgen/mvpapi/api;api"
+		"go_package": "github.com/mainvec/mvep/toolkit/mvpapi;mvp",
+		"go_api_package": "github.com/mainvec/mvep/toolkit/mvpapi/api;api"
 	},
 	"commands": {
 		"InitializeCmd": {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mainvec/mvep/mvgen"
+	"github.com/mainvec/mvep/toolkit"
 	"github.com/mainvec/ugo/cli"
 )
 
@@ -48,7 +48,7 @@ func prepareGenerateCmd(rootCmd *cli.Command) {
 		Usage: "generate",
 		Short: "Generate code from MVP schema",
 		Run: func(ctx *cli.Context, args []string) {
-			err := mvgen.ExecuteGenerate(ctx, inFlag, outdirFlag, langFlag, false, formatFlag)
+			err := toolkit.ExecuteGenerate(ctx, inFlag, outdirFlag, langFlag, false, formatFlag)
 			if err != nil {
 				fmt.Fprintln(ctx.Errout(), err)
 			}
@@ -72,7 +72,7 @@ func prepareGenCmd(rootCmd *cli.Command) {
 		Usage: "gen",
 		Short: "Generate code from MVP schema (alias)",
 		Run: func(ctx *cli.Context, args []string) {
-			err := mvgen.ExecuteGenerate(ctx, inFlag, outdirFlag, langFlag, false, formatFlag)
+			err := toolkit.ExecuteGenerate(ctx, inFlag, outdirFlag, langFlag, false, formatFlag)
 			if err != nil {
 				fmt.Fprintln(ctx.Errout(), err)
 			}
@@ -94,7 +94,7 @@ func prepareInitializeCmd(rootCmd *cli.Command) {
 		Usage: "init",
 		Short: "Initialize a new MVP spec",
 		Run: func(ctx *cli.Context, args []string) {
-			err := mvgen.ExeucuteInitializeCmd(ctx, nameFlag, namespaceFlag)
+			err := toolkit.ExeucuteInitializeCmd(ctx, nameFlag, namespaceFlag)
 			if err != nil {
 				fmt.Fprintln(ctx.Errout(), err)
 			}
@@ -113,7 +113,7 @@ func prepareValidateCmd(rootCmd *cli.Command) {
 		Usage: "validate",
 		Short: "Validate MVP spec",
 		Run: func(ctx *cli.Context, args []string) {
-			res, err := mvgen.ExecuteValidateCmd(ctx, inFlag)
+			res, err := toolkit.ExecuteValidateCmd(ctx, inFlag)
 			if err != nil {
 				fmt.Fprintln(ctx.Errout(), err)
 				return

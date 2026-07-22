@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mainvec/mvep/mvgen"
+	"github.com/mainvec/mvep/toolkit"
 )
 
 // MVGEN plain-format self-generator. to be run manually when needed.
@@ -16,10 +16,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	in := filepath.Join(wd, "mvgen_plain.jsonc")
+	in := filepath.Join(wd, "toolkit_plain.jsonc")
 	lang := "go"
 	outdir := filepath.Join(wd, "..", "mvpapi")
-	err = mvgen.ExecuteGenerate(context.Background(), in, outdir, lang, false, "plain")
+	err = toolkit.ExecuteGenerate(context.Background(), in, outdir, lang, false, "plain")
 	if err != nil {
 		log.Fatalf("error executing plain generate: %v", err)
 	}

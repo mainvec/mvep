@@ -1,4 +1,4 @@
-package mvgen_test
+package toolkit_test
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mainvec/mvep/mvgen"
+	"github.com/mainvec/mvep/toolkit"
 )
 
 func TestGenerateGOProtoBuffAPI(t *testing.T) {
@@ -36,23 +36,23 @@ func TestGenerateGOProtoBuffAPI(t *testing.T) {
 				log.Fatalf("error reading test file %v,%e", tt.testfile_path, err)
 			}
 
-			srvDef, err := mvgen.BuildSrvDefFromJSON(specfile)
+			srvDef, err := toolkit.BuildSrvDefFromJSON(specfile)
 			if err != nil {
 				log.Fatalf("error building SrvDef %v,%e", tt.testfile_path, err)
 			}
 
-			result, err := mvgen.BuildProtoBuffDefFromSrvDef(srvDef)
+			result, err := toolkit.BuildProtoBuffDefFromSrvDef(srvDef)
 
 			if err != nil {
 				log.Fatalf("error BuildProtoBuffDefFromJSON test file %v,%e", tt.testfile_path, err)
 			}
 			buff := &bytes.Buffer{}
-			err = mvgen.GenerateProtobuf3FromFileDesc(result, buff)
+			err = toolkit.GenerateProtobuf3FromFileDesc(result, buff)
 			if err != nil {
 				log.Fatalf("error GenerateProtobuf3FromFileDesc test file %v,%e", tt.testfile_path, err)
 			}
 
-			pb3GOAPI, err := mvgen.GenerateGOProtoBuffAPIFromProto(srvDef, buff.Bytes())
+			pb3GOAPI, err := toolkit.GenerateGOProtoBuffAPIFromProto(srvDef, buff.Bytes())
 			if (err != nil) && !tt.wantErr {
 				t.Errorf("got error[%v], wanted error[%v], error[%v]", err != nil, tt.wantErr, err)
 				return
@@ -90,12 +90,12 @@ func TestGenerateGOVanillaStructs(t *testing.T) {
 			}
 			defer specfile.Close()
 
-			srvDef, err := mvgen.BuildSrvDefFromJSON(specfile)
+			srvDef, err := toolkit.BuildSrvDefFromJSON(specfile)
 			if err != nil {
 				t.Fatalf("error building SrvDef: %v", err)
 			}
 
-			vanillaAPI, err := mvgen.GenerateGOVanillaStructs(srvDef)
+			vanillaAPI, err := toolkit.GenerateGOVanillaStructs(srvDef)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GenerateGOVanillaStructs() error = %v, wantErr %v", err, tt.wantErr)
 				return

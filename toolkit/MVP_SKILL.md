@@ -29,7 +29,7 @@ MVP consists of three core components:
 
 | Component | Module | Purpose |
 |-----------|--------|---------|
-| **mvp generator** | `github.com/mainvec/mvep/mvgen` | Code generator — transforms MVP specs into Go, JS/TS, and Protobuf code |
+| **mvp generator** | `github.com/mainvec/mvep/toolkit` | Code generator — transforms MVP specs into Go, JS/TS, and Protobuf code |
 | **mvpgo** | `github.com/mainvec/mvp/mvpgo` | Runtime library — `mvp.Package` and `mvp.CommandRunner` interfaces, HTTP/Unix socket server & client, middleware/interceptor system |
 | **ugo** | `github.com/mainvec/ugo` | Go utilities — CLI framework (`cli`), ordered maps (`omap`), encoding registry (`oencoding`), validation, collections |
 
@@ -1544,7 +1544,7 @@ Projects can include this in their `mvpapi/README.md`:
 ```markdown
 ## MVP API
 
-This project uses the [Mainvec Platform](https://github.com/mainvec/mvep/mvgen) (MVP) for API generation.
+This project uses the [Mainvec Platform](https://github.com/mainvec/mvep/toolkit) (MVP) for API generation.
 
 ### Regenerate API Code
 
