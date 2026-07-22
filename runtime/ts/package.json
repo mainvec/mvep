@@ -1,6 +1,6 @@
 {
   "name": "@mainvec/mvep",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "MVEP runtime — Mainvec protocol client library for JavaScript/TypeScript",
   "main": "dist/index.js",
   "module": "dist/index.js",

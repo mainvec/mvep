@@ -2,8 +2,8 @@ package mvep
 
 import "context"
 
-// HeaderPrefix is the prefix for custom MVP headers in HTTP transport
-const HeaderPrefix = "x-mvp-"
+// HeaderPrefix is the prefix for custom MVEP headers in HTTP transport
+const HeaderPrefix = "x-mvep-"
 
 // Context keys for passing CmdReq/CmdResp through context
 type cmdReqContextKey struct{}

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - 2026-07-22
 
 ### Changed
+- **BREAKING (wire): HTTP custom-header prefix renamed** `x-mvp-` → `x-mvep-` in both runtimes (Go `HeaderPrefix`, TS `HEADER_PREFIX`). Client and server must both run runtime ≥ v0.7.0; a peer on the old prefix cannot exchange custom headers (auth, request-id) with a peer on the new one. The control headers `x-mainvec-cmd` / `x-mainvec-error` are unchanged. Runtime bumped to **v0.7.0**.
 - **Monorepo consolidation.** Merged the `mvpgo` repository (Go + TypeScript runtimes) into this repo to form the MVEP (Mainvec Engineering Platform) monorepo. Layout is now `toolkit/` (generator) + `runtime/{go,ts}` (runtimes).
 - **Generator renamed** `mvgen` → `toolkit` (module `github.com/mainvec/mvep/toolkit`, package `toolkit`).
 - **Go runtime module path fixed/renamed** `github.com/mainvec/mvp/mvpgo` → `github.com/mainvec/mvep/runtime/go` (now resolvable: module path matches repo path). Go package `mvp` → `mvep`.

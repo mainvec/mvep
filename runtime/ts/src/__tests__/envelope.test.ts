@@ -157,7 +157,7 @@ describe('envelope', () => {
 
   describe('HEADER_PREFIX', () => {
     it('has correct value', () => {
-      expect(HEADER_PREFIX).toBe('x-mvp-');
+      expect(HEADER_PREFIX).toBe('x-mvep-');
     });
   });
 });

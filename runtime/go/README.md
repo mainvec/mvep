@@ -312,8 +312,8 @@ curl -X POST http://127.0.0.1:8080/api/mypackage/cmd \
 curl -X POST http://127.0.0.1:8080/api/mypackage/cmd \
   -H "Content-Type: application/json" \
   -H "x-mainvec-cmd: MyCommand" \
-  -H "x-mvp-auth: Bearer token123" \
-  -H "x-mvp-request-id: abc-456" \
+  -H "x-mvep-auth: Bearer token123" \
+  -H "x-mvep-request-id: abc-456" \
   -d '{"input": "test"}'
 
 # View response headers
@@ -323,7 +323,7 @@ curl -i -X POST http://127.0.0.1:8080/api/mypackage/cmd \
   -d '{"input": "test"}'
 ```
 
-Custom headers use the `x-mvp-` prefix. For example, `x-mvp-auth` becomes `auth` in the `headers` map.
+Custom headers use the `x-mvep-` prefix. For example, `x-mvep-auth` becomes `auth` in the `headers` map.
 
 ## Project Structure
 

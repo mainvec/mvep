@@ -2,8 +2,8 @@
  * Envelope types for MVP command request/response handling
  */
 
-/** HeaderPrefix is the prefix for custom MVP headers in HTTP transport */
-export const HEADER_PREFIX = 'x-mvp-';
+/** HeaderPrefix is the prefix for custom MVEP headers in HTTP transport */
+export const HEADER_PREFIX = 'x-mvep-';
 
 /**
  * ErrorInfo provides structured error information

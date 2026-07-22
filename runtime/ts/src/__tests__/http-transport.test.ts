@@ -99,7 +99,7 @@ describe('HttpTransporter', () => {
   describe('transportCmdReq', () => {
     it('sends request with custom headers', async () => {
       const mockHeaders = new Map<string, string>();
-      mockHeaders.set('x-mvp-response-header', 'value');
+      mockHeaders.set('x-mvep-response-header', 'value');
       
       const mockResponse = {
         ok: true,
@@ -123,7 +123,7 @@ describe('HttpTransporter', () => {
         'http://example.com/pkg',
         expect.objectContaining({
           headers: expect.objectContaining({
-            'x-mvp-auth': 'token123',
+            'x-mvep-auth': 'token123',
           }),
         })
       );
