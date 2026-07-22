@@ -9,7 +9,7 @@ import (
 	"github.com/mainvec/mvep/toolkit"
 )
 
-// MVGEN plain-format self-generator. to be run manually when needed.
+// toolkit plain-format self-generator. to be run manually when needed.
 
 func main() {
 	wd, err := os.Getwd()

@@ -279,9 +279,9 @@ func runCreateUserCmd(ctx context.Context, cmd *api.CreateUserCmd) (*api.CreateU
 | File | Purpose | Key Functions |
 |------|---------|---------------|
 | `toolkit.go` | Core structures, validation | `BuildSrvDefFromString()`, `ValidateAgainstSchema()` |
-| `mvgen_pb3.go` | Protobuf generation | `BuildProtoBuffDefFromSrvDef()` |
-| `mvgen_go.go` | Go code generation | `GenerateGOProtoBuffAPIFromProto()`, `GenerateFromEmbeddTemplate()` |
-| `mvgen_runner.go` | Command execution | `ExecuteGenerate()`, `ExecuteValidateCmd()` |
+| `toolkit_pb3.go` | Protobuf generation | `BuildProtoBuffDefFromSrvDef()` |
+| `toolkit_go.go` | Go code generation | `GenerateGOProtoBuffAPIFromProto()`, `GenerateFromEmbeddTemplate()` |
+| `toolkit_runner.go` | Command execution | `ExecuteGenerate()`, `ExecuteValidateCmd()` |
 
 ### Data Structures
 

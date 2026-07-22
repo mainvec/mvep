@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/mainvec/mvep/toolkit"
 )
 
 func TestGenerateGOProtoBuffAPI(t *testing.T) {
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("protoc not found in PATH; skipping protobuf (pb3) code generation test")
+	}
 	tests := []struct {
 		name          string
 		testfile_path string

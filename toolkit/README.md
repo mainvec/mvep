@@ -368,9 +368,9 @@ Build SrvDef Structure
 | File | Purpose |
 |------|---------|
 | [toolkit.go](toolkit.go) | Core structures, validation, spec parsing |
-| [mvgen_pb3.go](mvgen_pb3.go) | Protocol Buffer 3 generation |
-| [mvgen_go.go](mvgen_go.go) | Go code generation, protoc compilation |
-| [mvgen_runner.go](mvgen_runner.go) | Command execution, file generation |
+| [toolkit_pb3.go](toolkit_pb3.go) | Protocol Buffer 3 generation |
+| [toolkit_go.go](toolkit_go.go) | Go code generation, protoc compilation |
+| [toolkit_runner.go](toolkit_runner.go) | Command execution, file generation |
 | [resources/codegen_templates/go/](resources/codegen_templates/go/) | Go code templates (20+ templates) |
 
 ### Template System
