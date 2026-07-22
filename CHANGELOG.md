@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mvepspec/0.2` schema as the new canonical `$schema` URL, with `mvpspec/0.2` retained as a resolvable **alias** so existing spec files keep validating.
 - Root `go.work` tying `toolkit` + `runtime/go` for local multi-module development.
 - Merged CI: `go.yml` (toolkit + runtime/go), `js.yml` (runtime/ts), and `npm-publish.yml` (publishes `@mainvec/mvep` on `runtime/ts/v*` tags).
+- `release.yml`: builds the `mvep` CLI for linux/darwin/windows (amd64/arm64) with the version injected via `-ldflags -X main.version`, verifies the stamp, and attaches binaries to a GitHub Release on `toolkit/v*` tags.
+- Hybrid version resolution for the `mvep` CLI and for generated CLIs: linker-injected `main.version` → module version from `runtime/debug.ReadBuildInfo()` (`go install …@vX.Y.Z`) → static fallback (`"dev"` for `mvep`; the `<NAME>_VERSION` constant for generated CLIs). Replaces the previously hardcoded version.
 - `NOMVEP` codegen protection marker (legacy `NOMVGEN`/`NOWOGEN` still honored).
 
 ### Fixed
