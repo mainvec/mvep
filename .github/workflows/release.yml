@@ -1,0 +1,121 @@
+name: Release toolkit
+
+# Builds the `mvep` CLI and attaches binaries to a GitHub Release when a
+# `toolkit/vX.Y.Z` tag is pushed. The version is injected at build time via
+# -ldflags so `mvep -v` reports the released version regardless of how the binary
+# is obtained.
+#
+# Pull requests run the build + version-stamp verification as a dry-run (no
+# release is created), so the ldflags wiring is validated on every change.
+#
+# Version resolution in the CLI is hybrid (see mvep_version.go): ldflags wins,
+# then module build info (`go install …@vX.Y.Z`), then "dev".
+
+on:
+  push:
+    tags:
+      - "toolkit/v*"
+  pull_request:
+    branches: [main]
+
+# Each Go module is built standalone (mirrors external consumers); the intra-repo
+# replace in toolkit/go.mod points at ../runtime/go, present in the checkout.
+env:
+  GOWORK: "off"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    defaults:
+      run:
+        working-directory: toolkit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: toolkit/go.mod
+          cache-dependency-path: toolkit/go.sum
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # github.ref_name is e.g. "toolkit/v0.5.2"; strip the module prefix.
+            echo "version=${GITHUB_REF_NAME#toolkit/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ext=""
+          [ "$GOOS" = "windows" ] && ext=".exe"
+          out="mvep_${VERSION}_${GOOS}_${GOARCH}${ext}"
+          mkdir -p ../dist
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${VERSION}" \
+            -o "../dist/${out}" ./mvepapi/cmd/mvep
+          echo "artifact=$out" >> "$GITHUB_ENV"
+
+      - name: Verify version stamp (native runner only)
+        if: ${{ matrix.goos == 'linux' && matrix.goarch == 'amd64' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          got=$(../dist/mvep_${VERSION}_linux_amd64 -v)
+          echo "mvep -v => $got"
+          if [ "$got" != "$VERSION" ]; then
+            echo "::error::version stamp mismatch: got '$got', want '$VERSION'"
+            exit 1
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mvep-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/toolkit/v') }}
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release and upload binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "toolkit ${GITHUB_REF_NAME}" \
+            --generate-notes
