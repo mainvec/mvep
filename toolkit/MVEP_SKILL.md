@@ -628,7 +628,7 @@ Commands are wrapped in envelopes with headers for transport:
 ```go
 type CmdReq struct {
     Cmd     any
-    Headers map[string]string  // headers use "x-mvp-" prefix in HTTP
+    Headers map[string]string  // headers use "x-mvep-" prefix in HTTP
     Payload []byte
 }
 
@@ -1215,7 +1215,7 @@ function authHeaderInterceptor(
     const token = tokenProvider();
     if (token) {
       const headers = req.headers ?? {};
-      headers['auth'] = token;       // sent as 'x-mvp-auth' HTTP header
+      headers['auth'] = token;       // sent as 'x-mvep-auth' HTTP header
       req.headers = headers;
     }
     return invoker(ctx, req);

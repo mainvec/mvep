@@ -220,7 +220,7 @@ describe('Client', () => {
     describe('sendCmdReq', () => {
       it('sends command with headers and returns response', async () => {
         const mockHeaders = new Map<string, string>();
-        mockHeaders.set('x-mvp-rate-limit', '100');
+        mockHeaders.set('x-mvep-rate-limit', '100');
         
         mockFetch.mockResolvedValue({
           ok: true,
@@ -276,7 +276,7 @@ describe('Client', () => {
           expect.any(String),
           expect.objectContaining({
             headers: expect.objectContaining({
-              'x-mvp-auth': 'my-token',
+              'x-mvep-auth': 'my-token',
             }),
           })
         );
