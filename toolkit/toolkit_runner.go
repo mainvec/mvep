@@ -326,11 +326,10 @@ func isAllowMVGen(fileName string) (bool, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		//read only first line
-		//look for  NOMVGEN and NOWOGEN comment in first line
-		//NOWOGEN is left for legacy support
+		//look for NOMVEP marker in first line (NOMVGEN/NOWOGEN kept for legacy support)
 		line := strings.ToUpper(scanner.Text())
-		if strings.Contains(line, "NOMVGEN") || strings.Contains(line, "NOWOGEN") {
-			log.Printf("skipping generation for file [%v]. NOMVGEN (or NOWOGEN) found in first line", fileName)
+		if strings.Contains(line, "NOMVEP") || strings.Contains(line, "NOMVGEN") || strings.Contains(line, "NOWOGEN") {
+			log.Printf("skipping generation for file [%v]. NOMVEP (or legacy NOMVGEN/NOWOGEN) found in first line", fileName)
 			return false, nil
 		}
 		break
