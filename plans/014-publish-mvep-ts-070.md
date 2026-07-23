@@ -87,7 +87,7 @@ is correct:
 
 ## Progress
 
-- [ ] T1 — Set `NPM_TOKEN` secret and push `runtime/ts/v0.7.0` tag; confirm publish.
+- [x] T1 — Set `NPM_TOKEN` secret and push `runtime/ts/v0.7.0` tag; confirm publish.
 - [x] T2 — Update `docs/consumer-migration.md` to point at the published package.
 
 ## Tasks
@@ -103,6 +103,13 @@ is correct:
     the token value. See `runtime/ts/NPM_PUBLISH.md` §Prerequisites.
   - Tag on current `main` HEAD (`a362e7f`); `package.json` already `0.7.0`.
   - Command: `git tag -a runtime/ts/v0.7.0 -m "@mainvec/mvep 0.7.0" && git push origin runtime/ts/v0.7.0`.
+  - **First push failed** (403): the initial granular token lacked 2FA-bypass;
+    regenerated the token with bypass enabled (or used a classic automation
+    token), re-set the secret, deleted + re-pushed the tag, and the second run
+    (`29999171158`) succeeded.
+  - **Verified published**: `https://registry.npmjs.org/@mainvec%2fmvep/latest`
+    → `"version":"0.7.0"`, `dist-tags.latest = 0.7.0`. (Local `npm view` returns
+    403 due to a local npm config/policy quirk, not a registry problem.)
 
 ### T2 — Update `docs/consumer-migration.md` to point at the published package
 
