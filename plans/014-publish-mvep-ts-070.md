@@ -88,7 +88,7 @@ is correct:
 ## Progress
 
 - [ ] T1 — Set `NPM_TOKEN` secret and push `runtime/ts/v0.7.0` tag; confirm publish.
-- [ ] T2 — Update `docs/consumer-migration.md` to point at the published package.
+- [x] T2 — Update `docs/consumer-migration.md` to point at the published package.
 
 ## Tasks
 
