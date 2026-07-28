@@ -65,6 +65,9 @@ export interface FetchOptions {
   credentials?: RequestCredentials;
   /** Request mode */
   mode?: RequestMode;
+  /** Request timeout in milliseconds. The underlying fetch is aborted when it
+   * elapses. 0 or undefined means no timeout. */
+  timeout?: number;
 }
 
 /**
@@ -77,6 +80,7 @@ export class HttpTransporter implements Transporter, EnvelopeTransporter {
   private defaultHeaders: Record<string, string>;
   private credentials?: RequestCredentials;
   private mode?: RequestMode;
+  private timeout?: number;
 
   constructor(
     url: string,
@@ -99,6 +103,7 @@ export class HttpTransporter implements Transporter, EnvelopeTransporter {
     this.defaultHeaders = options.headers || {};
     this.credentials = options.credentials;
     this.mode = options.mode;
+    this.timeout = options.timeout;
 
     if (!this.fetchFn) {
       throw new Error('fetch is not available. Please provide a fetch implementation.');
@@ -110,6 +115,20 @@ export class HttpTransporter implements Transporter, EnvelopeTransporter {
    */
   getUrl(): string {
     return this.path;
+  }
+
+  /**
+   * Runs fetch with an AbortController timeout. Returns a cleanup function via
+   * the controller; the timer is always cleared so nothing leaks.
+   */
+  private fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
+    if (!this.timeout || this.timeout <= 0) {
+      return this.fetchFn(input, init);
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeout);
+    return this.fetchFn(input, { ...init, signal: controller.signal })
+      .finally(() => clearTimeout(timer));
   }
 
   /**
@@ -129,7 +148,7 @@ export class HttpTransporter implements Transporter, EnvelopeTransporter {
 
     const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
 
-    const response = await this.fetchFn(this.path, {
+    const response = await this.fetchWithTimeout(this.path, {
       method: 'POST',
       headers: {
         ...this.defaultHeaders,
@@ -188,7 +207,7 @@ export class HttpTransporter implements Transporter, EnvelopeTransporter {
       ? req.payload 
       : JSON.stringify(req.payload);
 
-    const response = await this.fetchFn(this.path, {
+    const response = await this.fetchWithTimeout(this.path, {
       method: 'POST',
       headers,
       body,

@@ -87,6 +87,7 @@ export class Client {
       headers: this.config.headers,
       credentials: this.config.credentials,
       mode: this.config.mode,
+      timeout: this.config.timeout,
     };
 
     const transporter = new HttpTransporter(
