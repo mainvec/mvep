@@ -203,17 +203,15 @@ host process. Thread `error` returns up to the command boundary; the `mvep` CLI
 returns an error, wrap and propagate; where it does not, change the signature —
 all such functions are internal to the toolkit module.
 
-### `wo/` template rework
+### `wo/` template removal (revised from "rework")
 
 The 10 templates under `resources/codegen_templates/go/` that reference
 `github.com/mainvec/wo/*` (server, client, test, NATS starter, and their
-`go.mod` generators) are rewritten to target the MVEP runtime
-(`github.com/mainvec/mvep/runtime/go`) — the same `Package`/`CommandRunner`/
-`server` APIs the hand-written `mvepapi` implementation already uses. The
-`replace` directives pointing at `/Users/hi/Development/mainvec/wo/*` are
-deleted outright. The NATS starter template is removed rather than reworked:
-NATS is a mainvec-internal concern, not part of the public platform, and no
-consumer outside the `wo` stack can use it.
+`go.mod` generators) are **deleted**, along with the four dead generator
+functions that emit them (`GenerateGOSRV`, `GenerateGOClient`, `GenerateGOMod`,
+`GenerateGOAPI`). Verification during implementation confirmed none of them have
+any caller in the module, so they are unreachable. A future server-mode
+generator targeting `runtime/go` is tracked as a follow-up issue.
 
 ### Generated-file permissions
 
@@ -367,6 +365,16 @@ expects.
   server/client/test scaffolding is a real feature; deleting it would shrink the
   generator's value. The NATS starter is the exception — it is removed because
   NATS is internal to the `wo` stack.
+- **REVISED (T14): remove the dead `wo` generation path entirely.** Investigation
+  during T14 found that the four functions emitting those templates
+  (`GenerateGOSRV`, `GenerateGOClient`, `GenerateGOMod`, `GenerateGOAPI`) have
+  **zero callers** — `ExecuteGenerate` never invokes them, and there is no live
+  registration anywhere in the module. All 10 `wo`-flagged templates are
+  unreachable dead code. Reworking dead templates to target the MVEP runtime
+  would produce *more* dead code and give the T15 compile test nothing reachable
+  to assert. They are deleted instead. A proper server-mode generator targeting
+  `runtime/go` is a genuine feature but belongs in its own issue once there is a
+  caller for it.
 - **Compile test over golden files.** Golden files ossify formatting and churn
   on every template tweak; a `go build` of generated output asserts the property
   that actually matters — it compiles — with less maintenance.
@@ -529,17 +537,17 @@ expects.
   the error up through them. Exported signatures keep their shape; internal
   helpers gain error returns. Test files and `gengen`'s `main` keep `log.Fatal`.
 
-### T14 — `wo/` template rework
+### T14 — `wo/` dead-path removal
 
-- **Outcome**: All 10 `wo/`-referencing templates generate code against
-  `github.com/mainvec/mvep/runtime/go`; no template references `mainvec/wo` or
-  any local-disk `replace` path; the NATS starter template is removed.
-- **Verification**: `grep -rn "mainvec/wo\|/Users/hi/" toolkit/resources/`
-  returns nothing; the T15 compile test builds the server and client output.
-- **Notes**: Model the reworked templates on the hand-written
-  `toolkit/mvepapi` server wiring, which already uses the target APIs. Delete
-  `go_srv_starter_nats_codegen.txt` and `go_srv_starter_nats_mod_gen.txt` and
-  their call sites rather than porting them.
+- **Outcome**: The 10 `wo/`-referencing templates and the four dead generator
+  functions that emit them are deleted; `grep` for `mainvec/wo` and `/Users/hi/`
+  under `toolkit/resources/` returns nothing.
+- **Verification**: `go build ./toolkit/...`; full toolkit suite still green;
+  `grep -rn "mainvec/wo\|/Users/hi/" toolkit/` finds nothing.
+- **Notes**: All 10 templates and `GenerateGOSRV`/`GenerateGOClient`/
+  `GenerateGOMod`/`GenerateGOAPI` were unreachable (no caller). Deleted per the
+  revised Decision Log. **Follow-up**: file an issue for a real MVEP-runtime
+  server-mode generator once there is a consumer.
 
 ### T15 — File permissions and compile test
 

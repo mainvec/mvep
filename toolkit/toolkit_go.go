@@ -93,30 +93,6 @@ func GenerateFromTemplate(srvDef *SrvDef, templateName string, templateReader io
 	return srvBuff.Bytes(), nil
 }
 
-func GenerateGOSRV(srvDef *SrvDef) ([]byte, error) {
-	srvname := srvDef.Name + "srv"
-	return GenerateFromEmbeddTemplate(srvDef, srvname, "resources/codegen_templates/go/go_srv_code.txt")
-}
-
-func GenerateGOClient(srvDef *SrvDef) ([]byte, error) {
-
-	name := srvDef.Name
-	clientname := name + "client"
-	return GenerateFromEmbeddTemplate(srvDef, clientname, "resources/codegen_templates/go/go_client_code.txt")
-}
-
-func GenerateGOMod(srvDef *SrvDef) ([]byte, error) {
-
-	name := srvDef.Name
-	srvname := name + "srv"
-	return GenerateFromEmbeddTemplate(srvDef, srvname, "resources/codegen_templates/go/go_srv_mod.txt")
-}
-
-func GenerateGOAPI(srvDef *SrvDef) ([]byte, error) {
-	srvname := srvDef.Name + "api"
-	return GenerateFromEmbeddTemplate(srvDef, srvname, "resources/codegen_templates/go/go_api_code.txt")
-}
-
 // GenerateGOVanillaStructs generates plain Go structs with JSON tags (no protobuf dependency)
 func GenerateGOVanillaStructs(srvDef *SrvDef) ([]byte, error) {
 	return GenerateFromEmbeddTemplate(srvDef, "go_structs", "resources/codegen_templates/go/go_structs_code.txt")
