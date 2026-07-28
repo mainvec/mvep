@@ -3,12 +3,9 @@ package server
 import (
 	"context"
 	"io"
-	"log"
-	"log/slog"
 	"net"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/mainvec/mvep/runtime/go/mvep"
 )
@@ -20,26 +17,16 @@ func TestExampleServer(t *testing.T) {
 		EnableHealthCheck: true,
 		HealthCheckPath:   "/health",
 		EnableCORS:        true,
-		OnShutdown: func() {
-			slog.Info("Custom shutdown handler called")
-		},
 	}
 
 	server, err := NewServer(config)
 	if err != nil {
-		log.Fatalf("Failed to create server: %v", err)
+		t.Fatalf("Failed to create server: %v", err)
 	}
+	t.Cleanup(func() { _ = server.Shutdown() })
 
-	go func() {
-		err := server.Start()
-		if err != nil {
-			log.Fatalf("Server error: %v", err)
-		}
-	}()
-
-	// Wait for the server to start
-	for server.GetListener() == nil {
-		time.Sleep(10 * time.Millisecond)
+	if err := server.StartAsync(); err != nil {
+		t.Fatalf("Failed to start server: %v", err)
 	}
 
 	// Check health endpoint
@@ -63,12 +50,13 @@ func TestExampleServer(t *testing.T) {
 		t.Errorf("Expected health check response 'OK', got '%s'", string(body))
 	}
 
-	err = server.Shutdown()
-	if err != nil {
+	if err := server.Shutdown(); err != nil {
 		t.Fatalf("Failed to shutdown server: %v", err)
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	if err := server.Wait(); err != nil {
+		t.Fatalf("Server reported a lifecycle error: %v", err)
+	}
 }
 
 // TestServerWithInterceptor demonstrates server configuration with middleware
@@ -203,12 +191,10 @@ func TestMultipleListeners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	t.Cleanup(func() { _ = svr.Shutdown() })
 
-	go svr.Start()
-
-	// Wait for the first listener to be ready.
-	for svr.GetListener() == nil {
-		time.Sleep(10 * time.Millisecond)
+	if err := svr.StartAsync(); err != nil {
+		t.Fatalf("Failed to start server: %v", err)
 	}
 
 	// Verify first listener serves health check.
@@ -233,7 +219,9 @@ func TestMultipleListeners(t *testing.T) {
 		t.Errorf("Second listener health check: expected 200, got %d", resp2.StatusCode)
 	}
 
-	svr.Shutdown()
+	if err := svr.Shutdown(); err != nil {
+		t.Fatalf("Failed to shutdown server: %v", err)
+	}
 }
 
 // TestListenerWithMiddleware verifies per-listener middleware is applied.
@@ -264,10 +252,10 @@ func TestListenerWithMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	t.Cleanup(func() { _ = svr.Shutdown() })
 
-	go svr.Start()
-	for svr.GetListener() == nil {
-		time.Sleep(10 * time.Millisecond)
+	if err := svr.StartAsync(); err != nil {
+		t.Fatalf("Failed to start server: %v", err)
 	}
 
 	// Hit the listener with middleware — it should fire.
@@ -280,7 +268,9 @@ func TestListenerWithMiddleware(t *testing.T) {
 		t.Error("Middleware should have been called on listener")
 	}
 
-	svr.Shutdown()
+	if err := svr.Shutdown(); err != nil {
+		t.Fatalf("Failed to shutdown server: %v", err)
+	}
 }
 
 // TestDeprecatedListenAddress verifies backward compat with ListenAddress.
@@ -295,10 +285,10 @@ func TestDeprecatedListenAddress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
+	t.Cleanup(func() { _ = svr.Shutdown() })
 
-	go svr.Start()
-	for svr.GetListener() == nil {
-		time.Sleep(10 * time.Millisecond)
+	if err := svr.StartAsync(); err != nil {
+		t.Fatalf("Failed to start server: %v", err)
 	}
 
 	url := "http://" + svr.GetListener().Addr().String() + "/health"
@@ -311,5 +301,7 @@ func TestDeprecatedListenAddress(t *testing.T) {
 		t.Errorf("Expected 200, got %d", resp.StatusCode)
 	}
 
-	svr.Shutdown()
+	if err := svr.Shutdown(); err != nil {
+		t.Fatalf("Failed to shutdown server: %v", err)
+	}
 }

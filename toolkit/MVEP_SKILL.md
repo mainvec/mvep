@@ -409,6 +409,12 @@ func runUserRegisterCmd(ctx context.Context, cmd *api.UserRegisterCmd) (*api.Use
 package main
 
 import (
+    "context"
+    "log"
+    "os/signal"
+    "syscall"
+    "time"
+
     "github.com/acme/acmeapp/mvepapi/go/api"
     acmeapp "github.com/acme/acmeapp/mvepapi/go"
     "github.com/mainvec/mvep/runtime/go/mvep"
@@ -416,23 +422,40 @@ import (
 )
 
 func main() {
-    pkg := api.NewPackage()
-    runner := acmeapp.GetCommandRunner()
-
-    handler := mvep.NewPackageHandler(pkg, nil, runner,
-        mvep.Chain(
+    srv, err := server.NewServer(&server.ServerConfig{
+        Listeners: []server.ListenerConfig{{Address: ":8080"}},
+        BasePath:  "/api",
+        Interceptor: mvep.Chain(
             mvep.RecoveryInterceptor(),
             mvep.LoggingInterceptor(),
             mvep.RequestIDInterceptor(nil),
         ),
-    )
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
 
-    srv := server.NewServer(server.ServerConfig{
-        Addr:     ":8080",
-        BasePath: "/api",
-    }, handler)
+    if err := srv.RegisterPackage(api.NewPackage(), acmeapp.GetCommandRunner()); err != nil {
+        log.Fatal(err)
+    }
 
-    srv.Start()
+    if err := srv.StartAsync(); err != nil {
+        log.Fatal(err)
+    }
+
+    // The application owns signal handling; mvep only owns the HTTP surface.
+    signalCtx, stopSignals := signal.NotifyContext(
+        context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stopSignals()
+
+    select {
+    case <-signalCtx.Done():
+        ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+        defer cancel()
+        _ = srv.ShutdownContext(ctx)
+    case <-srv.Done():
+        log.Printf("server stopped: %v", srv.Err())
+    }
 }
 ```
 
@@ -697,16 +720,38 @@ admin := mvep.OnlyCommands(
 ### Server
 
 ```go
-srv := server.NewServer(server.ServerConfig{
-    Addr:         ":8080",
-    BasePath:     "/api",
-    EnableHealth: true,
-    EnableCORS:   true,
-    OnShutdown:   func() { /* cleanup */ },
-}, handler)
+srv, err := server.NewServer(&server.ServerConfig{
+    Listeners:         []server.ListenerConfig{{Address: ":8080"}},
+    BasePath:          "/api",
+    EnableHealthCheck: true,
+    EnableCORS:        true,
+})
+if err != nil {
+    return err
+}
 
-srv.Start()
+if err := srv.RegisterPackage(pkg, runner); err != nil {
+    return err
+}
+
+// StartAsync returns once every listener is bound and serving.
+if err := srv.StartAsync(); err != nil {
+    return err
+}
+
+// ... own your signal handling, then shut down explicitly:
+ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+defer cancel()
+
+serverErr := srv.ShutdownContext(ctx) // drains active requests
+cleanupErr := myApp.Close()           // your cleanup, in your order
+return errors.Join(serverErr, cleanupErr)
 ```
+
+The server installs **no signal handlers**. `Start()` still blocks, but it
+returns on explicit shutdown or a fatal serve error. `ServerConfig.OnShutdown`
+was removed in runtime v0.8.0 — sequence cleanup around `ShutdownContext`
+instead. See `runtime/go/mvep/server/SERVER.md` for the full lifecycle contract.
 
 ### Go Client
 

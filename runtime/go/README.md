@@ -74,7 +74,7 @@ func (r *MyCommandRunner) RunCmd(ctx context.Context, cmd any) (any, error) {
 func main() {
     // Create server configuration
     config := &server.ServerConfig{
-        ListenAddress:     "127.0.0.1:8080",
+        Listeners:         []server.ListenerConfig{{Address: "127.0.0.1:8080"}},
         BasePath:          "/api",
         EnableHealthCheck: true,
         EnableCORS:        true,
@@ -94,19 +94,43 @@ func main() {
         log.Fatal(err)
     }
     
-    // Start the server (blocks until shutdown signal)
-    log.Println("Starting server...")
-    if err := srv.Start(); err != nil {
+    // Bind listeners and start serving. StartAsync returns only once every
+    // listener is ready, so no readiness polling is needed.
+    if err := srv.StartAsync(); err != nil {
         log.Fatal(err)
+    }
+    log.Printf("Listening on %s", srv.GetListener().Addr())
+
+    // The application owns signal handling and shutdown ordering.
+    signalCtx, stopSignals := signal.NotifyContext(
+        context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stopSignals()
+
+    select {
+    case <-signalCtx.Done():
+        shutdownCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+        defer cancel()
+        if err := srv.ShutdownContext(shutdownCtx); err != nil {
+            log.Fatal(err)
+        }
+    case <-srv.Done():
+        if err := srv.Err(); err != nil {
+            log.Fatal(err)
+        }
     }
 }
 ```
+
+`srv.Start()` is still available and still blocks, but it returns when the owner
+calls `Shutdown`/`ShutdownContext` or when a fatal serve error stops the server —
+not on a process signal. See [mvep/server/SERVER.md](mvep/server/SERVER.md) for
+the full lifecycle contract.
 
 ### Unix Socket Server
 
 ```go
 config := &server.ServerConfig{
-    ListenAddress:     "unix:///tmp/myapp.sock",
+    Listeners:         []server.ListenerConfig{{Address: "unix:///tmp/myapp.sock"}},
     BasePath:          "/api",
     EnableHealthCheck: true,
 }
@@ -118,12 +142,19 @@ srv, err := server.NewServer(config)
 ### Configuration Options
 
 **ServerConfig** fields:
-- `ListenAddress` - Address to listen on (e.g., "127.0.0.1:8080", "unix:///tmp/socket")
+- `Listeners` - Listeners to serve on; each sets `Address` (auto-created) or `Listener` (pre-created), with optional per-listener `Middleware`
+- `ListenAddress` - Deprecated single-address form (e.g., "127.0.0.1:8080", "unix:///tmp/socket")
 - `BasePath` - Base URL path for endpoints (e.g., "/api")
 - `EnableHealthCheck` - Adds a `/health` endpoint if true
 - `HealthCheckPath` - Custom path for health check (default: "/health")
 - `EnableCORS` - Adds CORS headers to all responses if true
-- `OnShutdown` - Callback function called when server receives shutdown signal
+- `Interceptor` - Global interceptor chain applied to all commands
+
+`NewServer` copies the configuration; mutating the struct afterwards has no
+effect on the server.
+
+> **Removed in v0.8.0:** `OnShutdown`. The owning application sequences its own
+> cleanup around `ShutdownContext`.
 
 ## Client Usage
 
