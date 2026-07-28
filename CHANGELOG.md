@@ -5,6 +5,64 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-07-28 (plan 018)
+
+### Changed
+- **BREAKING (runtime/go): command endpoint HTTP semantics.** `PackageHandler.ServeHTTP`
+  now enforces real HTTP semantics instead of treating HTTP as a dumb byte pipe.
+  Runtime targets **v0.9.0**. See `runtime/go/mvep/server/SERVER.md`.
+  - Non-`POST` requests return `405 method_not_allowed`; the runner is never invoked.
+  - `Content-Type` is parsed as a media type, so `application/json; charset=utf-8`
+    resolves the JSON encoder; unregistered types return `415`.
+  - Outcomes map to meaningful statuses via a new exported
+    `HTTPStatusForErrorCode`: `401`/`403`/`404`/`405`/`413`/`415`/`400`/`500`.
+    The stable machine-readable code is in the new `x-mainvec-error-code` header.
+  - **Error redaction is now the default.** Handler error detail is logged
+    server-side with the request id; the response carries a generic message.
+    `ServerConfig.VerboseErrors` / `PackageHandler.VerboseErrors` restores the
+    old reflective behavior for local development.
+  - Request bodies are bounded by `ServerConfig.MaxRequestBytes` (default 4 MiB);
+    oversized bodies return `413 payload_too_large`. Each listener sets
+    `http.Server.MaxHeaderBytes` (1 MiB) alongside the existing `ReadHeaderTimeout`.
+- **BREAKING (runtime/go): CORS is an explicit allowlist.** `EnableCORS` no longer
+  emits `Access-Control-Allow-Origin: *`. With `AllowedOrigins` empty it emits no
+  CORS headers and warns at startup (fail closed); an allowed origin is echoed
+  with `Vary: Origin`, the advertised methods drop `PUT`/`DELETE`, and
+  `Access-Control-Allow-Headers` enumerates the headers MVEP actually uses.
+- **BREAKING (runtime/go): `LocalTrustMiddleware` verifies the peer.** A request
+  is trusted only from a Unix socket or a loopback TCP address; anything else is
+  passed through untrusted and logged. A listener exposed to the network now
+  fails closed instead of silently bypassing `AuthInterceptor`. Go runtime
+  dependency `ugo` bumped to v0.6.0 for `application/json` encoder registration.
+- **runtime/ts: license corrected to Apache-2.0** to match the repo root and Go
+  runtime (was MIT; an oversight from the monorepo consolidation). Targets
+  `@mainvec/mvep@0.8.0`.
+
+### Added
+- `runtime/go`: `HTTPStatusForErrorCode` exported status mapper.
+- `runtime/go`: `ServerConfig.AllowedOrigins`, `MaxRequestBytes`, `VerboseErrors`;
+  matching `PackageHandler` fields.
+- `runtime/go`: `CommandLister` optional interface for deterministic client-side
+  command indexing.
+- `runtime/ts`: `ClientConfig.timeout` is now enforced — `HttpTransporter` aborts
+  the underlying fetch via `AbortController` when it elapses.
+
+### Fixed
+- `runtime/go`: client and server package registries are now guarded by mutexes;
+  `Client.SendCmd` resolves deterministically (sorted package order) and a
+  duplicate command registration returns an explicit error instead of shadowing.
+- `runtime/go`: legacy transport path honors `context.Context`
+  (`http.NewRequestWithContext`), no longer leaks the response body on the
+  non-200 branch, dials Unix sockets with `DialContext`, and default transporters
+  have a 30s timeout instead of none. `SendCmdReq` copies the caller's header map
+  instead of aliasing it. `RequestIDInterceptor` is nil-response safe.
+- `runtime/go`: `SetResponseHeader` is now wired through `executeCmd` (a `CmdResp`
+  is seeded into the handler context), so the documented feature actually works.
+- `runtime/ts`: `timeoutInterceptor` clears its timer (no leaked fetch/timer);
+  request ids use `crypto.randomUUID()` instead of `Math.random()`.
+- `runtime/ts`: response body reads are bounded and oversized responses error
+  rather than buffering unboundedly.
+
 ## [Unreleased] - 2026-07-28
 
 ### Changed

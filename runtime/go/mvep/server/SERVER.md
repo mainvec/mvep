@@ -46,6 +46,7 @@ func main() {
         BasePath:          "",
         EnableHealthCheck: true,
         EnableCORS:        true,
+        AllowedOrigins:    []string{"https://app.example.com"},
     }
 
     // Create the server
@@ -185,8 +186,22 @@ type ServerConfig struct {
     // HealthCheckPath is the path for the health check (default: "/health")
     HealthCheckPath string
 
-    // EnableCORS adds CORS headers to all responses if true
+    // EnableCORS adds CORS headers to responses for allowed origins.
+    // With no AllowedOrigins it emits nothing (fail closed) and warns at startup.
     EnableCORS bool
+
+    // AllowedOrigins lists the origins CORS will respond to. An allowed origin
+    // is echoed back, never "*". Preflight (OPTIONS) is handled automatically.
+    AllowedOrigins []string
+
+    // MaxRequestBytes bounds command request bodies (default: 4 MiB).
+    // An oversized body returns 413 with code payload_too_large.
+    MaxRequestBytes int64
+
+    // VerboseErrors reflects raw handler error text to callers. Default false:
+    // the response carries a stable code and a generic message, and the full
+    // error is logged server-side with the request id.
+    VerboseErrors bool
 
     // Interceptor is the global interceptor chain applied to all commands
     Interceptor mvep.CmdInterceptor
@@ -336,10 +351,31 @@ srv.Handle("/events", requireToken(apiToken, sseHandler()))
 Compare tokens with `crypto/subtle.ConstantTimeCompare` rather than `==` to
 avoid leaking length and prefix information through timing.
 
-> **Do not attach `LocalTrustMiddleware` to a listener reachable over the
-> network.** It disables both the interceptor's token check and any middleware
-> that consults `IsLocalTrusted`, leaving the listener unauthenticated. Reserve
-> it for Unix sockets and loopback-only listeners.
+> **`LocalTrustMiddleware` now verifies the peer before marking a request
+> trusted.** A request is trusted only when it arrives over a Unix socket or
+> from a loopback TCP address; any other peer is passed through *untrusted* (and
+> the rejection is logged), so a listener accidentally exposed to the network
+> fails closed instead of silently bypassing `AuthInterceptor`. UID filtering of
+> Unix peers is platform-specific (`SO_PEERCRED`); where unsupported, the
+> middleware falls back to socket-type and loopback checks.
+
+### Command endpoint transport semantics
+
+The command endpoint (`<BasePath>/<pkg>/cmd`) enforces real HTTP semantics:
+
+- **Method**: `POST` only. Any other method returns `405` with code
+  `method_not_allowed` and never reaches the runner.
+- **Content-Type**: parsed as a media type, so `application/json; charset=utf-8`
+  resolves the JSON encoder. An unregistered type returns `415`.
+- **Body limit**: bounded by `MaxRequestBytes`; overruns return `413`.
+- **Status mapping**: outcomes map to meaningful statuses — `401` unauthorized,
+  `403` forbidden, `404` unknown command, `415` unsupported media type,
+  `400` decode error, `413` payload too large, `405` method not allowed,
+  `500` command error. The stable machine-readable code is in the
+  `x-mainvec-error-code` response header.
+- **Error redaction**: by default the response body is a generic message;
+  handler error detail (SQL fragments, DSNs, file paths) is logged server-side
+  only. Set `VerboseErrors: true` for local development.
 
 > On the client side, never combine a custom `RootCAs` pool with
 > `InsecureSkipVerify: true`. The latter takes precedence and disables

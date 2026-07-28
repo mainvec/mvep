@@ -263,25 +263,30 @@ export function clientRequestIdInterceptor(generator: () => string): ClientInter
 }
 
 /**
- * TimeoutInterceptor adds a timeout to requests
+ * TimeoutInterceptor adds a timeout to requests. The timer is cleared as soon
+ * as the invoker settles, so a fast request never leaves a pending timer.
  */
 export function timeoutInterceptor(timeoutMs: number): ClientInterceptor {
   return async (ctx: MvpContext, req: CmdReq, invoker: ClientInvoker): Promise<CmdResp> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(`Request timeout after ${timeoutMs}ms`)), timeoutMs);
+      timer = setTimeout(() => reject(new Error(`Request timeout after ${timeoutMs}ms`)), timeoutMs);
     });
 
-    return Promise.race([invoker(ctx, req), timeoutPromise]);
+    try {
+      return await Promise.race([invoker(ctx, req), timeoutPromise]);
+    } finally {
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
+    }
   };
 }
 
 /**
- * Simple UUID v4 generator for request IDs
+ * Generates a request ID. These are correlation identifiers for logs and
+ * tracing; they must not be treated as unguessable secrets.
  */
 export function generateRequestId(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+  return crypto.randomUUID();
 }

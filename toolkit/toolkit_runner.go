@@ -5,12 +5,20 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/mainvec/ugo/validate"
+)
+
+// dirPerm and filePerm are the permissions for generated output. Files are not
+// world-writable (os.ModePerm/0777 was a defect).
+const (
+	dirPerm  = 0o755
+	filePerm = 0o644
 )
 
 func ExeucuteInitializeCmd(ctx context.Context, cmdName string, cmdNamespace string) error {
@@ -47,7 +55,7 @@ func ExecuteGenerate(ctx context.Context, cmdIn string, cmdOutdir string, cmdLan
 
 	wd, err := os.Getwd()
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("get working directory: %w", err)
 	}
 
 	var specpath string
@@ -73,7 +81,7 @@ func ExecuteGenerate(ctx context.Context, cmdIn string, cmdOutdir string, cmdLan
 		outdir = filepath.Join(wd, outdir)
 	}
 	if _, err := os.Stat(outdir); os.IsNotExist(err) {
-		err = os.MkdirAll(outdir, os.ModePerm)
+		err = os.MkdirAll(outdir, dirPerm)
 		if err != nil {
 			return err
 		}
@@ -98,37 +106,37 @@ func ExecuteGenerate(ctx context.Context, cmdIn string, cmdOutdir string, cmdLan
 
 func executeGenerateJS(srvDef *SrvDef, outdir string, format string) error {
 	jsApiDir := filepath.Join(outdir, "api")
-	err := os.MkdirAll(jsApiDir, os.ModePerm)
+	err := os.MkdirAll(jsApiDir, dirPerm)
 	if err != nil {
-		log.Fatalf("error creating js api dir: %v,%v", jsApiDir, err)
+		return fmt.Errorf("creating js api dir %s: %w", jsApiDir, err)
 	}
 
 	// Generate JavaScript classes
 	jsClasses, err := GenerateJSVanillaClasses(srvDef)
 	if err != nil {
-		log.Fatalf("error generating JS classes: %v", err)
+		return fmt.Errorf("generating JS classes: %w", err)
 	}
 	if len(jsClasses) == 0 {
-		log.Fatalf("no JS classes generated")
+		return errors.New("no JS classes generated")
 	}
 	jsClassesFile := filepath.Join(jsApiDir, srvDef.Name+".js")
-	err = os.WriteFile(jsClassesFile, jsClasses, os.ModePerm)
+	err = os.WriteFile(jsClassesFile, jsClasses, filePerm)
 	if err != nil {
-		log.Fatalf("error writing JS classes file %v,%e", jsClassesFile, err)
+		return fmt.Errorf("writing JS classes file %s: %w", jsClassesFile, err)
 	}
 
 	// Generate TypeScript definitions
 	tsTypes, err := GenerateTSDefinitions(srvDef)
 	if err != nil {
-		log.Fatalf("error generating TS definitions: %v", err)
+		return fmt.Errorf("generating TS definitions: %w", err)
 	}
 	if len(tsTypes) == 0 {
-		log.Fatalf("no TS definitions generated")
+		return errors.New("no TS definitions generated")
 	}
 	tsTypesFile := filepath.Join(jsApiDir, srvDef.Name+".d.ts")
-	err = os.WriteFile(tsTypesFile, tsTypes, os.ModePerm)
+	err = os.WriteFile(tsTypesFile, tsTypes, filePerm)
 	if err != nil {
-		log.Fatalf("error writing TS definitions file %v,%e", tsTypesFile, err)
+		return fmt.Errorf("writing TS definitions file %s: %w", tsTypesFile, err)
 	}
 
 	// Generate package utilities
@@ -136,11 +144,11 @@ func executeGenerateJS(srvDef *SrvDef, outdir string, format string) error {
 	if allow, _ := isAllowMVGen(jsPkgFile); allow {
 		jsPkg, err := GenerateJSPackage(srvDef)
 		if err != nil {
-			log.Fatalf("error generating JS package: %v", err)
+			return fmt.Errorf("generating JS package: %w", err)
 		}
-		err = os.WriteFile(jsPkgFile, jsPkg, os.ModePerm)
+		err = os.WriteFile(jsPkgFile, jsPkg, filePerm)
 		if err != nil {
-			log.Fatalf("error writing JS package file %v,%e", jsPkgFile, err)
+			return fmt.Errorf("writing JS package file %s: %w", jsPkgFile, err)
 		}
 	}
 
@@ -149,9 +157,9 @@ func executeGenerateJS(srvDef *SrvDef, outdir string, format string) error {
 
 func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format string, skipCmd bool) error {
 	goApiDir := filepath.Join(outdir, "api")
-	err := os.MkdirAll(goApiDir, os.ModePerm)
+	err := os.MkdirAll(goApiDir, dirPerm)
 	if err != nil {
-		log.Fatalf("error creating go api dir: %v,%v", goApiDir, err)
+		return fmt.Errorf("creating go api dir %s: %w", goApiDir, err)
 	}
 
 	// Determine format from flag or gen_options
@@ -161,72 +169,62 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 	}
 	// Require format to be specified
 	if format == "" {
-		log.Fatalf("format parameter is required (supported: plain, pb3)")
+		return errors.New("format parameter is required (supported: plain, pb3)")
 	}
 
 	if format == "plain" {
 		// Plain mode: generate plain Go structs with JSON tags (no protobuf)
 		plainAPI, err := GenerateGOVanillaStructs(srvDef)
 		if err != nil {
-			log.Fatalf("error generating plain Go structs: %v", err)
+			return fmt.Errorf("generating plain Go structs: %w", err)
 		}
 		if len(plainAPI) == 0 {
-			log.Fatalf("no plain Go structs generated")
+			return errors.New("no plain Go structs generated")
 		}
 		plainFile := filepath.Join(goApiDir, srvDef.Name+".plain.go")
-		err = os.WriteFile(plainFile, formatGoSource(plainFile, plainAPI), os.ModePerm)
+		err = os.WriteFile(plainFile, formatGoSource(plainFile, plainAPI), filePerm)
 		if err != nil {
-			log.Fatalf("error writing plain Go file %v,%e", plainFile, err)
+			return fmt.Errorf("writing plain Go file %s: %w", plainFile, err)
 		}
 	} else {
 		// Protobuf mode: generate .proto and .pb.go files
 		result, err := BuildProtoBuffDefFromSrvDef(srvDef)
 		if err != nil {
-			log.Fatalf("error BuildProtoBuffDefFromJSON file %v,%e", specpath, err)
+			return fmt.Errorf("building protobuf definition from %s: %w", specpath, err)
 		}
 		buff := &bytes.Buffer{}
 		err = GenerateProtobuf3FromFileDesc(result, buff)
 		if err != nil {
-			log.Fatalf("error GenerateProtobuf3FromFileDesc file %v,%e", specpath, err)
+			return fmt.Errorf("generating protobuf3 from file desc %s: %w", specpath, err)
 		}
 
 		proto := filepath.Join(goApiDir, srvDef.Name+".proto")
-		err = os.WriteFile(proto, buff.Bytes(), os.ModePerm)
+		err = os.WriteFile(proto, buff.Bytes(), filePerm)
 		if err != nil {
-			log.Fatalf("error writing .proto file %v,%e", specpath, err)
+			return fmt.Errorf("writing .proto file %s: %w", specpath, err)
 		}
 
 		pb3GOAPI, err := GenerateGOProtoBuffAPIFromProto(srvDef, buff.Bytes())
 		if err != nil {
-			log.Fatalf("error generating GO protobuf API: %v", err)
+			return fmt.Errorf("generating GO protobuf API: %w", err)
 		}
 
-		if err == nil && len(pb3GOAPI) == 0 {
-			log.Fatalf(" no GO Pb3 API generated ")
+		if len(pb3GOAPI) == 0 {
+			return errors.New("no GO pb3 API generated")
 		}
 
 		gopb3api := filepath.Join(goApiDir, srvDef.Name+".pb.go")
-		err = os.WriteFile(gopb3api, pb3GOAPI, os.ModePerm)
+		err = os.WriteFile(gopb3api, pb3GOAPI, filePerm)
 		if err != nil {
-			log.Fatalf("error writing go pb3 api file %v,%e", specpath, err)
+			return fmt.Errorf("writing go pb3 api file %s: %w", specpath, err)
 		}
 	}
 
-	// goapi, err := GenerateGOAPI(srvDef)
-	// if err != nil {
-	// 	log.Fatalf("error generating go api: %v", err)
-	// }
-	// goapiFile := filepath.Join(outdir, srvDef.Name+"_api.go")
-	// err = os.WriteFile(goapiFile, goapi, os.ModePerm)
-	// if err != nil {
-	// 	log.Fatalf("error writing go api file %v,%e", goapiFile, err)
-	// }
-
 	if !skipCmd {
 		goMainCmdDir := filepath.Join(outdir, "cmd", srvDef.Name)
-		err = os.MkdirAll(goMainCmdDir, os.ModePerm)
+		err = os.MkdirAll(goMainCmdDir, dirPerm)
 		if err != nil {
-			log.Fatalf("error creating go main cmd dir: %v,%v", goMainCmdDir, err)
+			return fmt.Errorf("creating go main cmd dir %s: %w", goMainCmdDir, err)
 		}
 		// cli main is protectable: honor NOMVEP/NOMVGEN/NOWOGEN markers so
 		// hand-customized entry points are not overwritten on regeneration.
@@ -234,11 +232,11 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 		if allow, _ := isAllowMVGen(gocliMainFile); allow {
 			gocli, err := GenerateFromEmbeddTemplate(srvDef, "go_cli_main", "resources/codegen_templates/go/go_cli_main.txt")
 			if err != nil {
-				log.Fatalf("error generating go cli: %v", err)
+				return fmt.Errorf("generating go cli: %w", err)
 			}
-			err = os.WriteFile(gocliMainFile, formatGoSource(gocliMainFile, gocli), os.ModePerm)
+			err = os.WriteFile(gocliMainFile, formatGoSource(gocliMainFile, gocli), filePerm)
 			if err != nil {
-				log.Fatalf("error writing go cli file %v,%e", gocliMainFile, err)
+				return fmt.Errorf("writing go cli file %s: %w", gocliMainFile, err)
 			}
 		}
 
@@ -247,11 +245,11 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 		if allow, _ := isAllowMVGen(goVersionFile); allow {
 			goVersion, err := GenerateFromEmbeddTemplate(srvDef, "go_cli_version", "resources/codegen_templates/go/go_cli_version.txt")
 			if err != nil {
-				log.Fatalf("error generating go cli version: %v", err)
+				return fmt.Errorf("generating go cli version: %w", err)
 			}
-			err = os.WriteFile(goVersionFile, formatGoSource(goVersionFile, goVersion), os.ModePerm)
+			err = os.WriteFile(goVersionFile, formatGoSource(goVersionFile, goVersion), filePerm)
 			if err != nil {
-				log.Fatalf("error writing go cli version file %v,%e", goVersionFile, err)
+				return fmt.Errorf("writing go cli version file %s: %w", goVersionFile, err)
 			}
 		}
 	}
@@ -262,12 +260,12 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 	if allow, _ := isAllowMVGen(goPkgFile); allow {
 		gopkg, err := GenerateFromEmbeddTemplate(srvDef, "go_pkg", "resources/codegen_templates/go/go_package_code.txt")
 		if err != nil {
-			log.Fatalf("error generating go package: %v", err)
+			return fmt.Errorf("generating go package: %w", err)
 		}
 
-		err = os.WriteFile(goPkgFile, formatGoSource(goPkgFile, gopkg), os.ModePerm)
+		err = os.WriteFile(goPkgFile, formatGoSource(goPkgFile, gopkg), filePerm)
 		if err != nil {
-			log.Fatalf("error writing go package file %v,%e", goPkgFile, err)
+			return fmt.Errorf("writing go package file %s: %w", goPkgFile, err)
 		}
 
 	}
@@ -278,17 +276,19 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 	if allow, _ := isAllowMVGen(goImplFile); allow {
 		goimpl, err := GenerateFromEmbeddTemplate(srvDef, "go_impl", "resources/codegen_templates/go/go_impl_code.txt")
 		if err != nil {
-			log.Fatalf("error generating go impl: %v", err)
+			return fmt.Errorf("generating go impl: %w", err)
 		}
 
-		err = os.WriteFile(goImplFile, formatGoSource(goImplFile, goimpl), os.ModePerm)
+		err = os.WriteFile(goImplFile, formatGoSource(goImplFile, goimpl), filePerm)
 		if err != nil {
-			log.Fatalf("error writing go impl file %v,%e", goImplFile, err)
+			return fmt.Errorf("writing go impl file %s: %w", goImplFile, err)
 		}
 	}
 
 	//generate package commands runner
-	generateFileFromTemplate(srvDef, "go_commands_runner", "resources/codegen_templates/go/go_commands_runner_code.txt", outdir, srvDef.Name+"_commands.go")
+	if err := generateFileFromTemplate(srvDef, "go_commands_runner", "resources/codegen_templates/go/go_commands_runner_code.txt", outdir, srvDef.Name+"_commands.go"); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -300,15 +300,15 @@ func generateFileFromTemplate(srvDef *SrvDef, tmplName string, tmplPath string, 
 	if allow, _ := isAllowMVGen(outFile); allow {
 		fileContent, err := GenerateFromEmbeddTemplate(srvDef, tmplName, tmplPath)
 		if err != nil {
-			log.Fatalf("error generating [%v]: %v", tmplName, err)
+			return fmt.Errorf("generating %s: %w", tmplName, err)
 		}
 
 		if strings.HasSuffix(filename, ".go") {
 			fileContent = formatGoSource(outFile, fileContent)
 		}
-		err = os.WriteFile(outFile, fileContent, os.ModePerm)
+		err = os.WriteFile(outFile, fileContent, filePerm)
 		if err != nil {
-			log.Fatalf("error writing [%v] to file %v:%e", tmplName, outFile, err)
+			return fmt.Errorf("writing %s to file %s: %w", tmplName, outFile, err)
 		}
 	}
 	return nil
@@ -357,7 +357,7 @@ func ExecuteValidateCmd(ctx context.Context, cmdIn string) (ValidationResult, er
 	}
 	wd, err := os.Getwd()
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("get working directory: %w", err)
 	}
 	var specpath string
 	if filepath.IsAbs(cmdIn) {

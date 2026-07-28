@@ -19,6 +19,12 @@ type Package interface {
 	//RunCmd(ctx context.Context, cmd any) (any, error)
 }
 
+// CommandLister is an optional interface a Package can implement to expose its
+// command names, enabling the client to build a deterministic command index.
+type CommandLister interface {
+	CommandNames() []string
+}
+
 // Transporter is the interface for transporting commands (legacy, without headers)
 type Transporter interface {
 	TransportCmd(ctx context.Context, cmdName string, contentType string, cmdData io.ReadCloser) (io.ReadCloser, error)
@@ -38,7 +44,22 @@ type PackageHandler struct {
 	Transporter   Transporter
 	CommandRunner CommandRunner
 	Interceptor   CmdInterceptor // Optional interceptor chain for command processing
+	// MaxRequestBytes bounds the command request body read by ServeHTTP.
+	// Zero uses DefaultMaxRequestBytes.
+	MaxRequestBytes int64
+	// MaxResponseBytes bounds the response body the client reads in SendCmdReq.
+	// Zero uses DefaultMaxResponseBytes.
+	MaxResponseBytes int64
+	// VerboseErrors restores reflection of raw handler error text to callers.
+	// Default false: the response carries a stable code and a generic message.
+	VerboseErrors bool
 }
+
+// Default body bounds for the transport layer.
+const (
+	DefaultMaxRequestBytes  = 4 << 20 // 4 MiB
+	DefaultMaxResponseBytes = 4 << 20 // 4 MiB
+)
 
 func (h *PackageHandler) ServeCmd(cmdName string, encoder string, cmdData io.ReadCloser) (io.ReadCloser, error) {
 	if len(cmdName) == 0 {
@@ -115,7 +136,7 @@ func (h *PackageHandler) executeCmd(ctx context.Context, req *CmdReq, encoder st
 	}
 	enc, ok := oenc.LookupEncoding(encoder)
 	if !ok {
-		return NewCmdRespError("unknown_encoder", fmt.Sprintf("unknown encoder %s", encoder))
+		return NewCmdRespError("unsupported_media_type", fmt.Sprintf("unknown encoder %s", encoder))
 	}
 
 	err := enc.Decode(req.Payload, cmd)
@@ -123,8 +144,10 @@ func (h *PackageHandler) executeCmd(ctx context.Context, req *CmdReq, encoder st
 		return NewCmdRespError("decode_error", fmt.Sprintf("failed to decode command data: %v", err))
 	}
 
-	// Pass request headers via context
+	// Pass request headers via context and seed a CmdResp so handlers can set
+	// response headers via SetResponseHeader.
 	ctx = ContextWithCmdReq(ctx, req)
+	ctx = ContextWithCmdResp(ctx, NewCmdResp(nil))
 
 	cmdResult, err := h.CommandRunner.RunCmd(ctx, cmd)
 	if err != nil {
@@ -136,7 +159,7 @@ func (h *PackageHandler) executeCmd(ctx context.Context, req *CmdReq, encoder st
 		return NewCmdRespError("encode_error", fmt.Sprintf("failed to encode command result: %v", err))
 	}
 
-	// Get response headers from context if set by CommandRunner
+	// Get response headers seeded into the context above.
 	resp := NewCmdResp(cmdResultBytes)
 	if cmdResp := CmdRespFromContext(ctx); cmdResp != nil {
 		resp.Headers = cmdResp.Headers
@@ -204,7 +227,10 @@ func (h *PackageHandler) SendCmdReq(ctx context.Context, cmd any, headers map[st
 
 	req := NewCmdReq(cmdName, cmdBytes)
 	if headers != nil {
-		req.Headers = headers
+		// Copy so later mutation of the request cannot alias the caller's map.
+		for k, v := range headers {
+			req.Headers[k] = v
+		}
 	}
 
 	// Check if transporter supports envelope transport

@@ -107,7 +107,7 @@ func RequestIDInterceptor(generator func() string) CmdInterceptor {
 		resp := next(ctx, req)
 
 		// Echo request ID in response
-		if requestID != "" {
+		if requestID != "" && resp != nil {
 			resp.WithHeader("request-id", requestID)
 		}
 		return resp

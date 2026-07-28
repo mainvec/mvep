@@ -1,8 +1,8 @@
-# Plan 018 — Harden MVEP runtime HTTP transport security and correctness
+# Plan 018 — Harden MVEP runtime HTTP transport and repair the toolkit
 
 - **Issue**: [#18](https://github.com/mainvec/mvep/issues/18) — fix(runtime): harden HTTP transport security and correctness
 - **Branch**: `fix/018-runtime-hardening`
-- **Target release**: `runtime/go/v0.9.0`, `@mainvec/mvep@0.8.0`
+- **Target release**: `runtime/go/v0.9.0`, `@mainvec/mvep@0.8.0`, `toolkit/v0.6.0`
 
 ## Problem / Goal
 
@@ -22,9 +22,29 @@ None of these are regressions. All predate v0.8.0. Together they mean an MVEP
 endpoint cannot currently be exposed to an untrusted network or to browsers
 without an external protective layer.
 
-The goal is a transport layer that is safe to expose directly: correct HTTP
+A second cluster of defects lives in the toolkit, and it is worse than the
+runtime cluster: **the generator does not work for anyone but its maintainer.**
+
+- `toolkit/toolkit_runner.go` and `toolkit/toolkit_pb3.go` call `log.Fatal` /
+  `log.Fatalf` from library code paths (~25 sites), so a generation error kills
+  the host process instead of returning an error.
+- 10 of the 22 Go codegen templates reference the private
+  `github.com/mainvec/wo/*` modules, and the generated `go.mod` templates carry
+  `replace` directives pointing at the maintainer's local disk
+  (`/Users/hi/Development/mainvec/wo/wopcore`). Every server/client/test output
+  the generator produces is non-compilable for any other user.
+- Generated files are written with `os.ModePerm` (0777), so generated source is
+  world-writable.
+- No test compiles or golden-files the generated output, which is exactly why
+  the broken templates have survived.
+- `toolkit/go.mod` pins `runtime/go v0.6.0`, two minor versions behind HEAD and
+  behind the `x-mvep-` header rename its own generated code depends on.
+
+The goal is a transport layer that is safe to expose directly — correct HTTP
 semantics, bounded resource consumption, an explicit CORS policy, no internal
-detail leakage, and a race-free client and server registry.
+detail leakage, and a race-free client and server registry — **and a generator
+whose output compiles for any user, with errors returned instead of process
+exits.**
 
 ## Goals
 
@@ -49,6 +69,13 @@ detail leakage, and a race-free client and server registry.
 - Resolve `SetResponseHeader`, which is currently documented but inert.
 - Close the `ServeHTTP` test coverage gap, which is what allowed most of the
   above to survive.
+- Make the toolkit return errors instead of calling `log.Fatal` from library
+  code.
+- Rework the 10 `wo/`-dependent Go templates to target the MVEP runtime so
+  generated server, client, and test scaffolding compiles for any user.
+- Write generated files with `0755`/`0644` instead of `os.ModePerm`.
+- Add a compile test for generated Go output so broken templates fail CI.
+- Bump `toolkit/go.mod` off `runtime/go v0.6.0`.
 
 ## Non-goals
 
@@ -59,9 +86,10 @@ detail leakage, and a race-free client and server registry.
   in its own issue.
 - Adding authentication mechanisms. `TokenValidator` remains caller-supplied.
 - Streaming, batching, or chaining. Batching is tracked separately in #19.
-- Toolkit defects (`log.Fatalf` in library code, laptop paths in templates,
-  `os.ModePerm` on generated files, runtime version pin drift). Those are real
-  but belong to a separate toolkit issue.
+- Spec parser and documentation drift (`oneOf`, `recDef`, `uuid`, `timestamp`,
+  unenforced `tags: ["required"]`). Real, but a spec-semantics issue of its own.
+- Renaming the `ExeucuteInitializeCmd` typo. It is exported API; bundle the
+  rename with the next toolkit breaking release.
 - Migrating downstream consumers. Droy, Linkvec, Girafa, and Mboxy are follow-up
   changes after the runtime is tagged.
 
@@ -166,6 +194,44 @@ it with `AbortController` in `http-transport.ts`. The existing opt-in
 the `setTimeout` timer running; rework it to abort. Replace `Math.random()`
 request-id generation with `crypto.randomUUID()`.
 
+### Toolkit error handling
+
+`toolkit/toolkit_runner.go` and `toolkit/toolkit_pb3.go` call `log.Fatal` /
+`log.Fatalf` ~25 times inside generation paths. A library must never exit the
+host process. Thread `error` returns up to the command boundary; the `mvep` CLI
+`main` is the only place allowed to exit non-zero. Where a function already
+returns an error, wrap and propagate; where it does not, change the signature —
+all such functions are internal to the toolkit module.
+
+### `wo/` template removal (revised from "rework")
+
+The 10 templates under `resources/codegen_templates/go/` that reference
+`github.com/mainvec/wo/*` (server, client, test, NATS starter, and their
+`go.mod` generators) are **deleted**, along with the four dead generator
+functions that emit them (`GenerateGOSRV`, `GenerateGOClient`, `GenerateGOMod`,
+`GenerateGOAPI`). Verification during implementation confirmed none of them have
+any caller in the module, so they are unreachable. A future server-mode
+generator targeting `runtime/go` is tracked as a follow-up issue.
+
+### Generated-file permissions
+
+Generated files are currently written with `os.ModePerm` (0777). Directories
+use `0755`, files use `0644`.
+
+### Generated-code compile test
+
+Add a test that runs the generator against `testdata/05_command_withfields.jsonc`
+into a temp dir, runs `go mod tidy` and `go build ./...` on the result, and
+fails on any compile error. This is the regression net that would have caught
+the `wo/` template breakage. Requires network for module resolution in CI; gate
+with `testing.Short()` skip so `-short` runs stay hermetic.
+
+### Toolkit runtime pin
+
+`toolkit/go.mod` moves from `runtime/go v0.6.0` to the `v0.9.0` tag produced by
+this plan, landing the `x-mvep-` header rename the generated code already
+expects.
+
 ## Affected Files
 
 | File | Change |
@@ -183,6 +249,11 @@ request-id generation with `crypto.randomUUID()`.
 | `runtime/ts/src/client.ts` | Pass timeout into transport |
 | `runtime/ts/src/interceptors.ts` | `crypto.randomUUID`, non-leaking timeout interceptor |
 | `runtime/ts/LICENSE`, `runtime/ts/package.json` | Apache-2.0 to match repo root |
+| `toolkit/toolkit_runner.go` | Return errors instead of `log.Fatal`; file perms `0755`/`0644` |
+| `toolkit/toolkit_pb3.go` | Return errors instead of `log.Fatal` |
+| `toolkit/resources/codegen_templates/go/` (10 files) | Rework `wo/` templates onto the MVEP runtime; drop laptop `replace` paths; remove NATS starter |
+| `toolkit/toolkit_generate_test.go` (new) | Compile test for generated Go output |
+| `toolkit/go.mod` | Bump `runtime/go` pin to `v0.9.0` |
 | `runtime/go/README.md`, `runtime/go/mvep/server/SERVER.md` | Status codes, CORS, body limits, local trust semantics |
 | `CHANGELOG.md` | `[Unreleased]` entries |
 
@@ -208,6 +279,19 @@ request-id generation with `crypto.randomUUID()`.
 - **Registry duplicate detection is newly strict.** A process registering two
   packages that expose the same command name previously worked by accident and
   will now error at registration.
+- **Toolkit internal signatures change.** The `log.Fatal` removal threads errors
+  through internal functions. Nothing exported changes, but in-flight toolkit
+  branches will conflict.
+- **Generated scaffolding changes shape.** The reworked templates emit
+  MVEP-runtime code, not `wo/` code. Any consumer relying on the old (broken)
+  `wo/` output was already non-compilable, so this is not a regression, but the
+  diff on regeneration will be total for those files.
+- **NATS starter template removed.** If a `wo`-stack consumer still generates
+  from it, they must pin `toolkit < v0.6.0`. No such external consumer can exist
+  today because the output never compiled outside the maintainer's machine.
+- **Compile test needs network.** The generated-output compile test resolves
+  modules from the proxy; it is skipped under `-short` and must not gate
+  hermetic CI jobs.
 
 ## Verification
 
@@ -226,16 +310,23 @@ request-id generation with `crypto.randomUUID()`.
      produces a response containing neither the host nor the port.
 7. A TypeScript test asserting that a request against a non-responding server
    rejects at the configured timeout, and that the underlying fetch is aborted.
+8. `go test ./toolkit/... -count=1` — the new compile test generates from
+   `testdata/05_command_withfields.jsonc` and builds the output.
+9. `grep -rn "log\.Fatal" toolkit/toolkit_runner.go toolkit/toolkit_pb3.go`
+   returns nothing; `grep -rn "mainvec/wo\|/Users/hi/" toolkit/resources/`
+   returns nothing.
+10. Regenerate `toolkit/mvepapi` from its own spec via `gengen` and confirm the
+    working tree is unchanged (self-generation stays stable).
 
 ## Rollout
 
 1. Land as a single branch, but split into reviewable commits along task
-   boundaries. If the diff proves unwieldy, T1–T6 (security) and T7–T11
-   (correctness) can be split into two PRs against the same issue.
+   boundaries. If the diff proves unwieldy, T1–T6 (runtime security), T7–T11
+   (runtime correctness), and T13–T16 (toolkit) can be split into stacked PRs
+   against the same issue, in that order — the toolkit pin (T16) depends on the
+   runtime tag.
 2. Tag `runtime/go/v0.9.0` and publish `@mainvec/mvep@0.8.0`.
-3. Update `toolkit/go.mod`, which currently pins `runtime/go v0.6.0` — two minor
-   versions behind, and behind the `x-mvep-` header rename its generated code
-   depends on.
+3. Update `toolkit/go.mod` to the new runtime tag, then tag `toolkit/v0.6.0`.
 4. Audit downstream consumers for `400`-checking and `EnableCORS` reliance
    before migrating them.
 
@@ -265,21 +356,47 @@ request-id generation with `crypto.randomUUID()`.
 - **License to Apache-2.0.** The repo root and the Go runtime are already
   Apache-2.0; the TypeScript package declaring MIT is an oversight from the
   consolidation, not a deliberate dual-license.
+- **Toolkit repair in scope, not deferred.** The original plan deferred toolkit
+  defects to a separate issue. They were pulled in because the `wo/` templates
+  make the generator's primary output non-compilable for every user — a
+  severity above any single runtime defect — and because the runtime tag
+  produced here is what the toolkit pin needs anyway.
+- **Rework `wo/` templates onto the MVEP runtime rather than delete them.** The
+  server/client/test scaffolding is a real feature; deleting it would shrink the
+  generator's value. The NATS starter is the exception — it is removed because
+  NATS is internal to the `wo` stack.
+- **REVISED (T14): remove the dead `wo` generation path entirely.** Investigation
+  during T14 found that the four functions emitting those templates
+  (`GenerateGOSRV`, `GenerateGOClient`, `GenerateGOMod`, `GenerateGOAPI`) have
+  **zero callers** — `ExecuteGenerate` never invokes them, and there is no live
+  registration anywhere in the module. All 10 `wo`-flagged templates are
+  unreachable dead code. Reworking dead templates to target the MVEP runtime
+  would produce *more* dead code and give the T15 compile test nothing reachable
+  to assert. They are deleted instead. A proper server-mode generator targeting
+  `runtime/go` is a genuine feature but belongs in its own issue once there is a
+  caller for it.
+- **Compile test over golden files.** Golden files ossify formatting and churn
+  on every template tweak; a `go build` of generated output asserts the property
+  that actually matters — it compiles — with less maintenance.
 
 ## Progress
 
-- [ ] T1 — Add failing tests covering the `ServeHTTP` surface, status mapping, and redaction
-- [ ] T2 — Introduce stable error codes and the HTTP status mapping
-- [ ] T3 — Redact handler error detail; add `VerboseErrors`; log full detail server-side
-- [ ] T4 — Enforce `POST`-only routing and parse `Content-Type` as a media type
-- [ ] T5 — Bound request, response, and header sizes
-- [ ] T6 — Replace wildcard CORS with an origin allowlist
-- [ ] T7 — Add peer verification to `LocalTrustMiddleware`
-- [ ] T8 — Guard client and server registries; add a deterministic command-name index
-- [ ] T9 — Fix legacy-path context propagation, body leak, Unix dialer, and default client timeout
-- [ ] T10 — Wire `SetResponseHeader` through `executeCmd`
-- [ ] T11 — Implement the TypeScript request timeout and fix request-id generation
-- [ ] T12 — Update docs, changelog, and license metadata
+- [x] T1 — Add failing tests covering the `ServeHTTP` surface, status mapping, and redaction
+- [x] T2 — Introduce stable error codes and the HTTP status mapping
+- [x] T3 — Redact handler error detail; add `VerboseErrors`; log full detail server-side
+- [x] T4 — Enforce `POST`-only routing and parse `Content-Type` as a media type
+- [x] T5 — Bound request, response, and header sizes
+- [x] T6 — Replace wildcard CORS with an origin allowlist
+- [x] T7 — Add peer verification to `LocalTrustMiddleware`
+- [x] T8 — Guard client and server registries; add a deterministic command-name index
+- [x] T9 — Fix legacy-path context propagation, body leak, Unix dialer, and default client timeout
+- [x] T10 — Wire `SetResponseHeader` through `executeCmd`
+- [x] T11 — Implement the TypeScript request timeout and fix request-id generation
+- [x] T12 — Update docs, changelog, and license metadata
+- [x] T13 — Replace `log.Fatal` with error returns in toolkit library code
+- [x] T14 — `wo/` dead-path removal (revised from rework; see Decision Log)
+- [x] T15 — Fix generated-file permissions; add generated-output compile test
+- [ ] T16 — Bump `toolkit/go.mod` runtime pin to `v0.9.0` (gated on runtime tag)
 
 ## Tasks
 
@@ -351,8 +468,13 @@ request-id generation with `crypto.randomUUID()`.
 - **Verification**: A loopback TCP request is trusted; a non-loopback request on
   the same listener is not; a Unix peer outside the UID allowlist is not.
 - **Notes**: `AuthInterceptor` returns early for trusted contexts, so this
-  middleware is the entire boundary. Document the platform differences in
-  `SERVER.md`, which already warns about this in bold.
+  middleware is the entire boundary. Platform differences are documented in
+  `SERVER.md`. **Delivered**: middleware-level peer verification (Unix socket or
+  loopback TCP `RemoteAddr`), which fails closed without needing conn-level
+  access. UID allowlist via `SO_PEERCRED` requires the connection, not the
+  request, so it is deferred to a follow-up that plumbs peer credentials through
+  a `ConnContext` hook; the plan's Risks section already scopes it as
+  platform-specific.
 
 ### T8 — Registry concurrency
 
@@ -398,5 +520,48 @@ request-id generation with `crypto.randomUUID()`.
   semantics are documented; licensing is consistent.
 - **Verification**: Docs describe the shipped behavior; `runtime/ts/LICENSE` and
   `package.json` both read Apache-2.0.
-- **Notes**: Include a short migration note covering the status-code and CORS
-  changes for downstream consumers.
+
+### T13 — Toolkit error handling
+
+- **Outcome**: No `log.Fatal` in `toolkit_runner.go` or `toolkit_pb3.go`;
+  generation failures return wrapped errors to the caller, and the `mvep` CLI
+  exits non-zero from `main` only.
+- **Verification**: `grep -n "log\.Fatal" toolkit/toolkit_runner.go toolkit/toolkit_pb3.go`
+  returns nothing; a generation run against the invalid fixture
+  `testdata/03_basic_wo_invalid.jsonc` returns an error without exiting the
+  test process.
+- **Notes**: ~25 sites across both files. In `toolkit_runner.go` the affected
+  functions are module-internal; in `toolkit_pb3.go` the fatal sites live in
+  internal helpers (`processOptions`, `processOneField`, …) called from the
+  exported `Build*`/`Generate*` functions, which already return errors — thread
+  the error up through them. Exported signatures keep their shape; internal
+  helpers gain error returns. Test files and `gengen`'s `main` keep `log.Fatal`.
+
+### T14 — `wo/` dead-path removal
+
+- **Outcome**: The 10 `wo/`-referencing templates and the four dead generator
+  functions that emit them are deleted; `grep` for `mainvec/wo` and `/Users/hi/`
+  under `toolkit/resources/` returns nothing.
+- **Verification**: `go build ./toolkit/...`; full toolkit suite still green;
+  `grep -rn "mainvec/wo\|/Users/hi/" toolkit/` finds nothing.
+- **Notes**: All 10 templates and `GenerateGOSRV`/`GenerateGOClient`/
+  `GenerateGOMod`/`GenerateGOAPI` were unreachable (no caller). Deleted per the
+  revised Decision Log. **Follow-up**: file an issue for a real MVEP-runtime
+  server-mode generator once there is a consumer.
+
+### T15 — File permissions and compile test
+
+- **Outcome**: Generated files are `0644`, directories `0755`; a test generates
+  Go output from a fixture and compiles it.
+- **Verification**: `go test ./toolkit/ -run TestGenerateCompile -count=1`
+  passes; generated files in the temp dir are not world-writable.
+- **Notes**: Skip the compile test under `testing.Short()` — it needs module
+  resolution from the proxy. This test is the regression net for T14.
+
+### T16 — Toolkit runtime pin
+
+- **Outcome**: `toolkit/go.mod` requires `runtime/go v0.9.0`.
+- **Verification**: `go build ./toolkit/...` resolves the new tag; generated
+  code using `x-mvep-` headers compiles against it.
+- **Notes**: Land after the runtime tag exists (Rollout step 2→3). This
+  supersedes the original rollout note about the `v0.6.0` pin.

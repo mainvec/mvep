@@ -292,6 +292,21 @@ describe('interceptors', () => {
       
       vi.useRealTimers();
     });
+
+    it('clears the timer when the request settles fast', async () => {
+      vi.useFakeTimers();
+      const interceptor = timeoutInterceptor(1000);
+      const invoker = vi.fn().mockResolvedValue(newCmdResp({ ok: true }));
+      const ctx = newContext();
+      const req = newCmdReq('TestCmd');
+
+      const resp = await interceptor(ctx, req, invoker);
+      expect(resp).toBeDefined();
+      // No pending timer should remain.
+      expect(vi.getTimerCount()).toBe(0);
+
+      vi.useRealTimers();
+    });
   });
 
   describe('generateRequestId', () => {
@@ -301,6 +316,12 @@ describe('interceptors', () => {
 
       expect(id1).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
       expect(id1).not.toBe(id2);
+    });
+
+    it('uses crypto.randomUUID', () => {
+      const spy = vi.spyOn(crypto, 'randomUUID').mockReturnValue('11111111-2222-4333-8444-555555555555');
+      expect(generateRequestId()).toBe('11111111-2222-4333-8444-555555555555');
+      spy.mockRestore();
     });
   });
 });

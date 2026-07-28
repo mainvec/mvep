@@ -94,6 +94,45 @@ describe('HttpTransporter', () => {
       await expect(transporter.transportCmd('TestCmd', 'application/json', {}))
         .rejects.toThrow('error: validation failed');
     });
+
+    it('aborts the fetch when the configured timeout elapses', async () => {
+      vi.useFakeTimers();
+      // Never-resolving fetch that honors the abort signal.
+      const hangingFetch = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        });
+      });
+
+      const transporter = new HttpTransporter('http://example.com', '/pkg', { fetch: hangingFetch, timeout: 500 });
+      const promise = transporter.transportCmd('TestCmd', 'application/json', {});
+      vi.advanceTimersByTime(600);
+
+      await expect(promise).rejects.toThrow(/abort/i);
+      expect(vi.getTimerCount()).toBe(0); // timer cleaned up
+      vi.useRealTimers();
+    });
+
+    it('passes an AbortSignal to fetch when timeout is set', async () => {
+      const mockResponse = {
+        ok: true,
+        text: vi.fn().mockResolvedValue('{}'),
+        headers: new Map(),
+      };
+      mockFetch.mockResolvedValue(mockResponse);
+
+      const transporter = new HttpTransporter('http://example.com', '/pkg', { fetch: mockFetch, timeout: 1000 });
+      await transporter.transportCmd('TestCmd', 'application/json', {});
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://example.com/pkg',
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+    });
   });
 
   describe('transportCmdReq', () => {
