@@ -393,10 +393,10 @@ expects.
 - [x] T10 — Wire `SetResponseHeader` through `executeCmd`
 - [x] T11 — Implement the TypeScript request timeout and fix request-id generation
 - [x] T12 — Update docs, changelog, and license metadata
-- [ ] T13 — Replace `log.Fatal` with error returns in toolkit library code
-- [ ] T14 — Rework `wo/` templates onto the MVEP runtime; remove NATS starter
-- [ ] T15 — Fix generated-file permissions; add generated-output compile test
-- [ ] T16 — Bump `toolkit/go.mod` runtime pin to `v0.9.0`
+- [x] T13 — Replace `log.Fatal` with error returns in toolkit library code
+- [x] T14 — `wo/` dead-path removal (revised from rework; see Decision Log)
+- [x] T15 — Fix generated-file permissions; add generated-output compile test
+- [ ] T16 — Bump `toolkit/go.mod` runtime pin to `v0.9.0` (gated on runtime tag)
 
 ## Tasks
 
