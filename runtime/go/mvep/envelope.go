@@ -35,6 +35,30 @@ type ErrorInfo struct {
 	Message string
 }
 
+// HTTPStatusForErrorCode maps a stable ErrorInfo.Code to its HTTP status.
+// Exported so non-HTTP transports can reuse the same semantics. Unknown codes
+// map to 500.
+func HTTPStatusForErrorCode(code string) int {
+	switch code {
+	case "invalid_request", "decode_error":
+		return 400
+	case "unauthorized":
+		return 401
+	case "forbidden":
+		return 403
+	case "unknown_command":
+		return 404
+	case "method_not_allowed":
+		return 405
+	case "payload_too_large":
+		return 413
+	case "unsupported_media_type":
+		return 415
+	default:
+		return 500
+	}
+}
+
 // NewCmdReq creates a new CmdReq with initialized headers map
 func NewCmdReq(cmd string, payload []byte) *CmdReq {
 	return &CmdReq{

@@ -1,12 +1,16 @@
 package mvep
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"strings"
+	"time"
 
 	//_ "github.com/mainvec/mvep/runtime/go/mvep/util/protojson"
 	_ "github.com/mainvec/ugo/oencoding/json"
@@ -22,8 +26,12 @@ type HttpTransporter struct {
 }
 
 func NewHttpTransporter(url string, pkgPath string) (*HttpTransporter, error) {
-	return NewHttpTransporterWithClient(url, pkgPath, &http.Client{})
+	return NewHttpTransporterWithClient(url, pkgPath, &http.Client{Timeout: DefaultHTTPClientTimeout})
 }
+
+// DefaultHTTPClientTimeout is the timeout applied to transporters built without
+// an explicit http.Client, so no code path can hang indefinitely.
+const DefaultHTTPClientTimeout = 30 * time.Second
 
 func NewHttpTransporterWithClient(url string, pkgPath string, httpClient *http.Client) (*HttpTransporter, error) {
 	if len(url) == 0 {
@@ -57,7 +65,7 @@ func (t *HttpTransporter) TransportCmd(ctx context.Context, cmdName string, cont
 		return nil, fmt.Errorf("missing command data")
 	}
 
-	req, err := http.NewRequest("POST", t.path, cmdData)
+	req, err := http.NewRequestWithContext(ctx, "POST", t.path, cmdData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create http request: %w", err)
 	}
@@ -68,6 +76,7 @@ func (t *HttpTransporter) TransportCmd(ctx context.Context, cmdName string, cont
 		return nil, fmt.Errorf("failed to send http request: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
 		if resp.Header.Get("x-mainvec-error") != "" {
 			return nil, fmt.Errorf("error: %s", resp.Header.Get("x-mainvec-error"))
 		}
@@ -88,7 +97,7 @@ func (t *HttpTransporter) TransportCmdReq(ctx context.Context, cmdReq *CmdReq, c
 		return nil, fmt.Errorf("missing content type")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", t.path, io.NopCloser(strings.NewReader(string(cmdReq.Payload))))
+	req, err := http.NewRequestWithContext(ctx, "POST", t.path, bytes.NewReader(cmdReq.Payload))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create http request: %w", err)
 	}
@@ -108,10 +117,13 @@ func (t *HttpTransporter) TransportCmdReq(ctx context.Context, cmdReq *CmdReq, c
 	}
 	defer resp.Body.Close()
 
-	// Read response body
-	respBody, err := io.ReadAll(resp.Body)
+	// Read response body, bounded.
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, DefaultMaxResponseBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	if int64(len(respBody)) > DefaultMaxResponseBytes {
+		return nil, fmt.Errorf("response body exceeded limit of %d bytes", DefaultMaxResponseBytes)
 	}
 
 	// Build CmdResp
@@ -145,6 +157,12 @@ func (t *HttpTransporter) TransportCmdReq(ctx context.Context, cmdReq *CmdReq, c
 }
 
 func (h *PackageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("x-mainvec-error-code", "method_not_allowed")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	cmdName := r.Header.Get("x-mainvec-cmd")
 	slog.Debug("received cmd", "x-mainvec-cmd", cmdName)
 	if cmdName == "" {
@@ -152,10 +170,17 @@ func (h *PackageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	encoder := r.Header.Get("Content-Type")
-	slog.Debug("received cmd", "Content-Type", encoder)
-	if encoder == "" {
+	rawContentType := r.Header.Get("Content-Type")
+	slog.Debug("received cmd", "Content-Type", rawContentType)
+	if rawContentType == "" {
 		http.Error(w, "missing Content-Type header", http.StatusBadRequest)
+		return
+	}
+	// Parse as a media type so "application/json; charset=utf-8" resolves.
+	mediaType, _, err := mime.ParseMediaType(rawContentType)
+	if err != nil {
+		w.Header().Set("x-mainvec-error-code", "unsupported_media_type")
+		http.Error(w, "unsupported media type", http.StatusUnsupportedMediaType)
 		return
 	}
 
@@ -169,12 +194,22 @@ func (h *PackageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Read request body
+	// Read request body, bounded.
+	maxReq := h.MaxRequestBytes
+	if maxReq <= 0 {
+		maxReq = DefaultMaxRequestBytes
+	}
 	defer r.Body.Close()
-	payload, err := io.ReadAll(r.Body)
-	if err != nil {
-		slog.Error("failed to read request body", "error", err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	payload, readErr := io.ReadAll(http.MaxBytesReader(w, r.Body, maxReq))
+	if readErr != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(readErr, &maxErr) {
+			w.Header().Set("x-mainvec-error-code", "payload_too_large")
+			http.Error(w, "payload too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		slog.Error("failed to read request body", "error", readErr.Error())
+		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
 
@@ -185,24 +220,31 @@ func (h *PackageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Payload: payload,
 	}
 
-	cmdResp := h.ServeCmdReq(r.Context(), cmdReq, encoder)
+	cmdResp := h.ServeCmdReq(r.Context(), cmdReq, mediaType)
 
 	// Set response headers with prefix
 	for k, v := range cmdResp.Headers {
 		w.Header().Set(HeaderPrefix+k, v)
 	}
 
-	// Handle error response
+	// Handle error response: stable code always, raw detail only when VerboseErrors.
 	if cmdResp.HasError() {
-		slog.Error("command failed", "code", cmdResp.Error.Code, "message", cmdResp.Error.Message)
-		w.Header().Set("x-mainvec-error", cmdResp.Error.Message)
-		w.Header().Set("Content-Type", encoder)
-		http.Error(w, cmdResp.Error.Message, http.StatusBadRequest)
+		code := cmdResp.Error.Code
+		status := HTTPStatusForErrorCode(code)
+		slog.Error("command failed", "code", code, "message", cmdResp.Error.Message, "status", status)
+		w.Header().Set("x-mainvec-error-code", code)
+		w.Header().Set("Content-Type", mediaType)
+		msg := "command failed"
+		if h.VerboseErrors {
+			msg = cmdResp.Error.Message
+			w.Header().Set("x-mainvec-error", msg)
+		}
+		http.Error(w, msg, status)
 		return
 	}
 
 	// Write success response
-	w.Header().Set("Content-Type", encoder)
+	w.Header().Set("Content-Type", mediaType)
 	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(cmdResp.Payload)
 	if err != nil {

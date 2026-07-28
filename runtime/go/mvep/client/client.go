@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mainvec/mvep/runtime/go/mvep"
@@ -38,9 +41,15 @@ type ClientConfig struct {
 type Client struct {
 	config      *ClientConfig
 	httpClient  *http.Client
-	packages    map[string]*PackageClient
 	httpBaseURL string // The actual HTTP base URL (for unix sockets this is "http://unixsocket")
 	interceptor mvep.ClientInterceptor
+
+	// mu guards packages and cmdIndex.
+	mu       sync.RWMutex
+	packages map[string]*PackageClient
+	// cmdIndex maps a command name to its owning package for deterministic,
+	// O(1) resolution in SendCmd. Built at registration time.
+	cmdIndex map[string]*PackageClient
 }
 
 // PackageClient represents a client for a specific MVP package
@@ -48,7 +57,10 @@ type PackageClient struct {
 	client  *Client
 	pkg     mvep.Package
 	handler *mvep.PackageHandler
-	encoder string
+
+	// encoderMu guards encoder.
+	encoderMu sync.RWMutex
+	encoder   string
 }
 
 // NewClient creates a new MVP client with the given configuration
@@ -72,9 +84,10 @@ func NewClient(config ClientConfig) (*Client, error) {
 	// Check if this is a Unix socket connection
 	if strings.HasPrefix(config.BaseURL, "unix://") {
 		socketPath := strings.TrimPrefix(config.BaseURL, "unix://")
+		dialer := &net.Dialer{}
 		tr := &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return net.Dial("unix", socketPath)
+				return dialer.DialContext(ctx, "unix", socketPath)
 			},
 		}
 		httpClient = &http.Client{
@@ -96,6 +109,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 		config:      &config,
 		httpClient:  httpClient,
 		packages:    make(map[string]*PackageClient),
+		cmdIndex:    make(map[string]*PackageClient),
 		httpBaseURL: httpBaseURL,
 		interceptor: config.Interceptor,
 	}, nil
@@ -108,6 +122,9 @@ func (c *Client) RegisterPackage(pkg mvep.Package) (*PackageClient, error) {
 	}
 
 	pkgName := pkg.GetName()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if _, exists := c.packages[pkgName]; exists {
 		return nil, errors.New("package already registered: " + pkgName)
 	}
@@ -132,6 +149,18 @@ func (c *Client) RegisterPackage(pkg mvep.Package) (*PackageClient, error) {
 		encoder: c.config.Encoder,
 	}
 
+	// Index the package's commands for deterministic resolution. Packages that
+	// expose their command names via CommandLister get an O(1) index; a
+	// duplicate command name across packages is an explicit error.
+	if lister, ok := pkg.(mvep.CommandLister); ok {
+		for _, cmdName := range lister.CommandNames() {
+			if existing, dup := c.cmdIndex[cmdName]; dup {
+				return nil, fmt.Errorf("command %q registered by both %q and %q", cmdName, existing.pkg.GetName(), pkgName)
+			}
+			c.cmdIndex[cmdName] = pkgClient
+		}
+	}
+
 	c.packages[pkgName] = pkgClient
 
 	return pkgClient, nil
@@ -139,6 +168,8 @@ func (c *Client) RegisterPackage(pkg mvep.Package) (*PackageClient, error) {
 
 // GetPackage returns a registered package client by name
 func (c *Client) GetPackage(name string) (*PackageClient, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	pkg, ok := c.packages[name]
 	return pkg, ok
 }
@@ -176,10 +207,19 @@ func (c *Client) SendCmd(ctx context.Context, cmd any) (any, error) {
 		return nil, errors.New("command is required")
 	}
 
-	// Find the package that knows about this command
-	for _, pkgClient := range c.packages {
-		cmdName := pkgClient.pkg.NameOf(cmd)
-		if cmdName != "" {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Deterministic resolution: packages are checked in sorted-name order so a
+	// command resolvable by more than one package always resolves the same way.
+	names := make([]string, 0, len(c.packages))
+	for name := range c.packages {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		pkgClient := c.packages[name]
+		if cmdName := pkgClient.pkg.NameOf(cmd); cmdName != "" {
 			return pkgClient.SendCmd(ctx, cmd)
 		}
 	}
@@ -217,11 +257,15 @@ func (p *PackageClient) SendRawCmd(ctx context.Context, cmdName string, cmdData 
 
 // SetEncoder sets the default encoder for this package client
 func (p *PackageClient) SetEncoder(encoder string) {
+	p.encoderMu.Lock()
+	defer p.encoderMu.Unlock()
 	p.encoder = encoder
 }
 
 // GetEncoder returns the current encoder for this package client
 func (p *PackageClient) GetEncoder() string {
+	p.encoderMu.RLock()
+	defer p.encoderMu.RUnlock()
 	return p.encoder
 }
 

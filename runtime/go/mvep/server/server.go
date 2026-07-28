@@ -24,6 +24,9 @@ const DefaultShutdownTimeout = 30 * time.Second
 // headers, mitigating Slowloris-style connection exhaustion.
 const defaultReadHeaderTimeout = 10 * time.Second
 
+// defaultMaxHeaderBytes bounds request header size on each listener.
+const defaultMaxHeaderBytes = 1 << 20 // 1 MiB
+
 var (
 	// ErrServerStarted is returned when Start or StartAsync is called on a
 	// server that is already starting or running. A Server is single-use.
@@ -69,6 +72,14 @@ type ServerConfig struct {
 	HealthCheckPath string
 	// EnableCORS adds CORS headers to all responses if true
 	EnableCORS bool
+	// AllowedOrigins lists the origins CORS will respond to. When EnableCORS is
+	// true and AllowedOrigins is empty, no CORS headers are emitted (fail closed)
+	// and a warning is logged at startup.
+	AllowedOrigins []string
+	// MaxRequestBytes bounds command request bodies (default: 4 MiB).
+	MaxRequestBytes int64
+	// VerboseErrors reflects raw handler error text to callers; default false.
+	VerboseErrors bool
 	// Interceptor is the global interceptor chain applied to all commands
 	Interceptor mvep.CmdInterceptor
 }
@@ -93,9 +104,12 @@ const (
 // A Server is single-use. Once it has stopped it cannot be restarted;
 // construct a new Server instead.
 type Server struct {
-	config   ServerConfig
-	mux      *http.ServeMux
-	packages []*PackageRegistration
+	config ServerConfig
+	mux    *http.ServeMux
+
+	// packagesMu guards the packages slice.
+	packagesMu sync.RWMutex
+	packages   []*PackageRegistration
 
 	// lifecycleMu guards the state machine and the listener/httpServer slices.
 	// It is never held while draining connections or waiting on goroutines.
@@ -154,21 +168,26 @@ func (s *Server) RegisterPackage(pkg mvep.Package, runner mvep.CommandRunner) er
 		Package:       pkg,
 		CommandRunner: runner,
 	}
+	s.packagesMu.Lock()
 	s.packages = append(s.packages, registration)
+	s.packagesMu.Unlock()
 
 	// Create the package handler
 	pkgHandler := &mvep.PackageHandler{
-		Package:       pkg,
-		CommandRunner: runner,
-		Interceptor:   s.config.Interceptor,
+		Package:         pkg,
+		CommandRunner:   runner,
+		Interceptor:     s.config.Interceptor,
+		MaxRequestBytes: s.config.MaxRequestBytes,
+		VerboseErrors:   s.config.VerboseErrors,
 	}
 
-	// Register the command endpoint
+	// Register the command endpoint, scoped to POST. OPTIONS (CORS preflight) is
+	// handled separately when CORS is enabled.
 	cmdPath := s.config.BasePath + "/" + pkg.GetName() + "/cmd"
 	if s.config.EnableCORS {
-		s.mux.Handle(cmdPath, corsHandler(pkgHandler))
+		s.mux.Handle(cmdPath, s.corsHandler(pkgHandler))
 	} else {
-		s.mux.Handle(cmdPath, pkgHandler)
+		s.mux.Handle("POST "+cmdPath, pkgHandler)
 	}
 
 	slog.Info("Registered package", "name", pkg.GetName(), "path", cmdPath)
@@ -364,7 +383,7 @@ func (s *Server) registerHealthCheck() {
 	}
 
 	if s.config.EnableCORS {
-		s.mux.HandleFunc(healthPath, corsFunc(handler))
+		s.mux.HandleFunc(healthPath, s.corsFunc(handler))
 	} else {
 		s.mux.HandleFunc(healthPath, handler)
 	}
@@ -412,6 +431,7 @@ func (s *Server) bindListeners() ([]net.Listener, []*http.Server, error) {
 		httpServers = append(httpServers, &http.Server{
 			Handler:           handler,
 			ReadHeaderTimeout: defaultReadHeaderTimeout,
+			MaxHeaderBytes:    defaultMaxHeaderBytes,
 		})
 	}
 
@@ -543,12 +563,37 @@ func parseListenAddr(addr string) (net.Addr, error) {
 	return address, nil
 }
 
-// corsFunc wraps a handler function with CORS headers
-func corsFunc(nextFunc func(w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
+// corsAllowedHeaders is the set of headers MVEP actually uses.
+const corsAllowedHeaders = "Content-Type, x-mainvec-cmd, " + mvep.HeaderPrefix + "auth, " + mvep.HeaderPrefix + "request-id"
+
+// corsEnabled reports whether CORS headers should be emitted and warns once at
+// startup if misconfigured (EnableCORS with no origins).
+func (s *Server) corsEnabled() bool {
+	if !s.config.EnableCORS {
+		return false
+	}
+	if len(s.config.AllowedOrigins) == 0 {
+		slog.Warn("EnableCORS is true but AllowedOrigins is empty; no CORS headers will be emitted")
+		return false
+	}
+	return true
+}
+
+// originAllowed reports whether origin is in the allowlist.
+func (s *Server) originAllowed(origin string) bool {
+	return slices.Contains(s.config.AllowedOrigins, origin)
+}
+
+// corsFunc wraps a handler function with an origin-allowlist CORS policy.
+func (s *Server) corsFunc(nextFunc func(w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "*")
+		origin := r.Header.Get("Origin")
+		if s.originAllowed(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", corsAllowedHeaders)
+		}
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -558,15 +603,24 @@ func corsFunc(nextFunc func(w http.ResponseWriter, r *http.Request)) http.Handle
 	}
 }
 
-// corsHandler wraps an http.Handler with CORS headers
-func corsHandler(next http.Handler) http.Handler {
+// corsHandler wraps an http.Handler with an origin-allowlist CORS policy.
+func (s *Server) corsHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "*")
+		origin := r.Header.Get("Origin")
+		if s.originAllowed(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", corsAllowedHeaders)
+		}
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.Header().Set("x-mainvec-error-code", "method_not_allowed")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
