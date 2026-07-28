@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-07-28
+
+### Changed
+- **BREAKING (runtime/go): caller-owned server lifecycle.** `mvep/server` no longer installs process signal handlers. `os/signal`, `syscall`, and all `SIGINT`/`SIGTERM` handling were removed: the owning application decides which signals matter, how long shutdown may take, and how HTTP draining is sequenced with its own cleanup. Go runtime targets **v0.8.0**. See [docs/server-lifecycle-migration.md](docs/server-lifecycle-migration.md).
+  - `ServerConfig.OnShutdown` **removed**. Cleanup callbacks hide ordering and can recurse into `Shutdown`; sequence cleanup explicitly around `ShutdownContext`.
+  - `Start()` remains blocking but now returns on explicit shutdown or a fatal serve error instead of a process signal.
+  - `Shutdown()` now genuinely drains active requests (bounded by `DefaultShutdownTimeout`) and unblocks `Start()`. Previously it only closed listeners.
+  - `NewServer` copies `ServerConfig` instead of retaining and mutating the caller's pointer. Set all fields, including `Listeners`, before calling it.
+  - A `Server` is single-use: `Start`/`StartAsync` return `ErrServerStarted` while running and `ErrServerStopped` once stopped.
+  - Listeners are owned by the server once start begins and binding is transactional: a failed bind closes every listener already acquired in that attempt.
+  - An unexpected `Serve` error on any listener is recorded and shuts down the remaining listeners; a multi-listener server is one service lifecycle.
+  - Each listener now runs on its own `http.Server` with a 10s `ReadHeaderTimeout` (Slowloris mitigation) instead of a bare `http.Serve` goroutine.
+
+### Added
+- `runtime/go`: `Server.StartAsync()` binds all listeners synchronously and returns when they are serving, replacing `go srv.Start()` plus `GetListener()` readiness polling.
+- `runtime/go`: `Server.Wait()`, `Server.Done()`, and `Server.Err()` expose lifecycle completion and the final error without polling.
+- `runtime/go`: `Server.ShutdownContext(ctx)` for context-aware graceful shutdown, force-closing remaining connections when the budget expires.
+- `runtime/go`: `Server.GetListeners()` returns a defensive copy of every bound listener in configuration order.
+- `runtime/go`: exported `DefaultShutdownTimeout` (30s), `ErrServerStarted`, and `ErrServerStopped`.
+- `docs/server-lifecycle-migration.md`: v0.7 → v0.8 migration guide for daemon owners.
+
 ## [Unreleased] - 2026-07-22
 
 ### Changed
