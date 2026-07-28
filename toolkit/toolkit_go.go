@@ -159,7 +159,7 @@ func prepareTemplateDataMap(srvDef *SrvDef) map[string]interface{} {
 		}
 	} else {
 		data["GOPKG"] = name
-		data["GOIMPORT"] = "/" + name + "/go/" + name + "api"
+		data["GOIMPORT"] = name
 	}
 	goApiPkg, ok := srvDef.GenOpts["go_api_package"]
 	if ok {
@@ -174,15 +174,18 @@ func prepareTemplateDataMap(srvDef *SrvDef) map[string]interface{} {
 	} else {
 		base, ok := data["GOIMPORT"]
 		if !ok {
-			// Fallback when go_package is not set
-			data["GOAPIIMPORT"] = "/" + name + "/go/" + name + "api"
+			// No go_package either: default to the self-consistent "<name>/api"
+			// module path so generated code resolves without extra spec options.
+			data["GOAPIIMPORT"] = name + "/api"
 			data["GOAPIPKG"] = "api"
 		} else {
 			//if no go_api_package is set
 			//use the go_package as the base
 			// and append /api to it
 			data["GOAPIIMPORT"] = fmt.Sprintf("%s/api", base)
-			data["GOAPIPKG"] = ""
+			// The generated api package declares "package api", so the import
+			// alias must always be "api" for the templates that reference api.*.
+			data["GOAPIPKG"] = "api"
 		}
 	}
 	return data

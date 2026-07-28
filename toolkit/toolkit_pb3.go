@@ -2,6 +2,7 @@ package toolkit
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"reflect"
@@ -57,10 +58,18 @@ func BuildProtoBuffDefFromSrvDef(srvDef *SrvDef) (protoreflect.FileDescriptor, e
 
 
 	*/
-	processOptions(b, srvDef)
-	processRecordDefMessages(b, srvDef)
-	processCommandMessages(b, srvDef)
-	processImports(b, srvDef)
+	if err := processOptions(b, srvDef); err != nil {
+		return nil, err
+	}
+	if err := processRecordDefMessages(b, srvDef); err != nil {
+		return nil, err
+	}
+	if err := processCommandMessages(b, srvDef); err != nil {
+		return nil, err
+	}
+	if err := processImports(b, srvDef); err != nil {
+		return nil, err
+	}
 	pb3desc, err := b.Build()
 	if err != nil {
 		return nil, err
@@ -108,7 +117,7 @@ func ParseProto3Definition(name string, pb3Definition []byte) (protoreflect.File
 
 }
 
-func processOptions(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
+func processOptions(b *pbBuilder.FileBuilder, srvDef *SrvDef) error {
 	options := srvDef.GenOpts
 	fileOptions := &dpb.FileOptions{}
 	gopkg, ok := options["go_api_package"]
@@ -136,7 +145,7 @@ func processOptions(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 			//TODO case "2024":
 			// We are not able to support 2024 yet, protojs-cli does not support it yet
 			default:
-				log.Fatalf("unsupported pb3 edition [%v]", opt)
+				return fmt.Errorf("unsupported pb3 edition [%v]", opt)
 			}
 
 		case "go_package":
@@ -151,10 +160,10 @@ func processOptions(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 				protocOpt := "--go_opt=default_api_level=" + opt
 				srvDef.ProtocOpts = append(srvDef.ProtocOpts, protocOpt)
 			default:
-				log.Fatalf("unsupported value for  gen_option go_default_api_level [%v]", opt)
+				return fmt.Errorf("unsupported value for  gen_option go_default_api_level [%v]", opt)
 			}
 		default:
-			log.Fatalf("unsupported gen_option [%v]", name)
+			return fmt.Errorf("unsupported gen_option [%v]", name)
 		}
 
 	}
@@ -167,10 +176,10 @@ func processOptions(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 	b.SetOptions(fileOptions)
 
 	//Add missing options:
-
+	return nil
 }
 
-func processImports(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
+func processImports(b *pbBuilder.FileBuilder, srvDef *SrvDef) error {
 	_ = srvDef
 	extDeps := []string{
 		"google/protobuf/timestamp.proto",
@@ -179,19 +188,19 @@ func processImports(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 	for _, v := range extDeps {
 		fd, err := desc.LoadFileDescriptor(v)
 		if err != nil {
-			log.Fatalf("loading dep failed")
+			return fmt.Errorf("loading dep %s: %w", v, err)
 		}
 
 		fdesp, err := pbBuilder.FromFile(fd)
 		if err != nil {
-			log.Fatalf("loading dep failed")
+			return fmt.Errorf("loading dep %s: %w", v, err)
 		}
 		b.AddDependency(fdesp)
 	}
-
+	return nil
 }
 
-func processRecordDefMessages(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
+func processRecordDefMessages(b *pbBuilder.FileBuilder, srvDef *SrvDef) error {
 	recordDefs := srvDef.Records
 	// //FIXME should process dependent recrods first and detect cycles
 	// recs:=make([]string,0,len(recordDefs))
@@ -206,32 +215,48 @@ func processRecordDefMessages(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 	// 	return nil
 	// })
 	for recname, recordDef := range recordDefs {
-		processRecordDef(b, srvDef, recname, recordDef)
+		if err := processRecordDef(b, srvDef, recname, recordDef); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func processRecordDef(b *pbBuilder.FileBuilder, srvDef *SrvDef, recname string, recordDef RecordDef) {
+func processRecordDef(b *pbBuilder.FileBuilder, srvDef *SrvDef, recname string, recordDef RecordDef) error {
 	//already processed via dependencies
 	if b.GetMessage(recname) != nil {
-		return
+		return nil
 	}
 	mb := pbBuilder.NewMessage(recname)
-	processMessageFields(srvDef, b, mb, recordDef.Fields)
+	if err := processMessageFields(srvDef, b, mb, recordDef.Fields); err != nil {
+		return err
+	}
 	b.AddMessage(mb)
+	return nil
 }
 
-func processCommandMessages(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
+func processCommandMessages(b *pbBuilder.FileBuilder, srvDef *SrvDef) error {
 	commands := srvDef.Commands
+	var retErr error
 	mapForEachKeySorted(commands, func(commandName string, commandDef CommandDef) any {
+		if retErr != nil {
+			return nil
+		}
 		//name := commandDef.Id
 		mb := pbBuilder.NewMessage(commandName)
-		processMessageFields(srvDef, b, mb, commandDef.Fields)
+		if err := processMessageFields(srvDef, b, mb, commandDef.Fields); err != nil {
+			retErr = err
+			return nil
+		}
 		b.AddMessage(mb)
 
 		//process command result, an empty one of no result fields
 		resultName := commandName + "Result"
 		mbresult := pbBuilder.NewMessage(resultName)
-		processMessageFields(srvDef, b, mbresult, commandDef.ResultFields)
+		if err := processMessageFields(srvDef, b, mbresult, commandDef.ResultFields); err != nil {
+			retErr = err
+			return nil
+		}
 		// _, ok := commandDef["resultFields"].(map[string]interface{})
 		// if ok {
 		// 	processMessageFields(jsonSpec, b, mbresult, commandDef, "resultFields")
@@ -240,9 +265,10 @@ func processCommandMessages(b *pbBuilder.FileBuilder, srvDef *SrvDef) {
 		//pbBuilder.NewMessage(mbresult)
 		return nil
 	})
+	return retErr
 }
 
-func processMessageFields(srvDef *SrvDef, b *pbBuilder.FileBuilder, mb *pbBuilder.MessageBuilder, fieldDefs FieldDefs) {
+func processMessageFields(srvDef *SrvDef, b *pbBuilder.FileBuilder, mb *pbBuilder.MessageBuilder, fieldDefs FieldDefs) error {
 	//order by fnum
 	lessFunc := func(i, j FieldDef) bool {
 		return i.Fnum < j.Fnum
@@ -255,12 +281,16 @@ func processMessageFields(srvDef *SrvDef, b *pbBuilder.FileBuilder, mb *pbBuilde
 		switch ftype {
 		case "oneOf":
 			//Special sace for oneOf
-			processOneField(srvDef, b, mb, name, &fieldDef)
+			if err := processOneField(srvDef, b, mb, name, &fieldDef); err != nil {
+				return err
+			}
 		default:
-			processMessageField(srvDef, b, mb, name, &fieldDef)
+			if err := processMessageField(srvDef, b, mb, name, &fieldDef); err != nil {
+				return err
+			}
 		}
 	}
-
+	return nil
 }
 
 func processField(srvDef *SrvDef, b *pbBuilder.FileBuilder, fname string, fieldDef *FieldDef) (*pbBuilder.FieldBuilder, error) {
@@ -292,21 +322,21 @@ func processField(srvDef *SrvDef, b *pbBuilder.FileBuilder, fname string, fieldD
 	case "timestamp":
 		msgDes, err := desc.LoadMessageDescriptor("google.protobuf.Timestamp")
 		if err != nil {
-			log.Fatalf("could load timestamp message for field [%v]", fname)
+			return nil, fmt.Errorf("could load timestamp message for field [%v]: %w", fname, err)
 		}
 		msgB, err := pbBuilder.FromMessage(msgDes)
 		if err != nil {
-			log.Fatalf("could prepare msg builder for timestamp message for field [%v]", fname)
+			return nil, fmt.Errorf("could prepare msg builder for timestamp message for field [%v]: %w", fname, err)
 		}
 		fbuilder = pbBuilder.NewField(fname, pbBuilder.FieldTypeMessage(msgB))
 	case "duration":
 		msgDes, err := desc.LoadMessageDescriptor("google.protobuf.Duration")
 		if err != nil {
-			log.Fatalf("could load timestamp message for field [%v]", fname)
+			return nil, fmt.Errorf("could load duration message for field [%v]: %w", fname, err)
 		}
 		msgB, err := pbBuilder.FromMessage(msgDes)
 		if err != nil {
-			log.Fatalf("could prepare msg builder for timestamp message for field [%v]", fname)
+			return nil, fmt.Errorf("could prepare msg builder for duration message for field [%v]: %w", fname, err)
 		}
 		fbuilder = pbBuilder.NewField(fname, pbBuilder.FieldTypeMessage(msgB))
 
@@ -323,7 +353,7 @@ func processField(srvDef *SrvDef, b *pbBuilder.FileBuilder, fname string, fieldD
 		prefix := "#/recordsDefs/"
 		ok := strings.HasPrefix(ref, prefix)
 		if !ok {
-			log.Fatalf("not a valid $ref for field [%v]", fname)
+			return nil, fmt.Errorf("not a valid $ref for field [%v]", fname)
 		}
 		recordDefName := ref[len(prefix):]
 
@@ -332,12 +362,14 @@ func processField(srvDef *SrvDef, b *pbBuilder.FileBuilder, fname string, fieldD
 			//FIXME: should detect cycles and fail
 			recordDef, ok := srvDef.Records[recordDefName]
 			if !ok {
-				log.Fatalf("cannot find rerodDefname [%v] for field [%v]. ", recordDefName, fname)
+				return nil, fmt.Errorf("cannot find recordDefName [%v] for field [%v]", recordDefName, fname)
 			}
-			processRecordDef(b, srvDef, recordDefName, recordDef)
+			if err := processRecordDef(b, srvDef, recordDefName, recordDef); err != nil {
+				return nil, err
+			}
 			refmb = b.GetMessage(recordDefName)
 			if refmb == nil {
-				log.Fatalf("cannot find rerodDefname [%v] for field [%v]. ", recordDefName, fname)
+				return nil, fmt.Errorf("cannot find recordDefName [%v] for field [%v]", recordDefName, fname)
 			}
 		}
 		fbuilder = pbBuilder.NewField(fname, pbBuilder.FieldTypeMessage(refmb))
@@ -347,15 +379,15 @@ func processField(srvDef *SrvDef, b *pbBuilder.FileBuilder, fname string, fieldD
 
 		refmb := b.GetMessage(recordDefName)
 		if refmb == nil {
-			log.Fatalf("cannot find rerodDefname [%v] for field [%v]. ", recordDefName, fname)
+			return nil, fmt.Errorf("cannot find recordDefName [%v] for field [%v]", recordDefName, fname)
 		}
 		fbuilder = pbBuilder.NewField(fname, pbBuilder.FieldTypeMessage(refmb))
 	default:
-		log.Fatalf("not a valid field type for field [%v]", fname)
+		return nil, fmt.Errorf("not a valid field type for field [%v]", fname)
 	}
 	fnum := fieldDef.Fnum
 	if fnum < 1 {
-		log.Fatalf("not a valid fnum[%v] for field [%v]. should be > 0", fnum, fname)
+		return nil, fmt.Errorf("not a valid fnum[%v] for field [%v]. should be > 0", fnum, fname)
 	}
 	fbuilder.SetNumber(int32(fnum))
 
@@ -370,7 +402,7 @@ func processField(srvDef *SrvDef, b *pbBuilder.FileBuilder, fname string, fieldD
 	return fbuilder, nil
 }
 
-func processOneField(srvDef *SrvDef, b *pbBuilder.FileBuilder, mb *pbBuilder.MessageBuilder, fname string, fieldDef *FieldDef) {
+func processOneField(srvDef *SrvDef, b *pbBuilder.FileBuilder, mb *pbBuilder.MessageBuilder, fname string, fieldDef *FieldDef) error {
 	_ = fieldDef
 	fieldDefs := FieldDefs{} //TODO fieldDef["fields"].(map[string]interface{})
 
@@ -383,25 +415,27 @@ func processOneField(srvDef *SrvDef, b *pbBuilder.FileBuilder, mb *pbBuilder.Mes
 		//not the best way, need refactor
 		switch ftype {
 		case "oneOf":
-			log.Fatalf("nested OneOf not yet supported: [%v]", name)
+			return fmt.Errorf("nested OneOf not yet supported: [%v]", name)
 		default:
 			fbuilder, err := processField(srvDef, b, name, &fieldDef)
 			if err != nil {
-				log.Fatal(err)
+				return err
 			}
 			oneOfBuilder.AddChoice(fbuilder)
 		}
 
 	}
 	mb.AddOneOf(oneOfBuilder)
+	return nil
 }
 
-func processMessageField(srvDef *SrvDef, b *pbBuilder.FileBuilder, mb *pbBuilder.MessageBuilder, fname string, fieldDef *FieldDef) {
+func processMessageField(srvDef *SrvDef, b *pbBuilder.FileBuilder, mb *pbBuilder.MessageBuilder, fname string, fieldDef *FieldDef) error {
 	fbuilder, err := processField(srvDef, b, fname, fieldDef)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	mb.AddField(fbuilder)
+	return nil
 }
 
 func buildComments(comments string) pbBuilder.Comments {
