@@ -373,18 +373,18 @@ expects.
 
 ## Progress
 
-- [ ] T1 — Add failing tests covering the `ServeHTTP` surface, status mapping, and redaction
-- [ ] T2 — Introduce stable error codes and the HTTP status mapping
-- [ ] T3 — Redact handler error detail; add `VerboseErrors`; log full detail server-side
-- [ ] T4 — Enforce `POST`-only routing and parse `Content-Type` as a media type
-- [ ] T5 — Bound request, response, and header sizes
-- [ ] T6 — Replace wildcard CORS with an origin allowlist
-- [ ] T7 — Add peer verification to `LocalTrustMiddleware`
-- [ ] T8 — Guard client and server registries; add a deterministic command-name index
-- [ ] T9 — Fix legacy-path context propagation, body leak, Unix dialer, and default client timeout
-- [ ] T10 — Wire `SetResponseHeader` through `executeCmd`
-- [ ] T11 — Implement the TypeScript request timeout and fix request-id generation
-- [ ] T12 — Update docs, changelog, and license metadata
+- [x] T1 — Add failing tests covering the `ServeHTTP` surface, status mapping, and redaction
+- [x] T2 — Introduce stable error codes and the HTTP status mapping
+- [x] T3 — Redact handler error detail; add `VerboseErrors`; log full detail server-side
+- [x] T4 — Enforce `POST`-only routing and parse `Content-Type` as a media type
+- [x] T5 — Bound request, response, and header sizes
+- [x] T6 — Replace wildcard CORS with an origin allowlist
+- [x] T7 — Add peer verification to `LocalTrustMiddleware`
+- [x] T8 — Guard client and server registries; add a deterministic command-name index
+- [x] T9 — Fix legacy-path context propagation, body leak, Unix dialer, and default client timeout
+- [x] T10 — Wire `SetResponseHeader` through `executeCmd`
+- [x] T11 — Implement the TypeScript request timeout and fix request-id generation
+- [x] T12 — Update docs, changelog, and license metadata
 - [ ] T13 — Replace `log.Fatal` with error returns in toolkit library code
 - [ ] T14 — Rework `wo/` templates onto the MVEP runtime; remove NATS starter
 - [ ] T15 — Fix generated-file permissions; add generated-output compile test
@@ -460,8 +460,13 @@ expects.
 - **Verification**: A loopback TCP request is trusted; a non-loopback request on
   the same listener is not; a Unix peer outside the UID allowlist is not.
 - **Notes**: `AuthInterceptor` returns early for trusted contexts, so this
-  middleware is the entire boundary. Document the platform differences in
-  `SERVER.md`, which already warns about this in bold.
+  middleware is the entire boundary. Platform differences are documented in
+  `SERVER.md`. **Delivered**: middleware-level peer verification (Unix socket or
+  loopback TCP `RemoteAddr`), which fails closed without needing conn-level
+  access. UID allowlist via `SO_PEERCRED` requires the connection, not the
+  request, so it is deferred to a follow-up that plumbs peer credentials through
+  a `ConnContext` hook; the plan's Risks section already scopes it as
+  platform-specific.
 
 ### T8 — Registry concurrency
 
