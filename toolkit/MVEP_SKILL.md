@@ -514,10 +514,10 @@ api/
 
 ### Protecting Files from Overwrite
 
-Add `// NOMVGEN` (or `// NOWOGEN`) as the **first line** of any generated file to prevent regeneration from overwriting it:
+Add `// NOMVEP` as the **first line** of any generated file to prevent regeneration from overwriting it (the generator also still honors the legacy `// NOMVGEN` and `// NOWOGEN` markers):
 
 ```go
-// NOMVGEN
+// NOMVEP
 package acmeapp
 
 // This file is now protected from regeneration.
@@ -725,6 +725,9 @@ srv, err := server.NewServer(&server.ServerConfig{
     BasePath:          "/api",
     EnableHealthCheck: true,
     EnableCORS:        true,
+    AllowedOrigins:    []string{"https://app.example.com"},
+    MaxRequestBytes:   4 << 20, // default 4 MiB; oversized bodies get 413
+    VerboseErrors:     false,   // true only for local dev — reflects raw errors to callers
 })
 if err != nil {
     return err
@@ -752,6 +755,36 @@ The server installs **no signal handlers**. `Start()` still blocks, but it
 returns on explicit shutdown or a fatal serve error. `ServerConfig.OnShutdown`
 was removed in runtime v0.8.0 — sequence cleanup around `ShutdownContext`
 instead. See `runtime/go/mvep/server/SERVER.md` for the full lifecycle contract.
+
+#### HTTP hardening (runtime v0.9.0)
+
+`PackageHandler.ServeHTTP` enforces real HTTP semantics instead of treating
+HTTP as a byte pipe:
+
+| Behavior | Detail |
+|----------|--------|
+| Method enforcement | Non-`POST` requests get `405 method_not_allowed`; the runner is never invoked. |
+| Content-Type parsing | Parsed as a media type (`application/json; charset=utf-8` still resolves the JSON encoder); unregistered types get `415`. |
+| Status mapping | Exported `mvep.HTTPStatusForErrorCode(code)` maps stable codes to HTTP statuses (`400`/`401`/`403`/`404`/`405`/`413`/`415`/`500`). The machine-readable code is echoed in the `x-mainvec-error-code` response header. |
+| Error redaction | **Default now redacts.** Handler error detail is logged server-side with the request id; the client gets a generic message. Set `VerboseErrors: true` to restore raw error reflection (local dev only). |
+| Body size limits | `MaxRequestBytes` (default 4 MiB) bounds command bodies; `http.Server.MaxHeaderBytes` is capped at 1 MiB per listener. |
+
+**CORS is an explicit allowlist**, not a wildcard:
+
+- `EnableCORS: true` with empty `AllowedOrigins` emits **no** CORS headers and logs a startup warning (fail closed) — it no longer sends `Access-Control-Allow-Origin: *`.
+- An allowed origin is echoed back with `Vary: Origin`.
+- Advertised methods no longer include `PUT`/`DELETE` (MVEP only uses `POST`).
+
+**`LocalTrustMiddleware` verifies the peer** before marking a request as
+locally trusted (which lets `AuthInterceptor` skip token validation): trusted
+only for a Unix-socket peer or a loopback TCP address. Anything else passes
+through untrusted and is logged — a listener accidentally exposed to the
+network fails closed instead of silently bypassing auth.
+
+```go
+handler := mvep.NewPackageHandler(pkg, transporter, runner, interceptor)
+mux.Handle("/internal/", mvep.LocalTrustMiddleware(handler))
+```
 
 ### Go Client
 
@@ -1480,7 +1513,7 @@ The `client/` directory is **hand-written** (not generated). It wraps the genera
 2. **Validate** — run `mvep validate --in ./spec/your-spec.json`.
 3. **Regenerate** — run `bash generate_api.sh` from the `mvepapi/` directory.
 4. **Implement** — update `*_impl.go` with business logic for new commands.
-5. **Protect** — add `// NOMVGEN` to `*_impl.go` once you've customized it, so regeneration won't overwrite your work.
+5. **Protect** — add `// NOMVEP` to `*_impl.go` once you've customized it, so regeneration won't overwrite your work (legacy `// NOMVGEN` / `// NOWOGEN` markers are still honored).
 
 ### Format Choice
 
@@ -1499,7 +1532,7 @@ The `client/` directory is **hand-written** (not generated). It wraps the genera
 | Missing `$ref` for `recRef` fields | `recRef` fields require `"$ref": "#/recordsDefs/RecordName"`. |
 | Case sensitivity in command names | Command names are PascalCase and case-sensitive. |
 | Running generate without validating | Always `mvep validate` first to catch spec errors before generating. |
-| Forgetting `NOMVGEN` on customized files | Add `// NOMVGEN` as the first line of any generated file you've customized. |
+| Forgetting `NOMVEP` on customized files | Add `// NOMVEP` as the first line of any generated file you've customized (legacy `// NOMVGEN` / `// NOWOGEN` still honored). |
 | Wrong `go_package` path | Must match your actual Go module path. |
 
 ---

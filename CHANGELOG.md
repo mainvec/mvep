@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **Maintainer note:** when adding a **BREAKING** entry for `runtime/go`,
+> `runtime/ts`, or `toolkit`, also review `toolkit/MVEP_SKILL.md` and the
+> `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
+> `references/generated-patterns.md`) for staleness.
+
 ## [Unreleased] - 2026-07-28 (plan 018)
 
 ### Changed
