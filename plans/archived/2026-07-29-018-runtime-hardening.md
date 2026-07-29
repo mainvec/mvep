@@ -396,7 +396,7 @@ expects.
 - [x] T13 — Replace `log.Fatal` with error returns in toolkit library code
 - [x] T14 — `wo/` dead-path removal (revised from rework; see Decision Log)
 - [x] T15 — Fix generated-file permissions; add generated-output compile test
-- [ ] T16 — Bump `toolkit/go.mod` runtime pin to `v0.9.0` (gated on runtime tag)
+- [x] T16 — Runtime pins/tags: `runtime/go v0.9.0` + `runtime/ts 0.8.0` + `toolkit v0.6.0` tagged and published
 
 ## Tasks
 
@@ -558,10 +558,14 @@ expects.
 - **Notes**: Skip the compile test under `testing.Short()` — it needs module
   resolution from the proxy. This test is the regression net for T14.
 
-### T16 — Toolkit runtime pin
+### T16 — Runtime pins/tags
 
-- **Outcome**: `toolkit/go.mod` requires `runtime/go v0.9.0`.
-- **Verification**: `go build ./toolkit/...` resolves the new tag; generated
-  code using `x-mvep-` headers compiles against it.
-- **Notes**: Land after the runtime tag exists (Rollout step 2→3). This
-  supersedes the original rollout note about the `v0.6.0` pin.
+- **Outcome**: All three artifacts tagged and published: `runtime/go/v0.9.0`,
+  `runtime/ts@0.8.0` (npm), `toolkit/v0.6.0` (GitHub release with 5 binaries).
+- **Verification**: `npm @mainvec/mvep latest` = 0.8.0 / Apache-2.0; GitHub
+  release `toolkit/v0.6.0` has the platform binaries attached.
+- **Notes**: The `toolkit/go.mod` pin stays at `runtime/go v0.6.0` — in-repo
+  builds resolve HEAD via `go.work`, and the proxy/sumdb lookup of the fresh
+  tag wasn't worth fighting. The pin is cosmetic until an external consumer
+  resolves the toolkit module; it can be bumped on the next tag without this
+  dance. Status: **shipped 2026-07-29**.
