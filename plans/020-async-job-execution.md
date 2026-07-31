@@ -894,8 +894,8 @@ These should be resolved before this plan leaves draft:
 - [x] T2 — Implement `runtime/go/mvep/job.go` core types, in-memory store, sanitization helper, and the `HTTPStatusForErrorCode` cases in `envelope.go`
 - [x] T3 — Add failing tests for `SubmitJob`/`GetJobStatus` dispatch, guards, failed-job-is-not-`CmdResp.Error`, the auth-bypass regression, and protobuf round-trip
 - [x] T4 — Implement `PackageHandler` async job dispatch (`handleSubmitJob`, `runJob`, `handleGetJobStatus`, `SetJobProgress`, `Shutdown`)
-- [ ] T5 — Add failing tests for shutdown draining an in-flight job, `/jobs/{id}` auth parity (both directions), and `Content-Type` matching the submit encoder
-- [ ] T6 — Extract the shared response writer from `ServeHTTP`; implement `ServerConfig`/`PackageRegistration.Handler`/drain wiring/per-package `/jobs/{id}` route
+- [x] T5 — Add failing tests for shutdown draining an in-flight job, `/jobs/{id}` auth parity (both directions), and `Content-Type` matching the submit encoder
+- [x] T6 — Extract the shared response writer from `ServeHTTP`; implement `ServerConfig`/`PackageRegistration.Handler`/drain wiring/per-package `/jobs/{id}` route
 - [ ] T7 — Add failing round-trip tests for `SendEnvelope` and the Go client job helpers
 - [ ] T8 — Implement `PackageClient.SendEnvelope`, then `SubmitJob`/`GetJobStatus`/`WaitForJob`
 - [ ] T9 — Update `SERVER.md`, `README.md`, and `CHANGELOG.md`
