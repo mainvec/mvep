@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
+	"time"
 
 	oenc "github.com/mainvec/ugo/oencoding"
 )
@@ -53,12 +55,41 @@ type PackageHandler struct {
 	// VerboseErrors restores reflection of raw handler error text to callers.
 	// Default false: the response carries a stable code and a generic message.
 	VerboseErrors bool
+
+	// --- Async job fields (all zero-value safe; feature off by default) ---
+
+	// EnableAsyncJobs enables the SubmitJob/GetJobStatus reserved commands.
+	EnableAsyncJobs bool
+	// JobStore persists background jobs. nil lazily defaults to InMemoryJobStore.
+	JobStore JobStore
+	// MaxConcurrentJobs bounds concurrent job execution. <=0 uses DefaultMaxConcurrentJobs.
+	MaxConcurrentJobs int
+	// MaxJobResultBytes bounds a completed job's retained result. <=0 uses DefaultMaxJobResultBytes.
+	MaxJobResultBytes int64
+	// JobRetention is how long completed jobs are kept before sweeping. <=0 uses DefaultJobRetention.
+	JobRetention time.Duration
+	// JobTimeout, if >0, forces a deadline on every job's execution context.
+	JobTimeout time.Duration
+
+	// --- Unexported async-job state (lazily initialized) ---
+
+	jobInitOnce      sync.Once
+	jobMu            sync.Mutex // guards jobState.closed
+	jobState         *jobState
+	defaultStoreOnce sync.Once
+	defaultStore     JobStore
 }
 
 // Default body bounds for the transport layer.
 const (
 	DefaultMaxRequestBytes  = 4 << 20 // 4 MiB
 	DefaultMaxResponseBytes = 4 << 20 // 4 MiB
+)
+
+// Default async-job constants.
+const (
+	DefaultMaxConcurrentJobs = 100
+	DefaultJobRetention      = 10 * time.Minute
 )
 
 func (h *PackageHandler) ServeCmd(cmdName string, encoder string, cmdData io.ReadCloser) (io.ReadCloser, error) {
@@ -115,9 +146,17 @@ func (h *PackageHandler) ServeCmdReq(ctx context.Context, req *CmdReq, encoder s
 		return NewCmdRespError("invalid_request", "missing encoder")
 	}
 
-	// Create the core handler that executes the command
+	// Create the core handler that dispatches reserved commands or
+	// executes the regular command.
 	coreHandler := func(ctx context.Context, req *CmdReq) *CmdResp {
-		return h.executeCmd(ctx, req, encoder)
+		switch req.Cmd {
+		case SubmitJobName:
+			return h.handleSubmitJob(ctx, req, encoder)
+		case GetJobStatusName:
+			return h.handleGetJobStatus(ctx, req, encoder)
+		default:
+			return h.executeCmd(ctx, req, encoder)
+		}
 	}
 
 	// If interceptor is set, wrap the core handler

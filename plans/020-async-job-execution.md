@@ -67,6 +67,12 @@ client polls for status and, eventually, the result — via a reserved
   encoder allowlist) is independently derived here, not reused.
 - Queueing/backpressure when the concurrent-job limit is reached; v1 rejects
   immediately instead.
+- Per-caller authorization on `GetJobStatus`: any caller passing the
+  interceptor chain can read any job given its ID. IDs are 128-bit
+  `crypto/rand` values so enumeration is infeasible, but the design does not
+  tie job visibility to the submitter's identity. If that is needed, a
+  follow-up can check the caller's auth against the job's stored submitter
+  headers.
 
 ## Proposed Design
 
@@ -166,6 +172,15 @@ command's verbatim natively-encoded result in the body:
   result, present only when `Status == "succeeded"`. A protobuf client gets
   protobuf-encoded result bytes back; a JSON client gets JSON — both work
   without the job machinery ever invoking an encoder on the status response.
+
+**Encoder-mismatch rejection on `GetJobStatus`.** When a job has succeeded,
+  the result bytes are in `job.Encoder`. `ServeHTTP` labels the response
+  `Content-Type` with the poll request's media type, so polling a
+  protobuf-encoded job with `application/json` would serve protobuf bytes
+  labelled `application/json` — a lie. `handleGetJobStatus` therefore rejects
+  a poll whose `encoder` argument differs from `job.Encoder` when a result
+  payload is present, returning `unsupported_media_type`. A status-only poll
+  (pending/running/failed, no payload) is not affected.
 
 There is **no typed `GetJobStatusResult` struct** on the wire. The client
 reads `job-status`/`job-progress-*`/`job-error-*` from response headers and
@@ -396,27 +411,33 @@ default:
 in `req.Headers` and the body is opaque bytes):
 1. `EnableAsyncJobs` false → `unknown_command` (indistinguishable from an
    unregistered command to the caller).
-2. `jobsClosed` → `job_store_error` ("server is shutting down"), before any
-   resource is acquired.
-3. Read `jobCmd := req.Headers["job-cmd"]`. Empty, or itself
+2. Read `jobCmd := req.Headers["job-cmd"]`. Empty, or itself
    `SubmitJobName`/`GetJobStatusName` → `nested_job_forbidden`.
-4. `jobCmd` unknown per `h.Package.InstanceOf(jobCmd)` → `unknown_command`,
+3. `jobCmd` unknown per `h.Package.InstanceOf(jobCmd)` → `unknown_command`,
    no job created.
-5. Non-blocking acquire on `jobSem`; full → `job_queue_full` (reject
+4. Non-blocking acquire on `jobSem`; full → `job_queue_full` (reject
    immediately, no internal queueing in v1).
-6. `GenerateJobID()`. `JobStore.Create` with `Cmd: jobCmd`, `Encoder: encoder`
+5. `GenerateJobID()`. `JobStore.Create` with `Cmd: jobCmd`, `Encoder: encoder`
    (the request's mime type, needed to replay the command and to serve
    `GET /jobs/{id}` with a truthful `Content-Type`), `Status: pending`,
    `Payload: req.Payload` verbatim, and `Headers` = a fresh copy of
    `req.Headers` **with every `job-*` key removed** (never alias caller-owned
    maps; never leak job metadata into the inner command's header namespace).
+   `InMemoryJobStore.Create` stores a shallow copy, not the caller's pointer,
+   so struct-level mutations by the caller don't leak into the store.
    **If `Create` returns an error, release the acquired semaphore slot
    immediately** and return `CmdResp.Error{Code: "job_store_error"}` — the
    sem-release `defer` lives in `runJob` (step 1 below), which only starts
    after a successful `Create`, so a `Create` failure would otherwise leak
    the slot and permanently shrink the concurrency budget.
-7. On `Create` success: `jobWG.Add(1)` and `go h.runJob(jobID, job)` — the
-   encoder is read from `job.Encoder`, not passed separately.
+6. On `Create` success: hold `jobMu` across the `jobsClosed` check **and**
+   `jobWG.Add(1)`, then release. This prevents `Shutdown`'s `jobWG.Wait()`
+   from returning before the new job is counted — a race that
+   `sync.WaitGroup` explicitly forbids — and prevents a job from running
+   after shutdown claims to have drained. If `jobsClosed`, release the
+   semaphore slot and return `job_store_error`.
+7. `go h.runJob(jobID, job)` — the encoder is read from `job.Encoder`, not
+   passed separately.
 8. Return a `CmdResp` with `Headers["job-id"] = jobID`,
    `Headers["job-cmd"] = jobCmd`, and an empty `Payload` — this is the
    "returns immediately" contract.
@@ -871,8 +892,8 @@ These should be resolved before this plan leaves draft:
 
 - [x] T1 — Add failing tests for `InMemoryJobStore` transitions/retention sweep, header sanitization, and the `HTTPStatusForErrorCode` job cases
 - [x] T2 — Implement `runtime/go/mvep/job.go` core types, in-memory store, sanitization helper, and the `HTTPStatusForErrorCode` cases in `envelope.go`
-- [ ] T3 — Add failing tests for `SubmitJob`/`GetJobStatus` dispatch, guards, failed-job-is-not-`CmdResp.Error`, the auth-bypass regression, and protobuf round-trip
-- [ ] T4 — Implement `PackageHandler` async job dispatch (`handleSubmitJob`, `runJob`, `handleGetJobStatus`, `SetJobProgress`, `Shutdown`)
+- [x] T3 — Add failing tests for `SubmitJob`/`GetJobStatus` dispatch, guards, failed-job-is-not-`CmdResp.Error`, the auth-bypass regression, and protobuf round-trip
+- [x] T4 — Implement `PackageHandler` async job dispatch (`handleSubmitJob`, `runJob`, `handleGetJobStatus`, `SetJobProgress`, `Shutdown`)
 - [ ] T5 — Add failing tests for shutdown draining an in-flight job, `/jobs/{id}` auth parity (both directions), and `Content-Type` matching the submit encoder
 - [ ] T6 — Extract the shared response writer from `ServeHTTP`; implement `ServerConfig`/`PackageRegistration.Handler`/drain wiring/per-package `/jobs/{id}` route
 - [ ] T7 — Add failing round-trip tests for `SendEnvelope` and the Go client job helpers

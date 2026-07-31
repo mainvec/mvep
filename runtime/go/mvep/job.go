@@ -22,8 +22,8 @@ const (
 
 // Reserved built-in command names.
 const (
-	SubmitJobName     = "SubmitJob"
-	GetJobStatusName  = "GetJobStatus"
+	SubmitJobName    = "SubmitJob"
+	GetJobStatusName = "GetJobStatus"
 )
 
 // MaxJobMessageBytes bounds the length of job-progress-message and
@@ -50,7 +50,7 @@ type Job struct {
 	Headers       map[string]string // submitter's headers, replayed on the inner request
 	Payload       []byte            // submitter's verbatim encoded inner command
 	CreatedAt     time.Time
-	StartedAt    time.Time
+	StartedAt     time.Time
 	CompletedAt   time.Time
 	ResultPayload []byte // inner command's verbatim encoded result
 	Error         *ErrorInfo
@@ -91,7 +91,12 @@ func (s *InMemoryJobStore) Create(_ context.Context, job *Job) error {
 		return fmt.Errorf("job ID is required")
 	}
 	s.maybeSweepLocked()
-	s.jobs[job.ID] = job
+	// Store a shallow copy so the caller's *Job pointer is not aliased with
+	// the store's internal entry — matching the defensive-copy contract Get
+	// already upholds. Headers and Payload are shared (read-only in practice),
+	// but struct-level mutations by the caller won't leak into the store.
+	copied := *job
+	s.jobs[job.ID] = &copied
 	return nil
 }
 
@@ -99,7 +104,12 @@ func (s *InMemoryJobStore) Get(_ context.Context, jobID string) (*Job, bool, err
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	job, ok := s.jobs[jobID]
-	return job, ok, nil
+	if !ok {
+		return nil, false, nil
+	}
+	// Return a shallow copy so callers can't race with state mutations.
+	copied := *job
+	return &copied, true, nil
 }
 
 func (s *InMemoryJobStore) MarkRunning(_ context.Context, jobID string, startedAt time.Time) error {
@@ -213,4 +223,292 @@ func sanitizeJobHeaderValue(value string, maxLen int) string {
 		result = result[:maxLen]
 	}
 	return result
+}
+
+// =============================================================================
+// PackageHandler job dispatch, lazy init, and Shutdown
+// =============================================================================
+
+// jobProgressSink is stored in the job's execution context so SetJobProgress
+// can report progress to the JobStore.
+type jobProgressSink struct {
+	jobID string
+	store JobStore
+}
+
+type jobProgressSinkContextKey struct{}
+
+// jobState holds lazily-initialized async-job infrastructure, guarded by
+// jobInitOnce and jobMu.
+type jobState struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	sem    chan struct{}
+	wg     sync.WaitGroup
+	closed bool
+}
+
+// initJobs lazily initializes the async-job infrastructure. Must be called
+// before any job operation. Safe to call multiple times.
+func (h *PackageHandler) initJobs() {
+	h.jobInitOnce.Do(func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		max := h.MaxConcurrentJobs
+		if max <= 0 {
+			max = DefaultMaxConcurrentJobs
+		}
+		h.jobState = &jobState{
+			ctx:    ctx,
+			cancel: cancel,
+			sem:    make(chan struct{}, max),
+		}
+	})
+}
+
+// jobStore returns the configured JobStore or a lazily-created default
+// InMemoryJobStore. The default is created once via sync.Once and reused for
+// the handler's lifetime so submits and polls see the same store.
+func (h *PackageHandler) jobStore() JobStore {
+	if h.JobStore != nil {
+		return h.JobStore
+	}
+	h.defaultStoreOnce.Do(func() {
+		retention := h.JobRetention
+		if retention <= 0 {
+			retention = DefaultJobRetention
+		}
+		h.defaultStore = NewInMemoryJobStore(retention)
+	})
+	return h.defaultStore
+}
+
+// maxResultBytes returns the configured result-size cap or the default.
+func (h *PackageHandler) maxResultBytes() int64 {
+	if h.MaxJobResultBytes > 0 {
+		return h.MaxJobResultBytes
+	}
+	return DefaultMaxJobResultBytes
+}
+
+// handleSubmitJob handles the SubmitJob reserved command.
+func (h *PackageHandler) handleSubmitJob(ctx context.Context, req *CmdReq, encoder string) *CmdResp {
+	if !h.EnableAsyncJobs {
+		return NewCmdRespError("unknown_command", fmt.Sprintf("unknown command %s", req.Cmd))
+	}
+
+	h.initJobs()
+
+	jobCmd := req.Headers["job-cmd"]
+	if jobCmd == "" || jobCmd == SubmitJobName || jobCmd == GetJobStatusName {
+		return NewCmdRespError("nested_job_forbidden", "job-cmd is missing or refers to a reserved command")
+	}
+
+	// Verify the inner command is registered.
+	if _, ok := h.Package.InstanceOf(jobCmd); !ok {
+		return NewCmdRespError("unknown_command", fmt.Sprintf("unknown command %s", jobCmd))
+	}
+
+	// Non-blocking acquire on the semaphore.
+	select {
+	case h.jobState.sem <- struct{}{}:
+	default:
+		return NewCmdRespError("job_queue_full", "job concurrency limit reached")
+	}
+
+	store := h.jobStore()
+	jobID := GenerateJobID()
+
+	// Copy submitter headers, stripping job-* keys.
+	jobHeaders := make(map[string]string, len(req.Headers))
+	for k, v := range req.Headers {
+		if strings.HasPrefix(k, "job-") {
+			continue
+		}
+		jobHeaders[k] = v
+	}
+
+	job := &Job{
+		ID:      jobID,
+		Cmd:     jobCmd,
+		Encoder: encoder,
+		Status:  JobPending,
+		Headers: jobHeaders,
+		Payload: req.Payload,
+	}
+
+	if err := store.Create(ctx, job); err != nil {
+		// Release the acquired semaphore slot — runJob's defer hasn't started yet.
+		<-h.jobState.sem
+		return NewCmdRespError("job_store_error", fmt.Sprintf("failed to create job: %v", err))
+	}
+
+	// Hold jobMu across the closed-check and wg.Add so Shutdown's wg.Wait
+	// cannot return before this job is counted. Releasing between them races
+	// a returned Wait — which sync.WaitGroup explicitly forbids — and lets a
+	// job run after shutdown claims to have drained.
+	h.jobMu.Lock()
+	if h.jobState.closed {
+		h.jobMu.Unlock()
+		// Job was created but server is shutting down; clean up.
+		<-h.jobState.sem
+		return NewCmdRespError("job_store_error", "server is shutting down")
+	}
+	h.jobState.wg.Add(1)
+	h.jobMu.Unlock()
+
+	go h.runJob(jobID, job)
+
+	resp := NewCmdResp(nil)
+	resp.Headers["job-id"] = jobID
+	resp.Headers["job-cmd"] = jobCmd
+	return resp
+}
+
+// runJob executes the wrapped command in a background goroutine.
+func (h *PackageHandler) runJob(jobID string, job *Job) {
+	defer h.jobState.wg.Done()
+	defer func() { <-h.jobState.sem }()
+
+	store := h.jobStore()
+	now := time.Now()
+
+	if err := store.MarkRunning(context.Background(), jobID, now); err != nil {
+		_ = store.MarkFailed(context.Background(), jobID, &ErrorInfo{
+			Code: "job_store_error", Message: fmt.Sprintf("MarkRunning failed: %v", err),
+		}, time.Now())
+		return
+	}
+
+	// Build the execution context from jobCtx, not the HTTP request context.
+	jobCtx := h.jobState.ctx
+	if h.JobTimeout > 0 {
+		var jobCancel context.CancelFunc
+		jobCtx, jobCancel = context.WithTimeout(jobCtx, h.JobTimeout)
+		defer jobCancel()
+	}
+	// Attach a progress sink.
+	jobCtx = context.WithValue(jobCtx, jobProgressSinkContextKey{}, &jobProgressSink{
+		jobID: jobID,
+		store: store,
+	})
+
+	// Build the inner CmdReq from the stored job data.
+	innerHeaders := make(map[string]string, len(job.Headers))
+	for k, v := range job.Headers {
+		innerHeaders[k] = v
+	}
+	innerReq := &CmdReq{
+		Cmd:     job.Cmd,
+		Headers: innerHeaders,
+		Payload: job.Payload,
+	}
+
+	resp := h.ServeCmdReq(jobCtx, innerReq, job.Encoder)
+
+	if resp.HasError() {
+		_ = store.MarkFailed(context.Background(), jobID, resp.Error, time.Now())
+		return
+	}
+
+	// Check result size.
+	if int64(len(resp.Payload)) > h.maxResultBytes() {
+		_ = store.MarkFailed(context.Background(), jobID, &ErrorInfo{
+			Code:    "job_result_too_large",
+			Message: fmt.Sprintf("result %d bytes exceeds limit %d", len(resp.Payload), h.maxResultBytes()),
+		}, time.Now())
+		return
+	}
+
+	_ = store.MarkSucceeded(context.Background(), jobID, resp.Payload, time.Now())
+}
+
+// handleGetJobStatus handles the GetJobStatus reserved command.
+func (h *PackageHandler) handleGetJobStatus(ctx context.Context, req *CmdReq, encoder string) *CmdResp {
+	if !h.EnableAsyncJobs {
+		return NewCmdRespError("unknown_command", fmt.Sprintf("unknown command %s", req.Cmd))
+	}
+
+	h.initJobs()
+
+	jobID := req.Headers["job-id"]
+	if jobID == "" {
+		return NewCmdRespError("invalid_request", "missing job-id header")
+	}
+
+	store := h.jobStore()
+	job, ok, err := store.Get(ctx, jobID)
+	if err != nil {
+		return NewCmdRespError("job_store_error", fmt.Sprintf("store error: %v", err))
+	}
+	if !ok {
+		return NewCmdRespError("job_not_found", fmt.Sprintf("job %s not found", jobID))
+	}
+
+	resp := NewCmdResp(nil)
+	resp.Headers["job-status"] = string(job.Status)
+
+	if job.Progress != nil {
+		resp.Headers["job-progress-percent"] = fmt.Sprintf("%d", job.Progress.Percent)
+		resp.Headers["job-progress-message"] = sanitizeJobHeaderValue(job.Progress.Message, MaxJobMessageBytes)
+	}
+
+	if job.Status == JobFailed && job.Error != nil {
+		resp.Headers["job-error-code"] = job.Error.Code
+		resp.Headers["job-error-message"] = sanitizeJobHeaderValue(job.Error.Message, MaxJobMessageBytes)
+	}
+
+	if job.Status == JobSucceeded {
+		// The result payload is encoded with job.Encoder. If the poller used a
+		// different encoder, serving the bytes would be a Content-Type lie —
+		// ServeHTTP labels the response with the poll request's media type.
+		// Reject the mismatch rather than serving mislabeled bytes.
+		if encoder != job.Encoder {
+			return NewCmdRespError("unsupported_media_type",
+				fmt.Sprintf("job result is %s-encoded; poll with that Content-Type", job.Encoder))
+		}
+		resp.Payload = job.ResultPayload
+		// Echo the encoder so the convenience route can set Content-Type.
+		resp.Headers["job-encoder"] = job.Encoder
+	}
+
+	return resp
+}
+
+// SetJobProgress reports progress for a running job. It is a no-op when called
+// outside a job context (i.e. from a synchronous command).
+func SetJobProgress(ctx context.Context, percent int, message string) {
+	sink, ok := ctx.Value(jobProgressSinkContextKey{}).(*jobProgressSink)
+	if !ok || sink == nil {
+		return
+	}
+	_ = sink.store.SetProgress(ctx, sink.jobID, &JobProgress{
+		Percent: percent,
+		Message: message,
+	})
+}
+
+// Shutdown cancels the job context and waits for in-flight jobs to finish,
+// bounded by ctx. It is safe to call even if no jobs were ever submitted.
+func (h *PackageHandler) Shutdown(ctx context.Context) error {
+	h.initJobs()
+
+	h.jobMu.Lock()
+	h.jobState.closed = true
+	h.jobMu.Unlock()
+
+	h.jobState.cancel()
+
+	// Wait for jobs to finish, respecting ctx's deadline.
+	done := make(chan struct{})
+	go func() {
+		h.jobState.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
