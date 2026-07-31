@@ -20,6 +20,16 @@ const (
 	JobFailed    JobStatus = "failed"
 )
 
+// JobStatusResult is a client-side struct assembled from GetJobStatus response
+// headers. It is not a wire type — it never crosses the encoder boundary.
+type JobStatusResult struct {
+	Status   string
+	Cmd      string // inner command name, from the job-cmd response header
+	Progress *JobProgress
+	Error    *ErrorInfo
+	Payload  []byte
+}
+
 // Reserved built-in command names.
 const (
 	SubmitJobName    = "SubmitJob"
@@ -446,6 +456,7 @@ func (h *PackageHandler) handleGetJobStatus(ctx context.Context, req *CmdReq, en
 
 	resp := NewCmdResp(nil)
 	resp.Headers["job-status"] = string(job.Status)
+	resp.Headers["job-cmd"] = job.Cmd
 
 	if job.Progress != nil {
 		resp.Headers["job-progress-percent"] = fmt.Sprintf("%d", job.Progress.Percent)

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mainvec/mvep/runtime/go/mvep"
+	oenc "github.com/mainvec/ugo/oencoding"
 )
 
 // DefaultEncoder is the default content type for encoding commands
@@ -318,4 +319,191 @@ func (p *PackageClient) sendCmdReqInternal(ctx context.Context, cmd any, headers
 	// Run through interceptor chain
 	resp, err := p.client.interceptor(ctx, req, invoker)
 	return result, resp, err
+}
+
+// =============================================================================
+// Async job helpers (T8)
+// =============================================================================
+
+// SendEnvelope sends a raw CmdReq through the client's configured transport
+// and interceptor chain, returning the raw CmdResp. It does not resolve
+// command names or result types from the package registry, so it can carry
+// reserved runtime commands like SubmitJob and GetJobStatus that are not
+// registered package commands.
+func (p *PackageClient) SendEnvelope(ctx context.Context, req *mvep.CmdReq) (*mvep.CmdResp, error) {
+	if req == nil {
+		return nil, errors.New("missing request")
+	}
+
+	encoder := p.GetEncoder()
+
+	// If no interceptor, call transport directly.
+	if p.client.interceptor == nil {
+		return p.sendEnvelopeDirect(ctx, req, encoder)
+	}
+
+	// Run through the client interceptor chain.
+	resp, err := p.client.interceptor(ctx, req, func(ctx context.Context, req *mvep.CmdReq) (*mvep.CmdResp, error) {
+		return p.sendEnvelopeDirect(ctx, req, encoder)
+	})
+	return resp, err
+}
+
+// sendEnvelopeDirect calls the EnvelopeTransporter directly.
+func (p *PackageClient) sendEnvelopeDirect(ctx context.Context, req *mvep.CmdReq, encoder string) (*mvep.CmdResp, error) {
+	envTransporter, ok := p.handler.Transporter.(mvep.EnvelopeTransporter)
+	if !ok {
+		return nil, errors.New("transporter does not support envelope transport")
+	}
+
+	enc, ok := oenc.LookupEncoding(encoder)
+	if !ok {
+		return nil, fmt.Errorf("encoding not found, %s", encoder)
+	}
+
+	return envTransporter.TransportCmdReq(ctx, req, enc.MimeType())
+}
+
+// SubmitJob encodes cmd with the client's encoder, sends it as a SubmitJob
+// request, and returns the job ID from the response header.
+func (p *PackageClient) SubmitJob(ctx context.Context, cmd any, headers map[string]string) (string, error) {
+	if cmd == nil {
+		return "", errors.New("missing command")
+	}
+
+	encoder := p.GetEncoder()
+	enc, ok := oenc.LookupEncoding(encoder)
+	if !ok {
+		return "", fmt.Errorf("encoding not found, %s", encoder)
+	}
+
+	cmdName := p.pkg.NameOf(cmd)
+	if cmdName == "" {
+		return "", errors.New("invalid command")
+	}
+
+	cmdBytes, err := enc.Encode(cmd)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode command: %w", err)
+	}
+
+	req := mvep.NewCmdReq(mvep.SubmitJobName, cmdBytes)
+	if headers != nil {
+		for k, v := range headers {
+			req.Headers[k] = v
+		}
+	}
+	req.Headers["job-cmd"] = cmdName
+
+	resp, err := p.SendEnvelope(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("SubmitJob failed: %w", err)
+	}
+	if resp.HasError() {
+		return "", fmt.Errorf("SubmitJob error: [%s] %s", resp.Error.Code, resp.Error.Message)
+	}
+
+	jobID := resp.Headers["job-id"]
+	if jobID == "" {
+		return "", errors.New("server did not return a job-id")
+	}
+	return jobID, nil
+}
+
+// GetJobStatus polls the status of a job. A failed job returns a populated
+// JobStatusResult with a nil Go error — the query succeeded. A nil result
+// plus a non-nil error means the query itself failed (job_not_found, etc.).
+func (p *PackageClient) GetJobStatus(ctx context.Context, jobID string) (*mvep.JobStatusResult, error) {
+	if jobID == "" {
+		return nil, errors.New("missing job ID")
+	}
+
+	req := mvep.NewCmdReq(mvep.GetJobStatusName, nil)
+	req.Headers["job-id"] = jobID
+
+	resp, err := p.SendEnvelope(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("GetJobStatus failed: %w", err)
+	}
+	if resp.HasError() {
+		return nil, fmt.Errorf("GetJobStatus error: [%s] %s", resp.Error.Code, resp.Error.Message)
+	}
+
+	result := &mvep.JobStatusResult{
+		Status:  resp.Headers["job-status"],
+		Cmd:     resp.Headers["job-cmd"],
+		Payload: resp.Payload,
+	}
+
+	// Progress headers are optional.
+	if pct := resp.Headers["job-progress-percent"]; pct != "" {
+		var percent int
+		if _, err := fmt.Sscanf(pct, "%d", &percent); err == nil {
+			result.Progress = &mvep.JobProgress{
+				Percent: percent,
+				Message: resp.Headers["job-progress-message"],
+			}
+		}
+	}
+
+	// Job failure headers are set only when status == "failed".
+	if resp.Headers["job-error-code"] != "" {
+		result.Error = &mvep.ErrorInfo{
+			Code:    resp.Headers["job-error-code"],
+			Message: resp.Headers["job-error-message"],
+		}
+	}
+
+	return result, nil
+}
+
+// WaitForJob polls GetJobStatus at the given interval until the job reaches a
+// terminal state (succeeded or failed) or ctx is cancelled. On success it
+// decodes the result payload into the package's <CmdName>Result type.
+func (p *PackageClient) WaitForJob(ctx context.Context, jobID string, pollInterval time.Duration) (any, error) {
+	if pollInterval <= 0 {
+		pollInterval = 100 * time.Millisecond
+	}
+
+	for {
+		status, err := p.GetJobStatus(ctx, jobID)
+		if err != nil {
+			return nil, err
+		}
+
+		if status.Status == string(mvep.JobSucceeded) {
+			// Decode the payload into the result type. The inner command name
+			// was echoed back as the job-cmd response header.
+			innerCmd := status.Cmd
+			if innerCmd == "" {
+				return nil, errors.New("job succeeded but no job-cmd header in response")
+			}
+			resultType, ok := p.pkg.InstanceOf(innerCmd + "Result")
+			if !ok {
+				return nil, fmt.Errorf("unknown command result %s", innerCmd+"Result")
+			}
+			encoder := p.GetEncoder()
+			enc, ok := oenc.LookupEncoding(encoder)
+			if !ok {
+				return nil, fmt.Errorf("encoding not found, %s", encoder)
+			}
+			if err := enc.Decode(status.Payload, resultType); err != nil {
+				return nil, fmt.Errorf("failed to decode result: %w", err)
+			}
+			return resultType, nil
+		}
+
+		if status.Status == string(mvep.JobFailed) {
+			if status.Error != nil {
+				return nil, fmt.Errorf("job failed: [%s] %s", status.Error.Code, status.Error.Message)
+			}
+			return nil, errors.New("job failed")
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(pollInterval):
+		}
+	}
 }
