@@ -898,7 +898,7 @@ These should be resolved before this plan leaves draft:
 - [x] T6 — Extract the shared response writer from `ServeHTTP`; implement `ServerConfig`/`PackageRegistration.Handler`/drain wiring/per-package `/jobs/{id}` route
 - [x] T7 — Add failing round-trip tests for `SendEnvelope` and the Go client job helpers
 - [x] T8 — Implement `PackageClient.SendEnvelope`, then `SubmitJob`/`GetJobStatus`/`WaitForJob`
-- [ ] T9 — Update `SERVER.md`, `README.md`, and `CHANGELOG.md`
+- [x] T9 — Update `SERVER.md`, `README.md`, and `CHANGELOG.md`
 
 ## Tasks
 

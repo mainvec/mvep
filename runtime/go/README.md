@@ -9,6 +9,7 @@ A Go library for building MVEP (MainVec Package) servers and clients with HTTP/U
 - **Multiple Transports**: Support for HTTP, HTTPS, and Unix sockets
 - **Flexible Encoding**: Built-in support for JSON, Protocol Buffers, and custom encoders
 - **Request/Response Headers**: Pass authentication tokens, trace IDs, and custom metadata
+- **Async Jobs** *(experimental — API and wire model may change)*: Run any command as a background job with polling via `GetJobStatus` or `GET /jobs/{id}` (opt-in, encoder-independent, no codegen change)
 - **CORS Support**: Optional CORS headers for web applications
 - **Health Checks**: Built-in health check endpoints
 
