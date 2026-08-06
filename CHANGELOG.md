@@ -10,6 +10,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
 > `references/generated-patterns.md`) for staleness.
 
+## [Unreleased] - 2026-07-31 (plan 020, #21)
+
+### Added
+- **(runtime/go) Async job execution.** An opt-in, runtime-only mechanism for
+  running any existing command as a background job. Off by default
+  (`ServerConfig.EnableAsyncJobs` / `PackageHandler.EnableAsyncJobs`); no spec,
+  codegen, or toolkit change required.
+  - Reserved built-in commands `SubmitJob` and `GetJobStatus`, recognized
+    inside `PackageHandler.ServeCmdReq` before normal dispatch. Both go
+    through the full interceptor chain (auth applies).
+  - Encoder-independent wire model: the wrapped command travels as opaque
+    `CmdReq.Payload` bytes; job metadata travels in `x-mvep-*` headers. Works
+    with JSON, protobuf, protojson, and any future encoder.
+  - `GET /<BasePath>/<pkg>/jobs/{jobId}` convenience route with identical auth
+    posture to `GetJobStatus` (delegates through `ServeCmdReq`).
+  - A failed job returns HTTP 200 with `x-mvep-job-status: failed` and
+    `x-mvep-job-error-code`/`x-mvep-job-error-message` headers — not a
+    `CmdResp.Error` — so a failed job is distinguishable from a failed poll.
+  - Pluggable `JobStore` interface with an in-memory default (single-instance
+    only). `MaxConcurrentJobs`, `MaxJobResultBytes`, `JobRetention`,
+    `JobTimeout` bound resource usage.
+  - `PackageHandler.Shutdown(ctx)` drains in-flight jobs, bounded by the
+    shutdown context; wired into `Server.drain`.
+  - Go client: `PackageClient.SendEnvelope`, `SubmitJob`, `GetJobStatus`,
+    `WaitForJob`.
+  - New `HTTPStatusForErrorCode` cases: `job_not_found`→404,
+    `job_queue_full`→429, `nested_job_forbidden`→400, `job_store_error`→500.
+  - **Caveat: submitter credentials are stored at rest.** The `auth` token is
+    replayed when the inner command runs, so bearer tokens live in the job
+    store for the job's lifetime plus `JobRetention`. See `SERVER.md`.
+
 ## [Unreleased] - 2026-07-28 (plan 018)
 
 ### Changed

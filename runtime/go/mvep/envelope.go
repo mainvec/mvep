@@ -54,6 +54,14 @@ func HTTPStatusForErrorCode(code string) int {
 		return 413
 	case "unsupported_media_type":
 		return 415
+	case "job_not_found":
+		return 404
+	case "job_queue_full":
+		return 429
+	case "nested_job_forbidden":
+		return 400
+	case "job_store_error":
+		return 500
 	default:
 		return 500
 	}

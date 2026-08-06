@@ -222,6 +222,13 @@ func (h *PackageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	cmdResp := h.ServeCmdReq(r.Context(), cmdReq, mediaType)
 
+	WriteCmdResp(w, cmdResp, mediaType, h.VerboseErrors)
+}
+
+// WriteCmdResp writes a CmdResp to an http.ResponseWriter. Shared between
+// ServeHTTP and the /jobs/{id} convenience route so error-mapping and header
+// prefixing stay in one place.
+func WriteCmdResp(w http.ResponseWriter, cmdResp *CmdResp, mediaType string, verboseErrors bool) {
 	// Set response headers with prefix
 	for k, v := range cmdResp.Headers {
 		w.Header().Set(HeaderPrefix+k, v)
@@ -235,7 +242,7 @@ func (h *PackageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("x-mainvec-error-code", code)
 		w.Header().Set("Content-Type", mediaType)
 		msg := "command failed"
-		if h.VerboseErrors {
+		if verboseErrors {
 			msg = cmdResp.Error.Message
 			w.Header().Set("x-mainvec-error", msg)
 		}
@@ -246,8 +253,65 @@ func (h *PackageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Write success response
 	w.Header().Set("Content-Type", mediaType)
 	w.WriteHeader(http.StatusOK)
-	_, err = w.Write(cmdResp.Payload)
+	_, err := w.Write(cmdResp.Payload)
 	if err != nil {
 		slog.Error("failed to write response", "error", err.Error())
 	}
+}
+
+// JobsRouteHandler serves GET /jobs/{jobId} by delegating to the
+// PackageHandler's ServeCmdReq with a synthetic GetJobStatus request, so the
+// convenience URL carries identical auth posture to calling GetJobStatus as a
+// command. It never reads the job store directly.
+type JobsRouteHandler struct {
+	Handler *PackageHandler
+}
+
+func (j *JobsRouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("x-mainvec-error-code", "method_not_allowed")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	jobID := r.PathValue("jobId")
+	if jobID == "" {
+		http.Error(w, "missing job ID", http.StatusBadRequest)
+		return
+	}
+
+	// Extract x-mvep-* request headers exactly as ServeHTTP does, so auth
+	// and other headers are carried through. The path value overwrites any
+	// client-supplied job-id so the URL remains authoritative.
+	reqHeaders := make(map[string]string)
+	for k, v := range r.Header {
+		lowerKey := strings.ToLower(k)
+		if strings.HasPrefix(lowerKey, HeaderPrefix) && len(v) > 0 {
+			headerKey := strings.TrimPrefix(lowerKey, HeaderPrefix)
+			reqHeaders[headerKey] = v[0]
+		}
+	}
+	reqHeaders["job-id"] = jobID
+
+	// Build a synthetic GetJobStatus request and delegate through ServeCmdReq
+	// so the full interceptor chain applies.
+	cmdReq := &CmdReq{
+		Cmd:     GetJobStatusName,
+		Headers: reqHeaders,
+		Payload: nil,
+	}
+
+	// The encoder argument is unused by GetJobStatus for typed bodies, but
+	// ServeCmdReq validates it's non-empty. Use application/json as a placeholder.
+	cmdResp := j.Handler.ServeCmdReq(r.Context(), cmdReq, "application/json")
+
+	// Determine the Content-Type: for a succeeded job with a payload, use
+	// the job's recorded encoder (echoed back as the job-encoder header).
+	// For non-succeeded jobs the body is empty; the default is harmless.
+	mediaType := "application/json"
+	if jobEncoder := cmdResp.Headers["job-encoder"]; jobEncoder != "" {
+		mediaType = jobEncoder
+	}
+
+	WriteCmdResp(w, cmdResp, mediaType, j.Handler.VerboseErrors)
 }

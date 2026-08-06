@@ -82,6 +82,22 @@ type ServerConfig struct {
 	VerboseErrors bool
 	// Interceptor is the global interceptor chain applied to all commands
 	Interceptor mvep.CmdInterceptor
+
+	// --- Async job fields (all zero-value safe; feature off by default) ---
+
+	// EnableAsyncJobs enables the SubmitJob/GetJobStatus reserved commands
+	// and the GET /jobs/{id} convenience route.
+	EnableAsyncJobs bool
+	// JobStore persists background jobs. nil uses the default InMemoryJobStore.
+	JobStore mvep.JobStore
+	// MaxConcurrentJobs bounds concurrent job execution. <=0 uses default.
+	MaxConcurrentJobs int
+	// MaxJobResultBytes bounds a completed job's retained result. <=0 uses default.
+	MaxJobResultBytes int64
+	// JobRetention is how long completed jobs are kept. <=0 uses default.
+	JobRetention time.Duration
+	// JobTimeout, if >0, forces a deadline on every job's execution context.
+	JobTimeout time.Duration
 }
 
 // serverState tracks the single-use lifecycle of a Server.
@@ -130,6 +146,9 @@ type Server struct {
 type PackageRegistration struct {
 	Package       mvep.Package
 	CommandRunner mvep.CommandRunner
+	// Handler is retained so Shutdown can reach the PackageHandler to drain
+	// in-flight jobs. It is nil when async jobs are not enabled.
+	Handler *mvep.PackageHandler
 }
 
 // NewServer creates a new MVEP server with the given configuration.
@@ -174,11 +193,21 @@ func (s *Server) RegisterPackage(pkg mvep.Package, runner mvep.CommandRunner) er
 
 	// Create the package handler
 	pkgHandler := &mvep.PackageHandler{
-		Package:         pkg,
-		CommandRunner:   runner,
-		Interceptor:     s.config.Interceptor,
-		MaxRequestBytes: s.config.MaxRequestBytes,
-		VerboseErrors:   s.config.VerboseErrors,
+		Package:           pkg,
+		CommandRunner:     runner,
+		Interceptor:       s.config.Interceptor,
+		MaxRequestBytes:   s.config.MaxRequestBytes,
+		VerboseErrors:     s.config.VerboseErrors,
+		EnableAsyncJobs:   s.config.EnableAsyncJobs,
+		JobStore:          s.config.JobStore,
+		MaxConcurrentJobs: s.config.MaxConcurrentJobs,
+		MaxJobResultBytes: s.config.MaxJobResultBytes,
+		JobRetention:      s.config.JobRetention,
+		JobTimeout:        s.config.JobTimeout,
+	}
+
+	if s.config.EnableAsyncJobs {
+		registration.Handler = pkgHandler
 	}
 
 	// Register the command endpoint, scoped to POST. OPTIONS (CORS preflight) is
@@ -191,6 +220,20 @@ func (s *Server) RegisterPackage(pkg mvep.Package, runner mvep.CommandRunner) er
 	}
 
 	slog.Info("Registered package", "name", pkg.GetName(), "path", cmdPath)
+
+	// Mount the per-package GET /jobs/{jobId} convenience route when async
+	// jobs are enabled. Only the trailing {jobId} is a ServeMux wildcard; the
+	// package name is a literal, matching the cmdPath registration model.
+	if s.config.EnableAsyncJobs {
+		jobsPath := s.config.BasePath + "/" + pkg.GetName() + "/jobs/{jobId}"
+		jobsHandler := &mvep.JobsRouteHandler{Handler: pkgHandler}
+		if s.config.EnableCORS {
+			s.mux.Handle(jobsPath, s.corsHandler(jobsHandler))
+		} else {
+			s.mux.Handle("GET "+jobsPath, jobsHandler)
+		}
+		slog.Info("Registered jobs endpoint", "name", pkg.GetName(), "path", jobsPath)
+	}
 
 	return nil
 }
@@ -462,7 +505,8 @@ func (s *Server) serve(httpServer *http.Server, ln net.Listener) {
 }
 
 // drain shuts every http.Server down concurrently, force-closes any that do not
-// finish within ctx, and waits for all serve goroutines to return.
+// finish within ctx, waits for all serve goroutines to return, and drains
+// in-flight async jobs for every registered package handler.
 func (s *Server) drain(ctx context.Context, httpServers []*http.Server) error {
 	var (
 		mu       sync.Mutex
@@ -494,6 +538,20 @@ func (s *Server) drain(ctx context.Context, httpServers []*http.Server) error {
 
 	wg.Wait()
 	s.serveWG.Wait()
+
+	// Drain in-flight async jobs for every registered package handler.
+	s.packagesMu.RLock()
+	for _, reg := range s.packages {
+		if reg.Handler == nil {
+			continue
+		}
+		if err := reg.Handler.Shutdown(ctx); err != nil {
+			mu.Lock()
+			drainErr = errors.Join(drainErr, err)
+			mu.Unlock()
+		}
+	}
+	s.packagesMu.RUnlock()
 
 	return drainErr
 }

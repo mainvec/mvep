@@ -205,6 +205,28 @@ type ServerConfig struct {
 
     // Interceptor is the global interceptor chain applied to all commands
     Interceptor mvep.CmdInterceptor
+
+    // --- Async job fields (off by default) ---
+
+    // EnableAsyncJobs enables the SubmitJob/GetJobStatus reserved commands
+    // and the GET /<pkg>/jobs/{id} convenience route.
+    EnableAsyncJobs bool
+
+    // JobStore persists background jobs. nil uses an in-memory store.
+    JobStore mvep.JobStore
+
+    // MaxConcurrentJobs bounds concurrent job execution (default: 100).
+    MaxConcurrentJobs int
+
+    // MaxJobResultBytes bounds a completed job's retained result (default: 4 MiB).
+    MaxJobResultBytes int64
+
+    // JobRetention is how long completed jobs are kept before sweeping
+    // (default: 10 minutes).
+    JobRetention time.Duration
+
+    // JobTimeout, if >0, forces a deadline on every job's execution context.
+    JobTimeout time.Duration
 }
 ```
 
@@ -234,6 +256,82 @@ srv.StartAsync()
 
 Each package will be available at:
 - `<BasePath>/<PackageName>/cmd`
+
+## Async Jobs
+
+When `EnableAsyncJobs` is true, any registered command can be run as a
+background job instead of inline. The feature is opt-in, runtime-only, and
+requires no spec or codegen change — it works for every existing generated
+package unmodified.
+
+### Reserved commands
+
+Two reserved command names are recognized inside `PackageHandler` before the
+normal dispatch:
+
+- `SubmitJob` — wraps an existing command as a background job.
+- `GetJobStatus` — polls the status/result of a job.
+
+Both go through the full interceptor chain (auth, logging, …), exactly like
+any other command.
+
+### Wire model
+
+The feature is encoder-independent. The wrapped command travels as opaque
+bytes in the `CmdReq.Payload`; job metadata travels in `x-mvep-*` headers.
+
+**Submit**: send `POST /<pkg>/cmd` with `x-mainvec-cmd: SubmitJob`,
+`x-mvep-job-cmd: <RealCommand>`, and the inner command's encoded bytes as the
+body. The response carries `x-mvep-job-id` and `x-mvep-job-cmd` in headers
+with an empty body.
+
+**Status**: send `POST /<pkg>/cmd` with `x-mainvec-cmd: GetJobStatus` and
+`x-mvep-job-id: <id>`, or `GET /<pkg>/jobs/<id>`. The response carries
+`x-mvep-job-status` (`pending`/`running`/`succeeded`/`failed`) in headers.
+On `succeeded`, the body is the inner command's result in the submit-time
+encoding (JSON, protobuf, …). On `failed`, `x-mvep-job-error-code` and
+`x-mvep-job-error-message` carry the failure — **the HTTP status is 200**,
+because the query succeeded; only the job failed.
+
+A poll whose `Content-Type` differs from the job's submit-time encoder is
+rejected with `415 unsupported_media_type` when a result payload is present,
+to avoid serving mislabeled bytes.
+
+### Convenience route
+
+`GET /<BasePath>/<PackageName>/jobs/{jobId}` is a per-package route that
+delegates to `GetJobStatus` through `ServeCmdReq`, so it carries identical
+auth posture. It never reads the job store directly.
+
+### Go client
+
+`PackageClient` provides three helpers:
+
+- `SubmitJob(ctx, cmd, headers) (jobID, error)` — encodes `cmd` and submits.
+- `GetJobStatus(ctx, jobID) (*JobStatusResult, error)` — polls status from
+  headers. A failed job returns a populated result with a nil Go error.
+- `WaitForJob(ctx, jobID, pollInterval) (any, error)` — polls until terminal,
+  then decodes the result into the package's `<Cmd>Result` type.
+
+A raw envelope path, `SendEnvelope(ctx, req) (*CmdResp, error)`, is also
+available for sending reserved commands directly; it runs the client
+interceptor chain.
+
+### Caveats
+
+- **In-memory store is single-instance only.** A job submitted on one server
+  instance is invisible to another. The pluggable `JobStore` interface is the
+  escape hatch.
+- **Submitter credentials are stored at rest.** The `auth` token is replayed
+  when the inner command eventually runs, so async execution is auth-equivalent
+  to sync execution. This means bearer tokens live in the job store for the
+  job's lifetime plus `JobRetention`. A third-party `JobStore` implementer is
+  handling secrets — tokens must not be logged when debugging a job dump.
+- **Auth is evaluated at execution time, not submission time.** A token
+  valid at submit can be expired or revoked when the job runs.
+- **No per-caller authorization on `GetJobStatus`.** Any caller passing the
+  interceptor chain can read any job given its ID. IDs are 128-bit random.
+- **No idempotency key.** A retried submit creates a duplicate job.
 
 ## Listen Address Formats
 
