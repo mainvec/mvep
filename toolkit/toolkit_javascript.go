@@ -234,10 +234,12 @@ func tsDefaultValue(field FieldDef) string {
 	}
 }
 
-// isRequiredField determines if a field should be marked as required
-// For now, all fields are optional to allow partial construction
+// isRequiredField determines if a field should be marked as required.
+// Required-ness is tag-derived (`tags: ["required"]`), the same rule used by
+// fieldIsRequired in toolkit.go for Go codegen. The two must agree so Go and
+// JS/TS output do not silently diverge (plan 025, T4).
 func isRequiredField(field FieldDef) bool {
-	return false
+	return fieldIsRequired(field)
 }
 
 // isLastField checks if this is the last field in the list

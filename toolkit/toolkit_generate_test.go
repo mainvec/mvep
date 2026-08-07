@@ -36,7 +36,17 @@ func TestGenerateCompilePlain(t *testing.T) {
 	// The generated tree is not a module yet; give it one. The module name must
 	// match the default import path the generator derives from the spec name
 	// (see prepareTemplateDataMap) so the api + impl + commands packages resolve.
-	writeFile(t, filepath.Join(outdir, "go.mod"), "module test5Name\n\ngo 1.24\n")
+	//
+	// The generated package now references the runtime descriptor types
+	// (plan 025), which are not yet in a published runtime/go release. Replace
+	// the runtime with the local checkout so the build tests the new API, not
+	// the stale published version.
+	runtimeDir, err := filepath.Abs(filepath.Join("..", "runtime", "go"))
+	if err != nil {
+		t.Fatalf("resolve runtime dir: %v", err)
+	}
+	writeFile(t, filepath.Join(outdir, "go.mod"),
+		"module test5Name\n\ngo 1.24\n\nreplace github.com/mainvec/mvep/runtime/go => "+runtimeDir+"\n")
 
 	run := func(dir string, args ...string) {
 		t.Helper()

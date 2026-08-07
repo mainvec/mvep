@@ -1,394 +1,603 @@
-# Plan 025 — Runtime CLI Builder
+# 025 — Package Descriptor and Runtime CLI Builder
 
-**Issue:** [#25](https://github.com/mainvec/mvep/issues/25) — feat: runtime CLI builder — build CLIs from a spec instead of generating them
-**Requirements catalogue:** [#23](https://github.com/mainvec/mvep/issues/23) / [plans/023-cli-generation-complete-reusable.md](023-cli-generation-complete-reusable.md)
+- Issue: [#25](https://github.com/mainvec/mvep/issues/25)
+- Related: [#23](https://github.com/mainvec/mvep/issues/23) (type-coverage requirements catalogue, stays open), [#26](https://github.com/mainvec/mvep/issues/26) (`SrvDef` → `SpecDef` rename, kept separate)
+- Branch: `feat/25-runtime-cli-builder`
 
 ## Problem / Goal
 
-The toolkit generates a CLI command tree into `cmd/<srv>/<srv>_main_cmd.go`. That output is
-unusable in three independent ways, catalogued in plan 023:
+Today a CLI is produced by emitting a whole `main.go` from `go_cli_main.txt`. That template
+hardcodes `package main`, hardcodes `GetCommandRunner()`, supports only string/boolean/int32
+flags, discards command results, and returns no meaningful exit codes. Anything an implementor
+wants that the template does not already emit — a global `--endpoint` flag, an extra
+subcommand, JSON output, an auth hook — cannot be added without either editing generated code
+(lost on regen) or forking the template.
 
-1. **Incomplete.** Only `string`, `boolean`, and `int32` become flags. `recRef`, `map`,
-   `repeated`, and nine other scalar types are silently dropped. A dropped *required* field
-   makes the command uninvokable, with only a comment in the generated source to show for it.
-2. **Not reusable.** It is emitted as `package main` with `commandRunner = <pkg>.GetCommandRunner()`
-   hardcoded. A CLI that talks to a daemon rather than running commands in-process creates an
-   import cycle, so adopters hand-copy the whole tree into a separate module where it drifts.
-3. **Unscriptable.** `_, err := commandRunner.RunXxxCmd(...)` discards the result and never sets
-   an exit code.
+Underneath that specific complaint is a more general gap. `mvep.Package` already acts as a
+partial, stringly-typed descriptor: `InstanceOf(name) (any, bool)` constructs a command by
+name, `NameOf(comp)` is its inverse, and the optional `CommandLister.CommandNames()` lists
+them. What it lacks is **field-level metadata** — types, tags, ordering, required-ness. Because
+that metadata does not exist at runtime, every consumer that needs it has to have code
+generated for it. A CLI is only the first such consumer.
 
-Closing those gaps inside Go text templates means encoding flag parsing, nested-record
-flattening, map syntax, required-ness, and result rendering as template logic — the hardest
-possible place to write, test, and extend it.
+So the goal is two things, in order:
 
-**Goal:** build the CLI at runtime from the parsed spec, as an ordinary Go library that
-implementers import, configure, and extend.
+1. Give every generated package a **complete runtime descriptor**, emitted into
+   `mvep_package.go` and backing the `Package` methods it already implements by hand.
+2. Build `mvep/cli` as a **library** on top of that descriptor, so implementors get a
+   `*cli.App` they can extend, executing through the same `mvep.CommandRunner` (in-process) or
+   `client.PackageClient` (remote) the runtime already has.
+
+The original framing of this issue was "parse the spec JSON at runtime, no codegen". That is
+**not** what this plan does, and the Decision Log records why.
 
 ## Goals
 
-- A `runtime/go/mvep/cli` library that turns a parsed spec plus an `mvep.Package` into a working
-  CLI with no code generation.
-- Complete coverage of every spec field type, with unsupported constructs failing loudly at
-  construction rather than vanishing.
-- One CLI that drives either a local `CommandRunner` or a remote `client.PackageClient`.
-- Implementer extension points: persistent global flags, hand-written subcommands, per-command
-  hooks, result renderers.
-- Correct exit codes, so MVEP CLIs are scriptable.
-- `mvep` itself rebuilt on the library from its own embedded spec — self-hosting is the proof.
-- `runtime/go` gains **zero** new dependencies.
+- A generated package exposes a full descriptor: commands, fields, results, types, tags, order.
+- `InstanceOf` / `NameOf` / `CommandNames` are **derived** from that descriptor rather than
+  emitted as three separate hand-shaped switch statements.
+- `mvep/cli` is a library in `runtime/go`, importable and extendable.
+- One executable can drive commands **locally** or **remotely** by swapping an `Executor`.
+- Flag → struct binding is total for the types the spec can express, and a codegen mistake is a
+  **compile error**, not a silent runtime drop.
+- Command, flag and help ordering is deterministic.
+- The legacy generated-`main.go` path keeps working until consumers migrate.
 
 ## Non-goals
 
-- Async job submission from the CLI (`--async` + `GetJobStatus` polling). Deferred; the runtime
-  support exists but CLI ergonomics are a separate design.
-- Shell completion (`ugo/cli` U7).
-- TypeScript parity in `runtime/ts`.
-- `oneOf` mutually-exclusive flag groups (023 B5) — the spec has no `oneOf` construct yet.
-- Removing the existing codegen path. It is preserved behind `--cli=legacy`.
+- Async execution (`--async`, job polling). `mvep/job.go` exists but is out of scope.
+- Shell completion.
+- TypeScript parity — `runtime/ts` is untouched.
+- `oneOf` / mutually exclusive flag groups. The spec cannot express them.
+
+### Enabled but deliberately not built
+
+The descriptor makes all of the following straightforward. None are in scope; they are listed
+so the descriptor shape stays general enough not to block them:
+
+- Required-field validation in `PackageHandler.executeCmd`, before dispatch.
+- Field-level redaction in interceptors/middleware, driven by `FieldDesc.Tags`.
+- A server-side command/field discovery endpoint.
+- A generic `mvep call <spec.json>` client.
 
 ## Proposed Design
 
-### Enabling constraint: import direction
+### The descriptor lives in core `mvep`
 
-`toolkit` already depends on `runtime/go`; the reverse is forbidden and stays forbidden. That
-means the spec model can move **into** the runtime and be imported by toolkit, with no cycle.
-This is what makes a runtime-parsed spec viable at all.
+Codegen emits a `mvep.PackageDesc` Go literal **into the generated `mvep_package.go`**, from the
+same `ExecuteGenerate` run that produces the command structs:
 
-### Layering the parser and validator
-
-Toolkit's spec handling is three layers with very different dependency costs. Only the
-dependency-free ones move:
-
-| Layer | Symbols | Dependencies | Destination |
-| --- | --- | --- | --- |
-| 1. Parse | `readAndRemoveJSONComments`, `removeCStyleComments`, `removeCppStyleComments` | none | move to runtime |
-| 2. Semantic validation | `validateSrvDef`, `validateRecords`, `validateRecord`, `validateCommands`, `validateCommand`, `validateFieldDefs`, `ValidationResult`, `DefaultValidationResult` | none | move to runtime |
-| 3. JSON Schema validation | `validateJSONSchemaContent`, `addResource`, `HTTPURLLoader`, `newHTTPURLLoader`, `supportedSchemaResources`, `jsonValidationResult` | `santhosh-tekuri/jsonschema/v6`, `//go:embed resources`, live `http.Client` | **stays in toolkit** |
-
-Layer 3 is excluded from the runtime deliberately. `newHTTPURLLoader` registers `http`/`https`
-loaders and only four `$schema` URLs are pre-registered — anything else is fetched over the
-network with a 15s timeout. Putting a data-driven outbound request into the startup path of
-every MVEP-built CLI buys nothing: the embedded spec was already schema-validated at
-`mvep generate` time by the same toolchain that emitted the structs the CLI decodes into.
-Schema errors are actionable by spec *authors* at generate time, not by CLI *end users*.
-
-Layer 2 is included because the CLI genuinely needs it: `recRef` flag flattening dereferences
-`#/recordsDefs/X`, and `validateFieldDefs` is exactly the check that the target resolves.
-Without it a spec typo becomes a panic during flag registration.
-
-Toolkit keeps every current name as a type alias (`type SrvDef = spec.SrvDef`), so no consumer
-breaks, and `BuildSrvDefFromJSON` becomes *schema-validate, then delegate to `spec.Parse`*.
-Toolkit remains the strict gate.
-
-### Binding flags to commands without reflection
-
-`PackageHandler.executeCmd` already establishes the pattern: `Package.InstanceOf(name)` returns
-a zero-valued typed command struct, the encoder decodes a payload into it, and `CommandRunner`
-runs it. The CLI reuses that exact path:
-
-```
-flags -> map[string]any (keyed by spec field name) -> JSON -> enc.Decode(payload, InstanceOf(cmd)) -> Executor.Run
+```go
+// generated
+var pkgDesc = mvep.PackageDesc{
+    Name:        "mvep",
+    SpecVersion: "0.2",
+    Commands: []mvep.CommandDesc{{
+        Name:  "generate",
+        Alias: "gen",
+        Desc:  "Generate code from a spec",
+        New:   func() any { return &GenerateCmd{} },
+        Fields: []mvep.FieldDesc{{
+            Name: "in", Fnum: 1, Type: mvep.FieldString, Required: true,
+            Desc: "input spec file",
+            Ptr:  func(c any) any { return &c.(*GenerateCmd).In },
+        }},
+        Result: &mvep.ResultDesc{ /* ... */ },
+    }},
+}
 ```
 
-This means **no reflection anywhere**, and it works identically for plain and protobuf struct
-formats because both carry `json` tags. It also makes `--<field>-json` an escape hatch that
-composes naturally: the raw JSON is merged into the same map.
+Three properties follow from this shape, and they are the whole reason for it:
 
-`InstanceOf` also returns `*XxxCmdResult` types; the spec's `Commands` list is what decides
-which names become subcommands, so results are filtered out for free.
+1. **Descriptor and structs are generated together**, so they cannot disagree. No digest, no
+   embedded spec copy, no provenance check, no version pin between them.
+2. **`Ptr` closes over a real struct field.** If codegen emits a field that does not exist or a
+   type that does not match, the generated package **fails to compile**. Compare an embedded
+   spec, where a stale field is silently dropped by `json.Unmarshal` — the flag parses, the
+   user sees no error, and the value never arrives.
+3. **No reflection in the binding path.**
 
-### Swappable executor
+### `Ptr`, not `Bind`
 
-`mvep.CommandRunner.RunCmd(ctx, any) (any, error)` and
-`client.PackageClient.SendCmd(ctx, any) (any, error)` already have identical shapes. A
-one-method `Executor` interface unifies them, so the same CLI binary can run commands in-process
-or against a daemon by construction-time choice.
+An earlier draft had `FlagDesc.Bind(cmd any, fs *cli.FlagSet)`. That cannot live in core
+`mvep`, because it references a `cli` type and everything imports `mvep` — core must depend on
+nothing.
 
-### Renderer seam
+Instead `FieldDesc` carries a typed pointer accessor, `Ptr func(cmd any) any`, returning
+`*string`, `*int64`, `*[]string` and so on. `mvep/cli` type-switches on it to pick the right
+`FlagSet` var helper. The same accessor serves every other consumer: validation reads through
+it to test for zero values, redaction writes through it to scrub a field. One accessor, many
+consumers, compile-time safety retained.
 
-The spec walk produces a parser-agnostic intermediate model (`commandNode`, `flagSpec`), which a
-renderer translates into the actual CLI framework. `ugo/cli` is the intended renderer, but it has
-eight gaps (023 U1–U8). The seam lets a minimal stdlib-`flag` renderer unblock all downstream
-work until `ugo` v0.7.0 lands.
+The rejected alternative was core-holds-metadata + `cli`-emits-its-own-`Bind`-table. That means
+codegen emits two parallel tables that can drift from each other — reintroducing exactly the
+class of bug this design exists to remove.
+
+### Descriptor shape
+
+Owned by `runtime/go/mvep`, runtime-shaped, **not** `toolkit.SrvDef`:
+
+- `PackageDesc{ Name, Namespace, Title, Desc, Base, SpecVersion string; Commands []CommandDesc; Records []RecordDesc }`
+- `CommandDesc{ Name, Alias, Desc string; New func() any; Fields []FieldDesc; Result *ResultDesc }`
+- `ResultDesc{ Name string; New func() any; Fields []FieldDesc }`
+- `FieldDesc{ Name, Alias, Desc string; Fnum int32; Type FieldType; Repeated, Required bool; Tags []string; Ptr func(any) any; Ref *RecordDesc }`
+- `RecordDesc{ Name string; Fields []FieldDesc }`
+- `FieldType` — a runtime-owned enum mirroring the spec's types
+- `PackageDescriber interface { Describe() *PackageDesc }` — optional, mirroring the existing
+  `CommandLister` idiom
+
+The toolkit keeps full ownership of the spec model. There is no relocation of `SrvDef` into
+`runtime/go`, and adding a spec field requires a runtime release only if the descriptor must
+carry it. `SpecVersion` is informational, for `--version` output.
+
+### What the descriptor deliberately excludes
+
+`PackageDesc` describes what a package **is** at runtime, not how it was **built**. Two `SrvDef`
+fields are therefore excluded:
+
+- **`ProtocOpts`** — marked `json:"-"` and self-described as a transient holder. It is assembled
+  in `toolkit_pb3.go` and spent as `protoc` argv in `toolkit_go.go`. It is a subprocess command
+  line with no runtime meaning.
+- **`GenOpts`** — every consumer is codegen-time: `go_package` and `go_api_package` select output
+  packages, `format` selects the encoding of the generated structs. The runtime does not need
+  `format`, because encoding is resolved per-request through `oenc.LookupEncoding` from the
+  envelope, not from the spec.
+
+The decisive argument against `GenOpts` is disclosure rather than tidiness: `go_package` and
+`go_api_package` are internal module and filesystem paths. A discovery endpoint that serialises
+`PackageDesc` would publish internal repository layout to every client.
+
+If a generation option is ever genuinely needed at runtime, it gets **promoted to a typed
+descriptor field on an allowlist basis**. A passthrough `map[string]string` would make every
+future genopt part of core runtime API by default.
+
+`ResultDesc` is not optional garnish: `InstanceOf` today returns **both** command types and
+`*XxxCmdResult` types, so the descriptor cannot back it without describing results.
+
+All collections are **ordered slices**, never maps. This is load-bearing. `omap.OMap[K,V]` is a
+plain `map[K]V`; ordering exists only when you go through `omap.IteratorByKey` or
+`IterateByValue`. Command ordering in help output is nondeterministic today. Slices fix it by
+construction, and codegen must emit through those iterators to get a defined order.
+
+### Deriving the `Package` methods
+
+The runtime gains a single constructor:
+
+```go
+// also satisfies CommandLister and PackageDescriber
+func NewPackageFromDesc(desc *PackageDesc) Package
+```
+
+Generated code collapses to
+`func NewPackage() mvep.Package { return mvep.NewPackageFromDesc(&pkgDesc) }`. The generated
+`mvepPackage` struct is **deleted outright** rather than kept as a delegator — it is an empty
+struct today and carries no state. The derivation logic, including the type map below, is
+written and tested once in the runtime instead of re-emitted per package.
+
+`NewPackageFromDesc` is **additive, never mandatory**: `mvep.Package` stays implementable by
+hand, as `runtime/go/test/api/iunet_package.go` does.
+
+`NameOf(comp any) string` needs type identity, which today is a generated type switch. Derived,
+it becomes a `map[reflect.Type]string` built **once** from the `New()` closures. That is a
+single one-time use of `reflect.TypeOf` and O(1) per call — faster than the O(n) switch it
+replaces. Worth stating plainly: "no reflection" is a property of the **binding path**, not an
+absolute ban across the runtime.
+
+Three constraints govern this change. Each is a real hazard, not a style preference:
+
+1. **`GetName()` must return the same string as today**, because it feeds HTTP routing in
+   `server/server.go` and `client/client.go`. The template emits `return "{{$PKG}}"`, where
+   `$PKG := print .NAME "Package"` and `.NAME` is `srvDef.Name`. `GetName()` is therefore
+   mechanically `Name + "Package"` — spec name `mvep` yields `"mvepPackage"`, `iunet` yields
+   `"iunetPackage"`. `NewPackageFromDesc` reapplies that suffix rather than returning bare
+   `desc.Name`, which would move every route from `/api/mvepPackage/cmd` to `/api/mvep/cmd` and
+   404 existing clients. The suffix is a legacy compatibility shim; dropping it is wire-breaking
+   and needs its own issue.
+2. **Exported package-level `InstanceOf` and `NameOf` are kept.** Consumers call them directly —
+   `iunetApi.InstanceOf("NewIUHubCmd")` appears in the `util/protobuf` and `util/protojson`
+   tests. Only the switch *bodies* are replaced by delegation; deleting the symbols would break
+   the generated package's API.
+3. **Implementing `CommandLister` is a behaviour change.** No generated package implements it
+   today, and `client.go` uses it for cross-package duplicate-command detection. Once every
+   generated package has it, a multi-package client whose command names collide begins erroring
+   at registration where it previously succeeded silently.
+
+### Execution
+
+`client.PackageClient.SendCmd(ctx, cmd any) (any, error)` and
+`mvep.CommandRunner.RunCmd(ctx, cmd any) (any, error)` already have identical signatures, so
+one interface covers both:
+
+```go
+type Executor interface {
+    Run(ctx context.Context, cmd any) (any, error)
+}
+```
+
+- `cli.LocalExecutor(runner mvep.CommandRunner)` — in-process.
+- `cliclient.RemoteExecutor(pc *client.PackageClient)` — in subpackage `mvep/cli/cliclient`, so
+  `mvep/cli` never takes a dependency on `mvep/client`.
+
+### Rendering
+
+Built directly on `ugo/cli` v0.7.0. An earlier draft put a renderer interface behind the builder
+so a stdlib-`flag` implementation could ship while ugo caught up. v0.7.0 already provides
+persistent flags, `RunE`-style error returns, and — via an embedded `flag.FlagSet` — the scalar
+var helpers, so that abstraction no longer pays for itself. It can be reintroduced if a second
+frontend is ever genuinely needed.
+
+### Strictness at generate time
+
+If a spec uses a construct the descriptor or CLI builder cannot represent, `mvep generate`
+**fails**. This is stronger than validating at `cli.New` time: the error lands on the developer
+running codegen, with the spec in hand, rather than on an end user at startup.
+
+### Stability marker
+
+`PackageDesc` and friends are core public API from day one, which makes them harder to change
+than a `cli`-internal type would have been. They ship marked `// EXPERIMENTAL: shape may change`
+for one release cycle, and the marker is removed once T16 has dogfooded the design.
 
 ## Affected Modules
 
-- **`runtime/go`** — new `mvep/spec` and `mvep/cli` packages. Minor version bump. Public API
-  surface grows; nothing existing changes.
-- **`toolkit`** — spec model becomes aliases; `ExecuteGenerate` gains a `--cli` mode; dormant
-  cobra templates removed; `mvepapi` CLI rebuilt on the library. Minor version bump.
-- **`github.com/mainvec/ugo`** (external) — `cli` package gains U1–U6 and U8.
+| Module | Change |
+|---|---|
+| `runtime/go/mvep` | New: descriptor types, `PackageDescriber`, derivation helpers |
+| `runtime/go/mvep/cli` | New package: `Executor`, `cli.New`, `App.Run`, flag binding, renderers |
+| `runtime/go/mvep/cli/cliclient` | New subpackage: `RemoteExecutor` |
+| `runtime/go/go.mod` | `ugo` v0.6.0 → v0.7.0. No other new dependency. |
+| `toolkit/toolkit_go.go` | `SpecDef` → `PackageDesc` literal mapping |
+| `toolkit/resources/codegen_templates/go` | Descriptor emission; `go_cli_main.txt` retained for `gen_options.cli: legacy` |
+| `toolkit/toolkit_runner.go` | `--cli` mode flag |
+| `toolkit/mvepapi/cmd/mvep` | Dogfood: mvep's own CLI rebuilt on the library |
+| `runtime/ts` | Untouched |
+
+Import direction is preserved: `toolkit → runtime/go`, never the reverse.
 
 ## Risks and Compatibility
 
 | Risk | Mitigation |
-| --- | --- |
-| **Spec/struct drift.** An embedded spec can name a field the compiled struct lacks — a runtime error where codegen would have given a compile error. | `mvep generate` is the gate: structs and spec come from the same file in the same run. If this bites, a later "bake the spec into a Go constant" mode makes it a build-time concern again, and costs ~10 lines because the constant's type is `spec.SrvDef`. |
-| **JSON round-trip fidelity.** `bytes`, `timestamp`, `duration`, `uuid`, and `int64` have different JSON encodings across plain vs protojson (notably int64-as-string). The CLI's emitted JSON must decode correctly under whichever encoder the package uses. | Encode through the package's own `oenc` encoding rather than raw `encoding/json`. Test explicitly against `runtime/go/test/api` (iunet, protobuf format) as well as a plain-format package. |
-| **Moving the spec model is API-visible for toolkit consumers.** | Type aliases preserve every name. The existing toolkit test suite is the regression gate. |
-| **`ugo/cli` gaps block delivery.** | Renderer seam plus a stdlib-`flag` fallback; `ugo` work proceeds in parallel. |
-| **Help output nondeterminism.** Commands and fields live in ordered maps; iteration order drives flag and command ordering in help text. | Reuse the existing `SortFieldsByFnum` ordering discipline; assert ordering in golden help-output tests. |
-| **Runtime dependency creep.** A careless import in `spec` or `cli` pulls jsonschema or a CLI framework into every consumer's module graph. | `go list -m all` assertion in CI; `RemoteExecutor` isolated so `cli` does not force a `client` dependency. |
+|---|---|
+| Descriptor is core API and hard to change later | `// EXPERIMENTAL` marker for one release cycle; removed after T16 |
+| Deriving `Package` methods changes behaviour for existing consumers | T2 is behaviour-preserving by construction; existing `mvep_package.go` tests must pass unchanged |
+| `GetName()` derivation silently rewrites HTTP routes | `NewPackageFromDesc` reapplies the `"Package"` suffix; T2 asserts routes are unchanged |
+| Newly satisfying `CommandLister` activates duplicate-command detection | Real behaviour change: multi-package clients with colliding command names now fail at registration. Called out in the changelog |
+| Removing exported `InstanceOf` / `NameOf` breaks consumers | Symbols retained as delegators; only the switch bodies change |
+| Descriptor bloats generated output for large specs | Data-only static initialisers; measure at T16 |
+| Regenerating overwrites a hand-edited `main.go` | `gen_options.cli: legacy` stays the default until T15; `// NOMVEP` still honoured |
+| ugo v0.7.0 bump affects other consumers | Bump is additive; `Run` is deprecated but retained upstream |
+| Required-flag semantics diverge from ugo's | Enforced in `cli`, not ugo, so the behaviour is ours to define |
+| Spec grows a construct the descriptor cannot express | T5 makes it a generate-time failure, not a silent gap |
+| **Generated code references descriptor types absent from the published runtime** | Descriptor emission is unconditional, so output from a toolkit release only compiles against a `runtime/go` that already ships the types. Strict release ordering — see Rollout step 0 |
 
-Backward compatibility: additive throughout. `--cli=legacy` reproduces today's generated output
-byte for byte. Existing generated CLIs keep compiling against the unchanged runtime API.
+Wire compatibility is unaffected: no envelope, header, or encoding change.
+
+## Verification
+
+- `cd toolkit && go test ./...`
+- `cd runtime/go && go test ./...`
+- Golden test: a fixture spec generates a descriptor that builds an `App` whose `--help` output
+  is byte-stable across repeated runs in one process.
+- Negative test: a descriptor referencing a non-existent struct field must **fail to compile** —
+  asserted by running `go build` on a testdata package expected to error.
+- Round-trip: every field type in `testdata/05_command_withfields.jsonc` and `08_maps.jsonc`
+  binds from a flag and arrives in the command struct.
+- Derivation parity: `InstanceOf` / `NameOf` / `CommandNames` return identical results before
+  and after T2 for the existing `mvepapi` package.
+- Leak guard: generated descriptor output for a spec whose `gen_options` set `go_package` and
+  `go_api_package` must contain neither value. **Currently verified by hand against fixture 06
+  only; still needs an automated regression test.**
+
+## Rollout
+
+0. **Release ordering is a hard constraint.** `toolkit/go.mod` requires
+   `github.com/mainvec/mvep/runtime/go v0.9.0`, which predates the descriptor types, and
+   emission is unconditional — so generated output does not compile against the published
+   runtime. `runtime/go` must therefore be tagged with the descriptor types, and
+   `toolkit/go.mod` bumped to it, **before any toolkit release** ships descriptor emission.
+   Until that bump lands, two things follow: `TestGenerateCompilePlain` builds against the
+   local checkout via a `replace` directive, and `toolkit/mvepapi/api/mvep_package.go` must
+   **not** be regenerated — `go.work` would make it compile locally while leaving the published
+   toolkit uninstallable via `go install`.
+1. T1–T5 land the descriptor. Generated packages gain a descriptor and lose three switch
+   statements; no CLI change, no consumer change.
+2. T6–T11 land the CLI library against the descriptor, behind `--cli=runtime`, default still
+   `legacy`.
+3. T12–T14 add the extension surface.
+4. T15 flips the default to `runtime`; `legacy` and `none` remain selectable.
+5. T16 dogfoods mvep's own CLI — the real acceptance test — and drops the `EXPERIMENTAL` marker.
+6. `go_cli_main.txt` is removed no earlier than the release after the default flip.
+
+## Decision Log
+
+- **Descriptor in core `mvep`, not `mvep/cli`.** `mvep.Package` is already a degenerate
+  descriptor; putting a second one in `cli` would duplicate `InstanceOf`, `NameOf` and
+  `CommandNames`. Placing it in core also unlocks validation, redaction and discovery, none of
+  which are CLI concerns.
+- **`FieldDesc.Ptr` over `FlagDesc.Bind`.** `Bind` references a `cli` type and cannot live in a
+  package that everything imports. `Ptr` keeps compile-time safety, adds no reflection to the
+  binding path, and serves non-CLI consumers.
+- **Derive the `Package` methods** rather than emitting them alongside the descriptor, through a
+  single `mvep.NewPackageFromDesc`. One source of truth; accepts one one-time `reflect.TypeOf`
+  map for `NameOf`. Additive — hand-written `Package` implementations keep working.
+- **No `RouteName` field.** `GetName()` is mechanically `Name + "Package"`, so the descriptor
+  carries `Name` alone and the runtime reapplies the suffix. A second field was considered and
+  rejected as redundant data that could drift from `Name`.
+- **Always emit the descriptor**, never opt-in. Consumers can rely on it unconditionally.
+- **`GenOpts` and `ProtocOpts` are excluded.** Both are build-time inputs. `go_package` and
+  `go_api_package` are internal paths that a discovery endpoint would otherwise disclose. Any
+  genuinely runtime-relevant option is promoted to a typed field, never passed through as a map.
+- **`Namespace`, `Base`, `Title` and `Desc` are included**, having passed the same
+  is-it-runtime-shaped test that excluded the build options.
+- **Generated descriptor over runtime spec parsing.** The issue asked for runtime parsing. It
+  was rejected because shipping a spec next to generated structs creates several drift paths and
+  all of them fail *silently* — `json.Unmarshal` ignores unknown fields, so a stale spec yields
+  a flag that parses and is then dropped. Codegen drift fails *visibly*: the flag is simply
+  absent. The library goal is fully preserved; only the metadata source changed.
+- **Go literal over gob.** Gob ignores stream fields absent from the target struct — precisely
+  the fail-silent behaviour being designed out. A Go literal fails to compile instead, costs
+  nothing at startup, needs no `encoding/gob` import or type registration, and is diff-reviewable.
+- **Runtime-shaped descriptor over `spec.SrvDef`.** Avoids relocating the spec model into
+  `runtime/go` and decouples release cadence.
+- **No JSON binding hop.** Marshalling flags to JSON and unmarshalling into the command struct
+  would drag encoder wire conventions into the CLI (protojson requires `int64` as a *string*,
+  plain JSON as a number) and degrade errors from `invalid value "abc" for --count` to
+  `cannot unmarshal string into Go struct field .count of type int64`.
+- **Renderer seam dropped.** Justified only by ugo gaps that v0.7.0 has already closed.
+- **Ordered slices, not maps.** `omap.OMap` is a plain map; help ordering is nondeterministic today.
+- **Strictness at generate time**, not construction time.
+- **Legacy codegen preserved** behind `gen_options.cli: legacy`.
+- **CLI mode is a spec gen_option, not a CLI flag.** It is read like the existing `format`
+  genopt fallback, leaving `ExecuteGenerate`'s signature unchanged and the mode declarable
+  next to the spec it describes. `skipCmd=true` still forces `none`.
+- **ugo v0.7.0 as-is; no upstream change.** v0.7.0 already ships persistent flags, `RunE`,
+  `Int32Var`, `StringSliceVar` and `BytesVar`. `Uint32Var` / `Float32Var` are absent, and
+  rather than make this issue depend on a ugo release, `mvep/cli` carries two small custom
+  `flag.Value` types. They can be swapped for upstream helpers if ugo ever ships them.
+- **`RemoteExecutor` uses `SendCmdReq`, not `SendCmd`.** `SendCmd` drops the `*CmdResp` that
+  carries `Error.Code`; exit-code classification needs it. No core API change required.
+- **Exit codes key on error-code classes, not HTTP statuses.** `HTTPStatusForErrorCode`
+  semantics truncate lossily into 0–255; a class mapping (2 usage / 3 not-found / 4 auth /
+  1 other) is scriptable and honest about `executeCmd` collapsing runner errors to
+  `command_error`.
+- **`NewPackageFromDesc` is the derivation entry point.** One runtime helper builds the
+  `Package` (plus `CommandLister` / `PackageDescriber`) from the descriptor; generated
+  `NewPackage()` delegates to it and the three switch statements disappear.
+- **The derived package is a shared singleton.** The generated `var pkg =
+  mvep.NewPackageFromDesc(&pkgDesc)` is built once at package init; `NewPackage()` and the
+  exported `InstanceOf` / `NameOf` delegators all return/use that one instance rather than
+  rebuilding the lookup maps on every call. `*descPackage` is immutable after construction, so
+  sharing is safe; the only behavioural delta is that `NewPackage() == NewPackage()` is now
+  true, which no consumer should depend on.
+- **#23 remains the requirements catalogue** for type coverage and is not closed by this work.
+- **#26 (`SrvDef` rename) is not bundled here.**
 
 ## Progress
 
-- [ ] T1 — `runtime/go/mvep/spec`: model types and parser
-- [ ] T2 — Move semantic validation into `spec`
-- [ ] T3 — Toolkit delegates to `spec` via type aliases
-- [ ] T4 — `Executor` interface and local/remote adapters
-- [ ] T5 — Spec-to-CLI intermediate model and renderer seam
-- [ ] T6 — Flag binding pipeline and `App.Run`
-- [ ] T7 — Scalar and repeated flag coverage
-- [ ] T8 — Map and `recRef` flag coverage
-- [ ] T9 — Strict construction on unsupported constructs
-- [ ] T10 — Required flags from `FieldDef.Tags`
-- [ ] T11 — Global flags, custom subcommands, overrides
-- [ ] T12 — Per-command pre/post hooks
-- [ ] T13 — Result renderers and exit codes
-- [ ] T14 — `ugo/cli` U1–U6 and U8 (external)
-- [ ] T15 — Toolkit `--cli=runtime|legacy|none`
-- [ ] T16 — Dogfood: rebuild `mvep`'s own CLI on the library
+- [x] T1 — Core descriptor types and `PackageDescriber`
+- [x] T2 — Derive `InstanceOf` / `NameOf` / `CommandNames`
+- [x] T3 — Codegen emits the descriptor into `mvep_package.go`
+- [x] T4 — Field type coverage in the descriptor
+- [ ] T5 — Generate-time hard error on unsupported constructs
+- [ ] T6 — ugo v0.7.0 bump; local `uint32` / `float32` flag values
+- [ ] T7 — `Executor` interface, local and remote adapters
+- [ ] T8 — `cli.New` and `App.Run`
+- [ ] T9 — Flag binding via `FieldDesc.Ptr`
+- [ ] T10 — Required flags
+- [ ] T11 — Deterministic command and flag ordering
+- [ ] T12 — Global flags, custom subcommands, overrides
+- [ ] T13 — Pre/post execution hooks
+- [ ] T14 — Result renderers and exit codes
+- [ ] T15 — `gen_options.cli: runtime|legacy|none`
+- [ ] T16 — Dogfood mvep's own CLI
 - [ ] T17 — Documentation
 
 ## Tasks
 
-### T1 — `runtime/go/mvep/spec`: model types and parser
+### T1 — Core descriptor types and `PackageDescriber`
 
-**Outcome:** A new `runtime/go/mvep/spec` package holds `SrvDef`, `CommandDef`, `RecordDef`,
-`FieldDef`, `FieldDataType` with its constants, and the four ordered-map types with their `Get`
-methods. Comment stripping moves across. Public API: `Parse(io.Reader) (*SrvDef, error)`,
-`ParseFile(string) (*SrvDef, error)`, `MustParseBytes([]byte) *SrvDef`.
+Define `PackageDesc`, `CommandDesc`, `ResultDesc`, `FieldDesc`, `RecordDesc`, `FieldType` and
+the optional `PackageDescriber` interface in `runtime/go/mvep`. Ordered slices only.
 
-**Verification:** `cd runtime/go && go test ./mvep/spec/...` over copies of the toolkit fixtures
-covering comments, maps, refs, and results. `go list -m all` shows no new modules.
+- **Outcome:** Runtime carries a complete, dependency-free description of a package.
+- **Verification:** A hand-written descriptor in a test compiles and iterates in stable order.
+- **Notes:** Mark `// EXPERIMENTAL: shape may change`. No new dependency. `SpecVersion` is
+  informational only. Carries no build-time options — see "What the descriptor deliberately
+  excludes".
+  **Done (2026-08-07):** descriptor.go added with `PackageDesc`, `CommandDesc`, `ResultDesc`,
+  `FieldDesc`, `RecordDesc`, `FieldType` (14 variants), `PackageDescriber`. New descriptor_test.go
+  asserts stable iteration order over 50 passes and full FieldType coverage. `go test ./mvep/` and
+  `go vet ./mvep/` green. Required-ness is tag-derived (`tags: ["required"]`); T3 added
+  `FieldIsRequired` for the Go descriptor, but the JS/TS `IsRequiredField` still hardcodes false —
+  reconciled in T4.
 
-**Notes:** `removeCppStyleComments` is deliberately scanner-based rather than regex — the
-original author noted a regex breaks on `http://`. Move it verbatim; do not "simplify" it.
+### T2 — Derive `InstanceOf` / `NameOf` / `CommandNames`
 
-### T2 — Move semantic validation into `spec`
+Add `mvep.NewPackageFromDesc(desc *PackageDesc) Package`, satisfying `Package`, `CommandLister`
+and `PackageDescriber`. Build the `map[reflect.Type]string` for `NameOf` **eagerly at
+construction** from the `New()` closures — no `sync.Once`, no mutex, race-free by construction.
+Generated `NewPackage()` returns it, the empty `mvepPackage` struct is deleted, and exported
+`InstanceOf` / `NameOf` become one-line delegators.
 
-**Outcome:** `validateSrvDef` and its helpers, plus the `ValidationResult` interface and
-`DefaultValidationResult`, live in `spec`. `Parse` runs them after unmarshal. `jsonValidationResult`
-stays in toolkit, implementing the moved interface.
+- **Outcome:** Generated packages stop emitting three switch bodies and gain `CommandLister`.
+- **Verification:** Parity test — identical results to the current generated `mvepapi` methods,
+  including for `*XxxCmdResult` types. `GetName()` must still return `"mvepPackage"`, and
+  registered server routes must be unchanged. `iunetApi.InstanceOf("NewIUHubCmd")` must still
+  compile and pass.
+- **Notes:** Depends on T1. Additive — `mvep.Package` stays hand-implementable, as
+  `test/api/iunet_package.go` does. Newly satisfying `CommandLister` activates the duplicate
+  command check in `client.go`; note it in the changelog.
+  **Done (2026-08-07):** `NewPackageFromDesc` implemented in descriptor.go as `*descPackage`
+  (byName + nameByType maps built once from `New()` closures; `GetName` reapplies the
+  `"Package"` suffix). descriptor_test.go asserts GetName/InstanceOf/NameOf parity plus
+  `CommandLister` + `PackageDescriber`. Full `go test ./...` and `go vet ./...` green across
+  the runtime module. Full parity against the real generated `mvepapi` lands with T3, once
+  codegen emits a descriptor to compare against.
 
-**Verification:** A spec with `$ref: "#/recordsDefs/Missing"` fails `spec.Parse` with a message
-naming the field and the missing record.
+### T3 — Codegen emits the descriptor
 
-**Notes:** The `ValidationResult` interface is dependency-free, which is what makes the split
-clean — toolkit's jsonschema-backed implementation satisfies the moved interface unchanged.
+Emit the `PackageDesc` literal into `mvep_package.go` for every generated package.
 
-### T3 — Toolkit delegates to `spec` via type aliases
+- **Outcome:** `mvep generate` produces a descriptor with no opt-in required.
+- **Verification:** Generated output for a testdata spec compiles and is byte-stable across runs.
+- **Notes:** Depends on T1. Emit via `omap.IteratorByKey` / `IterateByValue` so order is defined.
+  **Done (2026-08-07):** `go_package_code.txt` rewritten — emits `pkgDesc` (commands via
+  `SortedCommandNames`, fields via `SortFieldsByFnum`, records via `SortedRecordNames`), derives
+  `NewPackage`/`InstanceOf`/`NameOf` via `NewPackageFromDesc`, adds `Describe()`, deletes the
+  `mvepPackage` struct and the three switch bodies. New helpers in toolkit.go: `SortedCommandNames`,
+  `SortedRecordNames`, `GoFieldTypeEnum`, `FieldIsRequired` (tag `"required"`), `GoStringLit`,
+  `GoStringSliceLit`. toolkit_descriptor_test.go asserts emission, byte-stability (5 passes), field
+  order + enums. Leak guard verified clean on 06 (`go_package` not in output) — by hand, not yet a
+  test. recRef emits `Type: FieldRecord` + `Ref`, but name-only: `Ref.Fields` is empty and nothing
+  links it to `PackageDesc.Records`, which T9's depth-1 flattening needs. **Required fix:**
+  `TestGenerateCompilePlain` now writes a `replace` to the local runtime/go — the proxy's v0.9.0
+  predates the descriptor types, so the compile test must build against the local module until a
+  runtime release ships them. Toolkit suite + runtime suite + vet all green. `mvepapi`/`iunet`
+  regeneration is **blocked**, not merely deferred: until `toolkit/go.mod` bumps to a runtime
+  release carrying the descriptor types, regenerating `mvepapi/api/mvep_package.go` would compile
+  locally through `go.work` while breaking `go install` of the published toolkit. It lands with the
+  runtime bump; T16 then dogfoods it.
 
-**Outcome:** `toolkit` declares `type SrvDef = spec.SrvDef` (and the rest), keeps JSON Schema
-validation and `//go:embed resources`, and reimplements `BuildSrvDefFromJSON` as schema-validate
-then `spec.Parse`.
+### T4 — Field type coverage in the descriptor
 
-**Verification:** `cd toolkit && go test ./...` fully green with no test edits — in particular
-`03_basic_wo_invalid.jsonc` must still fail schema validation, proving generate-time strictness
-did not weaken.
+string, bool, int32, int64, uint32, sint32, float, double, bytes, timestamp, duration, uuid,
+plus `repeated`, maps, and `$ref` records.
 
-**Notes:** Requires a `runtime/go` version bump in `toolkit/go.mod`. Under `go.work` this
-develops locally against the workspace copy; the bump matters at release time.
+- **Outcome:** Every construct the spec can express is described, with a correct `Ptr`.
+- **Verification:** Table test over `05_command_withfields.jsonc`, `06_command_with_ref.jsonc`
+  and `08_maps.jsonc`.
+- **Notes:** Depends on T3. `FieldDesc.Tags` landed in `93dfda1`. See #23 for the full catalogue.
+  Resolve `FieldDesc.Ref` here — populate `Fields` (or point at `PackageDesc.Records`) so T9 can
+  flatten. Two near-identical template funcs now disagree and must be reconciled:
+  `IsRequiredField` (`toolkit_javascript.go`) is hardcoded `return false`, while
+  `FieldIsRequired` (`toolkit.go`) is tag-derived. Go and TS output therefore disagree on
+  required-ness, and the names differ only by word order — easy to pick wrong, and it fails
+  silently.
+  **Done (2026-08-07):** Full-type-coverage fixture `testdata/11_descriptor_type_coverage.jsonc`
+  added (one field per spec type: string, bool, int32, int64, uint32, sint32, float, double, bytes,
+  timestamp, duration, uuid, repeated, map, recRef). `TestGenerateDescriptorFullTypeCoverage`
+  asserts every type emits its `FieldType` enum in fnum order. `FieldDesc.Ref` stays name-only in
+  codegen output (`Ref: &RecordDesc{Name: "Address"}`) — the record's full `Fields` live once in
+  `PackageDesc.Records`, and a new runtime helper `PackageDesc.Record(name) (*RecordDesc, bool)`
+  resolves them, so T9 can flatten without codegen duplicating field data into `Ref` (drift
+  hazard). `TestGenerateDescriptorRefIsNameOnlyResolvable` covers fixture 06; the runtime
+  `TestPackageDescRecordResolvesByName` covers the helper. Reconciled the two required-ness
+  helpers: `toolkit_javascript.go:isRequiredField` now delegates to `fieldIsRequired` (tag-
+  derived), so Go and JS/TS output agree — `TestIsRequiredFieldAgreesWithFieldIsRequired` is the
+  parity guard. Toolkit suite + runtime suite + vet all green. T5's hard-error on unknown types
+  remains a `panic` in `goFieldTypeEnum`; T5 converts it to a returned error naming command+field.
 
-### T4 — `Executor` interface and local/remote adapters
+### T5 — Generate-time hard error on unsupported constructs
 
-**Outcome:** `type Executor interface { Run(ctx context.Context, cmd any) (any, error) }` with a
-local adapter over `mvep.CommandRunner`. The remote adapter over `client.PackageClient` lives in
-a subpackage so `mvep/cli` does not drag `mvep/client` into consumers that only run locally.
+- **Outcome:** Unrepresentable specs fail at `mvep generate`, not at runtime.
+- **Verification:** A negative testdata spec makes `ExecuteGenerate` return an error naming the
+  offending command and field.
+- **Notes:** Depends on T4. The message must identify command and field, not just "unsupported".
 
-**Verification:** One table test runs the same command through both adapters against an
-`httptest` server and asserts identical results.
+### T6 — ugo v0.7.0 bump; local `uint32` / `float32` flag values
 
-**Notes:** Confirms the design claim that local and remote have identical signatures today.
+v0.7.0 is already released and ships persistent flags, `RunE`, an embedded `flag.FlagSet`
+(`Int64Var` / `Float64Var` / `DurationVar`), `Int32Var`, `StringSliceVar`, and `BytesVar`
+(base64 or `@file`). It does **not** ship `Uint32Var` or `Float32Var`, so `mvep/cli` defines
+two small custom `flag.Value` types for those; no upstream ugo change is in scope. If ugo
+later ships the helpers, swap them in.
 
-### T5 — Spec-to-CLI intermediate model and renderer seam
+- **Outcome:** Both modules on v0.7.0; uint32/float32 binding available in `mvep/cli`.
+- **Verification:** `go test ./...` green in both modules after the bump.
+- **Notes:** Blocks T9 and T10. Parallelisable with Phase 1.
 
-**Outcome:** The spec walk produces `commandNode`/`flagSpec` values. A `renderer` interface
-translates them into a concrete CLI framework; a stdlib-`flag` renderer ships first.
+### T7 — `Executor` interface, local and remote adapters
 
-**Verification:** Golden test asserting the intermediate model built from
-`toolkit_plain.jsonc` — three commands, correct aliases, correct flag names and help text.
+`Executor.Run(ctx, cmd any) (any, error)`; `LocalExecutor` over `mvep.CommandRunner`;
+`RemoteExecutor` over `client.PackageClient` in `mvep/cli/cliclient`.
 
-**Notes:** Only names in `spec.Commands` become subcommands, which filters the `*CmdResult`
-types that `InstanceOf` also returns.
+`RemoteExecutor` must call `PackageClient.SendCmdReq` (which returns `(any, *mvep.CmdResp,
+error)`), not `SendCmd`: `SendCmd` flattens the server error into a string and drops the
+`*CmdResp` carrying `Error.Code`, which T14's exit-code classification needs. The executor
+returns a typed error wrapping the code so the CLI can classify without string parsing.
 
-### T6 — Flag binding pipeline and `App.Run`
+- **Outcome:** One CLI binary can target in-process or remote execution.
+- **Verification:** Both adapters satisfy `Executor`; a fake runner records the received command.
+- **Notes:** The subpackage exists solely to keep `cli` free of a `client` edge.
 
-**Outcome:** `cli.New(spec, pkg, executor, opts...)` and `App.Run(ctx, args)`. Parsed flags
-become a `map[string]any` keyed by spec field name, encode through the package's encoding, and
-decode into `pkg.InstanceOf(cmdName)` before execution.
+### T8 — `cli.New` and `App.Run`
 
-**Verification:** End-to-end test: `[]string{"generate", "--in", "x.json", "--lang", "go"}`
-produces a `*GenerateCmd` with those fields set and reaches the executor.
+Walk a `*mvep.PackageDesc`, build the ugo command tree, execute via `Executor`. Fills the
+currently-empty `cli.go`.
 
-**Notes:** Mirrors `PackageHandler.executeCmd`. Keep the two implementations reading alike so
-divergence is obvious.
+- **Outcome:** A descriptor plus an executor yields a working CLI.
+- **Verification:** End-to-end test parses argv and asserts the populated command struct.
+- **Notes:** Depends on T1 and T7. Use `RunE`, not the deprecated `Run`.
 
-### T7 — Scalar and repeated flag coverage
+### T9 — Flag binding via `FieldDesc.Ptr`
 
-**Outcome:** `int64`, `uint32`, `sint32`, `float`, `double`, `bytes` (base64), `timestamp`
-(RFC3339), `duration`, `uuid` all bind. `repeated` fields accept a repeatable flag.
+Type-switch on the accessor's dynamic type to select the `FlagSet` var helper.
 
-**Verification:** Table test per type: argv in, expected payload JSON out, decoded struct
-asserted. Run against both a plain-format and a protobuf-format package.
+- **Outcome:** Every described field is reachable from a flag.
+- **Verification:** Round-trip test per type; an unhandled type fails the switch loudly.
+- **Notes:** Depends on T4 and T6. Flatten nested records to depth 1 (`--record-field`); maps and
+  anything deeper get `--x-json` / `--x-file`. Depth 1 is deliberate — deeper nesting is a
+  generate-time error per T5.
 
-**Notes:** The int64-as-string protojson difference is the likeliest failure here — see the
-round-trip fidelity risk.
+### T10 — Required flags
 
-### T8 — Map and `recRef` flag coverage
+Honour `FieldDesc.Required`; enforce in `cli`, not ugo.
 
-**Outcome:** `map` fields accept repeatable `--label key=value`. `recRef` fields flatten to depth
-1 (`--addr-city`), with `--<field>-json` and `--<field>-file` always available as escape hatches
-regardless of depth.
+- **Outcome:** A missing required flag produces a usage error and exit code 2.
+- **Verification:** Test asserts both message and exit code.
+- **Notes:** Depends on T6.
 
-**Verification:** A nested-record spec fixture; assert flattened flags and both escape hatches
-produce identical payloads.
+### T11 — Deterministic command and flag ordering
 
-**Notes:** Depth 1 covers the common case; deeper nesting is intentionally JSON-only rather than
-generating unbounded flag names.
+- **Outcome:** `--help` is byte-identical across runs.
+- **Verification:** Golden-file test run repeatedly within one process.
+- **Notes:** Guards against the `omap` nondeterminism described above.
 
-### T9 — Strict construction on unsupported constructs
+### T12 — Global flags, custom subcommands, overrides
 
-**Outcome:** An unknown field type, an unresolvable `$ref`, or a flag-name collision fails
-`cli.New` with a precise error. Nothing is ever silently dropped.
+- **Outcome:** Implementors extend the app without touching generated code.
+- **Verification:** Test adds `--endpoint`, adds a custom subcommand, and overrides a generated one.
 
-**Verification:** Negative table test per failure mode asserting the error message names the
-offending command and field.
+### T13 — Pre/post execution hooks
 
-**Notes:** This is the single most important behavioural difference from the generated CLI,
-where an unsupported type became a comment and an exit code of 0.
+- **Outcome:** Auth, logging and metrics can wrap execution.
+- **Verification:** Hook order asserted; a pre-hook error aborts execution.
 
-### T10 — Required flags from `FieldDef.Tags`
+### T14 — Result renderers and exit codes
 
-**Outcome:** A field tagged `required` produces a required flag; omitting it fails before the
-executor runs.
+Default human renderer plus `--output=json`, driven by `ResultDesc`. Exit codes key on
+`ErrorInfo.Code` **classes**, not HTTP statuses: 0 success; 2 usage (flag parse errors,
+missing required flags); 3 not-found (`unknown_command`); 4 auth (`unauthorized`,
+`forbidden`); 1 all other execution errors.
 
-**Verification:** Missing-required-flag test asserts a non-zero exit and no executor invocation.
+One wrinkle to document: `PackageHandler.executeCmd` collapses every runner error to
+`command_error`, so classes 3 and 4 only surface for pre-dispatch failures (interceptor
+rejections, unknown command names); the common in-command failure lands in class 1.
 
-**Notes:** Depends on the `FieldDef.Tags` fix in PR #24 (branch `feat/23-cli-generation-complete-reusable`).
-Rebase once that merges. Also depends on `ugo` U4 if the ugo renderer is active; the stdlib
-renderer enforces it directly.
+- **Outcome:** Results are printed instead of discarded; failures are scriptable.
+- **Verification:** Renderer and exit-code table tests.
+- **Notes:** Fixes two concrete `go_cli_main.txt` defects.
 
-### T11 — Global flags, custom subcommands, overrides
+### T15 — `gen_options.cli: runtime|legacy|none`
 
-**Outcome:** `WithGlobalFlags` for persistent flags such as `--server`, `--token`, `--output`;
-`WithCommand` to add hand-written subcommands beside spec-derived ones; `WithOverride` to
-rename or hide a generated command or flag.
+The mode is a **spec gen_option only**, read in `toolkit_runner.go` exactly like the existing
+`format` genopt fallback — no new `mvep` CLI flag, and `ExecuteGenerate`'s signature is
+unchanged. `skipCmd=true` still forces `none` regardless of the genopt. Absent genopt →
+`legacy` until the flip, `runtime` after.
 
-**Verification:** A test CLI adds a `version` subcommand and a `--server` global flag, and
-asserts both appear in help and parse correctly on every subcommand.
+- **Outcome:** Mode is selectable; default flips to `runtime`.
+- **Verification:** All three modes generate and compile.
 
-**Notes:** Persistent flags need `ugo` U1; the stdlib renderer handles them by manual propagation.
+### T16 — Dogfood mvep's own CLI
 
-### T12 — Per-command pre/post hooks
+Rebuild `toolkit/mvepapi/cmd/mvep` on the library; drop the `EXPERIMENTAL` marker.
 
-**Outcome:** `WithHook(cmdName, ...)` supplying `PreRun(ctx, cmd any) error` for extra validation
-and `PostRun(ctx, cmd any, result any) error` for custom rendering.
-
-**Verification:** A `PreRun` returning an error aborts before the executor; a `PostRun` observes
-the decoded result value.
-
-**Notes:** Hooks receive the typed struct, so implementers can type-assert to their own command
-types and stay type-safe.
-
-### T13 — Result renderers and exit codes
-
-**Outcome:** `json` (default), `table`, and `quiet` renderers selected by `--output`. Command
-errors map `mvep.ErrorInfo.Code` to a process exit code.
-
-**Verification:** `mvep validate --in <invalid>` exits non-zero; `--output json` emits parseable
-JSON on stdout with diagnostics on stderr.
-
-**Notes:** Reuse the taxonomy behind `HTTPStatusForErrorCode` rather than inventing a second
-error classification. Needs `ugo` U2 (`Run` returning an error) when the ugo renderer is active.
-
-### T14 — `ugo/cli` U1–U6 and U8 (external)
-
-**Outcome:** `github.com/mainvec/ugo` `cli` package gains persistent flags (U1), `Run` returning
-an error (U2), `Int64`/`Float64`/`Duration`/`StringSlice`/`Bytes` var helpers (U3), required-flag
-enforcement (U4), short/long flag pairing (U5), mutually-exclusive groups (U6), and help
-categories (U8). Released as a minor version.
-
-**Verification:** The ugo renderer passes the same test suite as the stdlib renderer.
-
-**Notes:** External repository, tracked here because it gates the production renderer. U7
-(completion) is out of scope. Shipped as a new minor rather than a vendored fork — the changes
-are generically useful to all ugo consumers.
-
-### T15 — Toolkit `--cli=runtime|legacy|none`
-
-**Outcome:** `ExecuteGenerate` takes a CLI mode. `runtime` (default) emits no command tree,
-`legacy` reproduces today's output, `none` replaces the old `skipCmd` boolean. The dormant
-`go_cli_cobra_*.txt` templates are deleted.
-
-**Verification:** `mvep generate --cli=legacy` output is byte-identical to the pre-change
-generator on every testdata fixture. `--cli=runtime` emits no `cmd/` tree.
-
-**Notes:** `skipCmd` is a positional boolean in the current signature; folding it into the mode
-enum removes a boolean-parameter trap.
-
-### T16 — Dogfood: rebuild `mvep`'s own CLI on the library
-
-**Outcome:** `toolkit/mvepapi/cmd/mvep/mvep_main_cmd.go` is rewritten to embed
-`gengen/toolkit_plain.jsonc` and drive it through `cli.New`, replacing the generated tree.
-
-**Verification:** `mvep init`, `mvep generate`, and `mvep validate` behave identically to the
-current binary across the full `testdata` set, including exit codes. Offline check: with the
-network down, `mvep --help` issues no HTTP request.
-
-**Notes:** The file already carries `// NOMVGEN`, so it is hand-owned and safe to rewrite. This
-task is the real acceptance test for the whole plan.
+- **Outcome:** mvep's CLI is its own first consumer.
+- **Verification:** `mvep generate` / `init` / `validate` behave identically to today.
+- **Notes:** `mvep_main_cmd.go` carries `// NOMVGEN` and is safe to rewrite.
 
 ### T17 — Documentation
 
-**Outcome:** `runtime/go/README.md` documents the CLI library; `toolkit/MVEP_SKILL.md` and
-`AGENT.md` describe the `--cli` modes and the runtime-builder approach; CHANGELOG entries for
-both modules.
-
-**Verification:** Documented snippets compile as an example test.
-
-**Notes:** Follow `/memories/repo/docs-sync.md` for which docs must move together.
-
-## Rollout
-
-1. T1–T3 land first and are independently releasable: they are a pure refactor with the existing
-   toolkit suite as the gate. Ship as `runtime/go` and `toolkit` minors.
-2. T4–T13 build the library behind no flag — it is new API, unreachable until someone calls it.
-3. T14 proceeds in parallel in `ugo`; the stdlib renderer means it never blocks.
-4. T15 flips the toolkit default to `--cli=runtime`. Adopters who want the old output add
-   `--cli=legacy`; nothing they already generated stops compiling.
-5. T16 is the migration proof, done on the maintainer's own CLI before asking anyone else.
-
-Rollback: `--cli=legacy` restores the previous generator output. The new packages are additive
-and can be left unused.
-
-## Decision Log
-
-**Spec at runtime over a generated descriptor.** A generated descriptor would be structurally
-identical to the spec model. Relocating the model makes the descriptor a ~10-line template later
-if drift ever justifies it, and both feed the same `cli.New`. Building the descriptor first would
-mean maintaining a parallel type system.
-
-**Parse and semantic validation move; JSON Schema validation does not.** Layers 1 and 2 are
-dependency-free and the CLI needs `$ref` resolution for nested-record flags. Layer 3 pulls
-`santhosh-tekuri/jsonschema/v6`, the embedded schema tree, and an `http.Client` that fetches
-unrecognised `$schema` URLs — startup latency, an offline failure mode, and data-driven network
-egress in every MVEP CLI, to re-check something that could not have changed since generation.
-
-**No reflection.** Reusing the encoder decode path that `PackageHandler.executeCmd` already
-relies on gives plain/protobuf format independence for free and keeps `--<field>-json` a natural
-composition rather than a special case.
-
-**`ugo/cli` as the renderer, behind a seam.** It is already a runtime dependency and the U1–U8
-work benefits all ugo consumers. The seam exists because those gaps would otherwise serialise
-this plan behind an external release.
-
-**023 stays open.** It is the requirements catalogue — *what* a usable CLI must cover. This plan
-is the mechanism. Keeping them separate means the type-coverage checklist survives independently
-of how it gets delivered.
-
-**Legacy codegen preserved.** Deleting it would strand adopters mid-migration for no benefit;
-the templates are inert once the default flips.
+- **Outcome:** `runtime/go/mvep/cli/README.md`, descriptor notes in `runtime/go/README.md`, and
+  a migration note in `docs/`.
+- **Verification:** Doc examples compile as tests.

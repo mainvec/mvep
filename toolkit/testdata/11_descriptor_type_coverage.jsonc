@@ -1,0 +1,44 @@
+{
+	"$id": "test11Id",
+	"$schema": "resources/mvepspec/0.2/schema/2026-01-15",
+	"name": "test11",
+	"namespace": "test11ns",
+	"title": "Descriptor type coverage fixture",
+	"desc": "Exercises every spec field type for descriptor emission (plan 025 T4)",
+	"version": "0.2",
+	"commands": {
+		"AllTypesCmd": {
+			"title": "A command carrying every field type",
+			"fields": {
+				"str":       { "fnum": 1,  "type": "string",    "tags": ["required"] },
+				"flag":      { "fnum": 2,  "type": "boolean" },
+				"i32":       { "fnum": 3,  "type": "int32" },
+				"i64":       { "fnum": 4,  "type": "int64" },
+				"u32":       { "fnum": 5,  "type": "uint32" },
+				"s32":       { "fnum": 6,  "type": "sint32" },
+				"f32":       { "fnum": 7,  "type": "float" },
+				"f64":       { "fnum": 8,  "type": "double" },
+				"byts":      { "fnum": 9,  "type": "bytes" },
+				"ts":        { "fnum": 10, "type": "timestamp" },
+				"dur":       { "fnum": 11, "type": "duration" },
+				"uid":       { "fnum": 12, "type": "uuid" },
+				"repeateds": { "fnum": 13, "type": "string", "repeated": true },
+				"headers":   { "fnum": 14, "type": "map", "valueType": "string" },
+				"addr":      { "fnum": 15, "type": "recRef", "$ref": "#/recordsDefs/Address", "tags": ["required"] }
+			},
+			"resultFields": {
+				"summary": { "fnum": 1, "type": "string" }
+			}
+		}
+	},
+	"recordsDefs": {
+		"Address": {
+			"name": "Address",
+			"fields": {
+				"street":  { "fnum": 1, "type": "string" },
+				"city":    { "fnum": 2, "type": "string" },
+				"zipcode": { "fnum": 3, "type": "string" }
+			}
+		}
+	}
+}

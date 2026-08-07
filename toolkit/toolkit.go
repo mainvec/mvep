@@ -587,6 +587,13 @@ func LoadTemplate(tmpltName string, templateReader io.Reader) (*template.Templat
 		"IsRequiredField": isRequiredField,
 		// IsLastField checks if this is the last field in the list
 		"IsLastField": isLastField,
+		// Descriptor emission helpers (plan 025, T3)
+		"SortedCommandNames": sortedCommandNames,
+		"SortedRecordNames":  sortedRecordNames,
+		"GoFieldTypeEnum":    goFieldTypeEnum,
+		"FieldIsRequired":    fieldIsRequired,
+		"GoStringLit":        goStringLit,
+		"GoStringSliceLit":   goStringSliceLit,
 	}
 
 	//Open template
@@ -760,4 +767,98 @@ func goZeroValue(field FieldDef) string {
 		//lets panic so this dets added
 		panic("unknown go zero value for:" + field.Type)
 	}
+}
+
+// --- Descriptor emission helpers (plan 025, T3) ---
+
+// sortedCommandNames returns command names in deterministic (sorted-key) order.
+// The descriptor is emitted through this rather than ranging the omap directly
+// so help/iteration order is defined (omap.OMap is a plain map).
+func sortedCommandNames(cmds CommandDefs) []string {
+	names := make([]string, 0, len(cmds))
+	it := omap.IteratorByKey(cmds)
+	for it.HasNext() {
+		k, _ := it.Next()
+		names = append(names, k)
+	}
+	return names
+}
+
+// sortedRecordNames returns record names in deterministic (sorted-key) order.
+func sortedRecordNames(recs RecordsDefs) []string {
+	names := make([]string, 0, len(recs))
+	it := omap.IteratorByKey(recs)
+	for it.HasNext() {
+		k, _ := it.Next()
+		names = append(names, k)
+	}
+	return names
+}
+
+// goFieldTypeEnum maps a spec FieldDataType to its runtime mvep.FieldType
+// constant name. Unknown types panic: an unrepresentable construct must fail
+// generation loudly, never emit a wrong descriptor (T5 hardens this into a
+// returned error).
+func goFieldTypeEnum(field FieldDef) string {
+	switch field.Type {
+	case "string":
+		return "FieldString"
+	case "boolean":
+		return "FieldBool"
+	case "int32":
+		return "FieldInt32"
+	case "int64":
+		return "FieldInt64"
+	case "uint32":
+		return "FieldUint32"
+	case "sint32":
+		return "FieldSint32"
+	case "float":
+		return "FieldFloat"
+	case "double":
+		return "FieldDouble"
+	case "bytes":
+		return "FieldBytes"
+	case "timestamp":
+		return "FieldTimestamp"
+	case "duration":
+		return "FieldDuration"
+	case "uuid":
+		return "FieldUUID"
+	case "map":
+		return "FieldMap"
+	case "recRef":
+		return "FieldRecord"
+	default:
+		panic("goFieldTypeEnum: unsupported field type: " + string(field.Type))
+	}
+}
+
+// fieldIsRequired reports whether a field is required. Required-ness is
+// tag-derived in the current spec (`tags: ["required"]`).
+func fieldIsRequired(field FieldDef) bool {
+	for _, tag := range field.Tags {
+		if tag == "required" {
+			return true
+		}
+	}
+	return false
+}
+
+// goStringLit returns s as a quoted Go string literal.
+func goStringLit(s string) string {
+	return fmt.Sprintf("%q", s)
+}
+
+// goStringSliceLit renders a []string as a Go composite literal, e.g.
+// []string{"a", "b"}. Nil/empty renders as nil.
+func goStringSliceLit(ss []string) string {
+	if len(ss) == 0 {
+		return "nil"
+	}
+	parts := make([]string, len(ss))
+	for i, s := range ss {
+		parts[i] = goStringLit(s)
+	}
+	return "[]string{" + strings.Join(parts, ", ") + "}"
 }
