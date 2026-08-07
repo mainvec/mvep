@@ -82,12 +82,37 @@ type FieldDef struct {
 	Repeated     bool          `json:"repeated,omitempty"`
 	RecRef       string        `json:"$ref,omitempty"`
 	MapValueType string        `json:"valueType,omitempty"`
+	Tags         []string      `json:"tags,omitempty"`
 }
 
 type CommandDefs omap.OMap[string, CommandDef]
 type FieldDefs omap.OMap[string, FieldDef]
 type RecordsDefs omap.OMap[string, RecordDef]
 type GenOptsDef omap.OMap[string, string]
+
+// Get returns the CommandDef for key k and ok=true if present.
+func (c CommandDefs) Get(k string) (CommandDef, bool) {
+	v, ok := c[k]
+	return v, ok
+}
+
+// Get returns the FieldDef for key k and ok=true if present.
+func (f FieldDefs) Get(k string) (FieldDef, bool) {
+	v, ok := f[k]
+	return v, ok
+}
+
+// Get returns the RecordDef for key k and ok=true if present.
+func (r RecordsDefs) Get(k string) (RecordDef, bool) {
+	v, ok := r[k]
+	return v, ok
+}
+
+// Get returns the string value for key k and ok=true if present.
+func (g GenOptsDef) Get(k string) (string, bool) {
+	v, ok := g[k]
+	return v, ok
+}
 
 type SrvDef struct {
 	Id         string      `json:"$id"`
