@@ -388,7 +388,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T12 — Global flags, custom subcommands, overrides
 - [x] T13 — Pre/post execution hooks
 - [x] T14 — Result renderers and exit codes
-- [ ] T15 — `gen_options.cli: runtime|legacy|none`
+- [x] T15 — `gen_options.cli: runtime|legacy|none`
 - [ ] T16 — Dogfood mvep's own CLI
 - [ ] T17 — Documentation
 
@@ -703,6 +703,21 @@ unchanged. `skipCmd=true` still forces `none` regardless of the genopt. Absent g
 
 - **Outcome:** Mode is selectable; default flips to `runtime`.
 - **Verification:** All three modes generate and compile.
+  **Done (2026-08-10):** `executeGenerateGo` reads `cli` from `srvDef.GenOpts` (like the `format`
+  genopt fallback) and dispatches: `runtime` (default — the flip from `legacy` has landed) emits a
+  `go_cli_runtime_main.txt` that builds the CLI via
+  `cli.New(pkg.Describe(), &cli.LocalExecutor{Runner: runner})` and exits via `cli.ExitCode`;
+  `legacy` (explicit genopt) emits the existing `go_cli_main.txt`-based main; `none` skips CLI main
+  entirely. `skipCmd=true` forces `none` regardless of the genopt. The mode is a spec gen_option only
+  — no new `mvep` CLI flag, `ExecuteGenerate`'s signature unchanged. New template
+  ُo_cli_runtime_main.txt` in `resources/codegen_templates/go/`. Tests: `TestCLIModeDefaultIsRuntime`
+  (default → cli.New, no prepareXxxCmd), `TestCLIModeLegacyExplicit` (cli=legacy → legacy main),
+  `TestCLIModeNone` (skipCmd=true → no main), `TestCLIModeRuntime` (cli=runtime → cli.New),
+  `TestCLIModeNoneGenopt` (cli=none → no main). Toolkit suite + runtime suite + vet green.
+  **Release constraint:** the default is `runtime` on the branch, but it cannot ship a toolkit
+  release until `runtime/go` is tagged with the descriptor + `mvep/cli` types and `toolkit/go.mod`
+  is bumped to it (Rollout step 0). The generated `main.go` imports `mvep/cli`, which does not
+  exist in the published `runtime/go v0.9.0`.
 
 ### T16 — Dogfood mvep's own CLI
 

@@ -34,11 +34,11 @@ func (a *App) SetRenderer(r Renderer) { a.renderer = r }
 // ExitCode maps a command error to a process exit code. The mapping keys on
 // error-code classes, not HTTP statuses, so it is scriptable and honest:
 //
-//   0 — success (nil error)
-//   2 — usage (flag parse errors, missing required flags — T10)
-//   3 — not-found (unknown_command, http_404)
-//   4 — auth (unauthorized, forbidden, http_401, http_403)
-//   1 — all other execution errors
+//	0 — success (nil error)
+//	2 — usage (flag parse errors, missing required flags — T10)
+//	3 — not-found (unknown_command, http_404)
+//	4 — auth (unauthorized, forbidden, http_401, http_403)
+//	1 — all other execution errors
 //
 // One wrinkle: PackageHandler.executeCmd collapses every runner error to
 // command_error, so classes 3 and 4 only surface for pre-dispatch failures
