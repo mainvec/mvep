@@ -16,8 +16,10 @@ import (
 type flagBinding struct {
 	field *mvep.FieldDesc
 	// apply writes the parsed value into the command struct via the field's
-	// Ptr accessor. It is called after flag parsing completes.
-	apply func(cmd any)
+	// Ptr accessor. It is called after flag parsing completes. A non-nil
+	// error indicates the parsed value could not be written (e.g. invalid
+	// JSON for --*-json flags); the caller aborts before dispatch.
+	apply func(cmd any) error
 }
 
 // bindFlags registers a flag for every FieldDesc on the command's FlagSet and
@@ -53,82 +55,92 @@ func registerFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDesc) fl
 	case mvep.FieldString:
 		p := new(string)
 		fs.StringVar(p, f.Name, "", f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if t, ok := f.Ptr(cmd).(*string); ok {
 				*t = *p
 			}
+			return nil
 		}}
 	case mvep.FieldBool:
 		p := new(bool)
 		fs.BoolVar(p, f.Name, false, f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if t, ok := f.Ptr(cmd).(*bool); ok {
 				*t = *p
 			}
+			return nil
 		}}
 	case mvep.FieldInt32, mvep.FieldSint32:
 		p := new(int32)
 		fs.Int32Var(p, f.Name, 0, f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if t, ok := f.Ptr(cmd).(*int32); ok {
 				*t = *p
 			}
+			return nil
 		}}
 	case mvep.FieldInt64:
 		p := new(int64)
 		fs.Int64Var(p, f.Name, 0, f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if t, ok := f.Ptr(cmd).(*int64); ok {
 				*t = *p
 			}
+			return nil
 		}}
 	case mvep.FieldUint32:
 		p := new(uint32)
 		Uint32Var(fs, p, f.Name, 0, f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if t, ok := f.Ptr(cmd).(*uint32); ok {
 				*t = *p
 			}
+			return nil
 		}}
 	case mvep.FieldFloat:
 		p := new(float32)
 		Float32Var(fs, p, f.Name, 0, f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if t, ok := f.Ptr(cmd).(*float32); ok {
 				*t = *p
 			}
+			return nil
 		}}
 	case mvep.FieldDouble:
 		p := new(float64)
 		fs.Float64Var(p, f.Name, 0, f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if t, ok := f.Ptr(cmd).(*float64); ok {
 				*t = *p
 			}
+			return nil
 		}}
 	case mvep.FieldBytes:
 		p := new([]byte)
 		fs.BytesVar(p, f.Name, nil, f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if t, ok := f.Ptr(cmd).(*[]byte); ok {
 				*t = *p
 			}
+			return nil
 		}}
 	case mvep.FieldTimestamp:
 		p := new(time.Time)
 		fs.Var(&timeValue{p: p}, f.Name, f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if t, ok := f.Ptr(cmd).(*time.Time); ok {
 				*t = *p
 			}
+			return nil
 		}}
 	case mvep.FieldDuration:
 		p := new(time.Duration)
 		fs.DurationVar(p, f.Name, 0, f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if t, ok := f.Ptr(cmd).(*time.Duration); ok {
 				*t = *p
 			}
+			return nil
 		}}
 	case mvep.FieldUUID:
 		// UUID is bound as a string flag; the value is written via
@@ -136,26 +148,29 @@ func registerFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDesc) fl
 		// direct dependency on google/uuid in mvep/cli.
 		p := new(string)
 		fs.StringVar(p, f.Name, "", f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if *p == "" {
-				return
+				return nil
 			}
 			target := f.Ptr(cmd)
 			if u, ok := target.(interface{ UnmarshalText([]byte) error }); ok {
-				_ = u.UnmarshalText([]byte(*p))
+				return u.UnmarshalText([]byte(*p))
 			}
+			return nil
 		}}
 	case mvep.FieldMap:
 		// Maps bind from a JSON object via --<name>-json.
 		p := new(string)
 		fs.StringVar(p, f.Name+"-json", "", f.Desc+" (JSON object)")
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if *p == "" {
-				return
+				return nil
 			}
 			target := f.Ptr(cmd)
-			// Unmarshal into the map the Ptr points at.
-			_ = json.Unmarshal([]byte(*p), target)
+			if err := json.Unmarshal([]byte(*p), target); err != nil {
+				return fmt.Errorf("--%s-json: %w", f.Name, err)
+			}
+			return nil
 		}}
 	case mvep.FieldRecord:
 		// Records flatten to depth 1: each record field becomes
@@ -166,7 +181,7 @@ func registerFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDesc) fl
 		// Register a string placeholder so the parser doesn't reject the flag.
 		p := new(string)
 		fs.StringVar(p, f.Name, "", f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {}}
+		return flagBinding{field: f, apply: func(cmd any) error { return nil }}
 	}
 }
 
@@ -176,21 +191,25 @@ func registerRepeatedFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.Package
 	case mvep.FieldString:
 		p := new([]string)
 		fs.StringSliceVar(p, f.Name, nil, f.Desc)
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if t, ok := f.Ptr(cmd).(*[]string); ok {
 				*t = *p
 			}
+			return nil
 		}}
 	default:
 		// Repeated non-string types: bind as a JSON array via --<name>-json.
 		p := new(string)
 		fs.StringVar(p, f.Name+"-json", "", f.Desc+" (JSON array)")
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if *p == "" {
-				return
+				return nil
 			}
 			target := f.Ptr(cmd)
-			_ = json.Unmarshal([]byte(*p), target)
+			if err := json.Unmarshal([]byte(*p), target); err != nil {
+				return fmt.Errorf("--%s-json: %w", f.Name, err)
+			}
+			return nil
 		}}
 	}
 }
@@ -207,10 +226,13 @@ func registerRepeatedFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.Package
 func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDesc) flagBinding {
 	// Resolve the record fields. Codegen emits Ref name-only; the full fields
 	// are in PackageDesc.Records, resolvable via Record(name).
-	refFields := f.Ref.Fields
-	if len(refFields) == 0 && f.Ref != nil && desc != nil {
-		if rec, ok := desc.Record(f.Ref.Name); ok {
-			refFields = rec.Fields
+	var refFields []mvep.FieldDesc
+	if f.Ref != nil {
+		refFields = f.Ref.Fields
+		if len(refFields) == 0 && desc != nil {
+			if rec, ok := desc.Record(f.Ref.Name); ok {
+				refFields = rec.Fields
+			}
 		}
 	}
 
@@ -218,12 +240,15 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDe
 		// No record fields to flatten; bind as a JSON object via --<name>-json.
 		p := new(string)
 		fs.StringVar(p, f.Name+"-json", "", f.Desc+" (JSON object)")
-		return flagBinding{field: f, apply: func(cmd any) {
+		return flagBinding{field: f, apply: func(cmd any) error {
 			if *p == "" {
-				return
+				return nil
 			}
 			target := f.Ptr(cmd)
-			_ = json.Unmarshal([]byte(*p), target)
+			if err := json.Unmarshal([]byte(*p), target); err != nil {
+				return fmt.Errorf("--%s-json: %w", f.Name, err)
+			}
+			return nil
 		}}
 	}
 
@@ -241,7 +266,7 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDe
 		subs = append(subs, subBinding{fieldName: rf.Name, strVal: p})
 	}
 
-	return flagBinding{field: f, apply: func(cmd any) {
+	return flagBinding{field: f, apply: func(cmd any) error {
 		anySet := false
 		for _, s := range subs {
 			if *s.strVal != "" {
@@ -250,7 +275,7 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDe
 			}
 		}
 		if !anySet {
-			return
+			return nil
 		}
 		// Build a JSON object from the sub-field values and unmarshal into
 		// the target (Ptr returns **Record; json.Unmarshal handles nil
@@ -262,16 +287,24 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDe
 			}
 		}
 		jsonBytes, _ := json.Marshal(obj)
-		_ = json.Unmarshal(jsonBytes, f.Ptr(cmd))
+		if err := json.Unmarshal(jsonBytes, f.Ptr(cmd)); err != nil {
+			return fmt.Errorf("--%s: %w", f.Name, err)
+		}
+		return nil
 	}}
 }
 
 // applyBindings writes the parsed flag values into the command struct via the
-// FieldDesc.Ptr accessors.
-func applyBindings(cmd any, bindings []flagBinding) {
+// FieldDesc.Ptr accessors. Returns the first error encountered (e.g. invalid
+// JSON for a --*-json flag); remaining bindings are still applied.
+func applyBindings(cmd any, bindings []flagBinding) error {
+	var firstErr error
 	for _, b := range bindings {
-		b.apply(cmd)
+		if err := b.apply(cmd); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
+	return firstErr
 }
 
 // timeValue is a flag.Value for time.Time, parsing RFC3339 timestamps.

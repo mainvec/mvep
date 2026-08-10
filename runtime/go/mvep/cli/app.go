@@ -140,8 +140,12 @@ func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings [
 	cmd := cmdDesc.New()
 
 	// Write the parsed flag values into the command struct via the descriptor's
-	// Ptr accessors. T9 owns the full type-switch.
-	applyBindings(cmd, bindings)
+	// Ptr accessors. T9 owns the full type-switch. A non-nil error means a
+	// flag value could not be written (e.g. invalid JSON for --*-json flags);
+	// abort before dispatch (#29).
+	if err := applyBindings(cmd, bindings); err != nil {
+		return err
+	}
 
 	// Enforce required flags (T10): a required field left at its zero value
 	// after parsing is a usage error, not an execution error. Enforcement
