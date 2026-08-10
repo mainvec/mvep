@@ -1,4 +1,10 @@
-// NOMVGEN
+// NOMVEP
+// mvep_main_cmd.go is hand-written (not generated) and safe to rewrite.
+// T16 (plan 025): mvep's own CLI is dogfooded on the descriptor-driven
+// runtime/cli library — cli.New(pkg.Describe(), executor) builds the command
+// tree from the PackageDesc, and exits via cli.ExitCode. This is the real
+// acceptance test: mvep's CLI is its own first consumer on the same path
+// every generated package will use.
 package main
 
 import (
@@ -6,132 +12,26 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mainvec/mvep/toolkit"
-	"github.com/mainvec/ugo/cli"
+	api "github.com/mainvec/mvep/toolkit/mvepapi/api"
+	mvep "github.com/mainvec/mvep/toolkit/mvepapi"
+	mveccli "github.com/mainvec/mvep/runtime/go/mvep/cli"
 )
 
 func main() {
-	app := NewCli()
+	pkg := api.NewPackage()
+	runner := mvep.GetCommandRunner()
+
+	// pkg implements mvep.PackageDescriber via NewPackageFromDesc (T3).
+	// cli.New needs the *PackageDesc to build the command tree.
+	desc := api.Describe()
+	app := mveccli.New(desc, &mveccli.LocalExecutor{Runner: runner})
+	app.Root().Version = MVEPVersion()
+
+	_ = pkg // pkg is available for NameOf/InstanceOf if needed
+
 	err := app.Run(context.Background())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		os.Exit(mveccli.ExitCode(err))
 	}
-}
-
-func NewCli() *cli.Framework {
-	app := &cli.Framework{}
-
-	rootCmd := &cli.Command{
-		Usage:   "mvep",
-		Short:   "Mainvec Platform Toolkit",
-		Long:    "Command-line toolkit for Mainvec Platform",
-		Version: MVEPVersion(),
-	}
-
-	prepareGenerateCmd(rootCmd)
-	prepareGenCmd(rootCmd)
-	prepareInitializeCmd(rootCmd)
-	prepareValidateCmd(rootCmd)
-	app.Root = rootCmd
-
-	return app
-}
-
-func prepareGenerateCmd(rootCmd *cli.Command) {
-	var formatFlag string
-	var inFlag string
-	var langFlag string
-	var outdirFlag string
-
-	cliCmd := &cli.Command{
-		Usage: "generate",
-		Short: "Generate code from MVP schema",
-		Run: func(ctx *cli.Context, args []string) {
-			err := toolkit.ExecuteGenerate(ctx, inFlag, outdirFlag, langFlag, false, formatFlag)
-			if err != nil {
-				fmt.Fprintln(ctx.Errout(), err)
-			}
-		},
-	}
-	cliCmd.Flags().StringVar(&formatFlag, "format", "plain", "serialization format (plain=plain json, pb3=protobuf)")
-	cliCmd.Flags().StringVar(&inFlag, "in", "", "input mvep spec file")
-	cliCmd.Flags().StringVar(&langFlag, "lang", "", "")
-	cliCmd.Flags().StringVar(&outdirFlag, "outdir", "", "")
-	rootCmd.AddCommand(cliCmd)
-
-}
-
-func prepareGenCmd(rootCmd *cli.Command) {
-	var formatFlag string
-	var inFlag string
-	var langFlag string
-	var outdirFlag string
-
-	cliCmd := &cli.Command{
-		Usage: "gen",
-		Short: "Generate code from MVP schema (alias)",
-		Run: func(ctx *cli.Context, args []string) {
-			err := toolkit.ExecuteGenerate(ctx, inFlag, outdirFlag, langFlag, false, formatFlag)
-			if err != nil {
-				fmt.Fprintln(ctx.Errout(), err)
-			}
-		},
-	}
-	cliCmd.Flags().StringVar(&formatFlag, "format", "plain", "serialization format (plain=plain json, pb3=protobuf)")
-	cliCmd.Flags().StringVar(&inFlag, "in", "", "input mvep spec file")
-	cliCmd.Flags().StringVar(&langFlag, "lang", "", "")
-	cliCmd.Flags().StringVar(&outdirFlag, "outdir", "", "")
-	rootCmd.AddCommand(cliCmd)
-
-}
-
-func prepareInitializeCmd(rootCmd *cli.Command) {
-	var nameFlag string
-	var namespaceFlag string
-
-	cliCmd := &cli.Command{
-		Usage: "init",
-		Short: "Initialize a new MVP spec",
-		Run: func(ctx *cli.Context, args []string) {
-			err := toolkit.ExeucuteInitializeCmd(ctx, nameFlag, namespaceFlag)
-			if err != nil {
-				fmt.Fprintln(ctx.Errout(), err)
-			}
-		},
-	}
-	cliCmd.Flags().StringVar(&nameFlag, "name", "", "")
-	cliCmd.Flags().StringVar(&namespaceFlag, "ns", "", "")
-	rootCmd.AddCommand(cliCmd)
-
-}
-
-func prepareValidateCmd(rootCmd *cli.Command) {
-	var inFlag string
-
-	cliCmd := &cli.Command{
-		Usage: "validate",
-		Short: "Validate MVP spec",
-		Run: func(ctx *cli.Context, args []string) {
-			res, err := toolkit.ExecuteValidateCmd(ctx, inFlag)
-			if err != nil {
-				fmt.Fprintln(ctx.Errout(), err)
-				return
-			}
-
-			if !res.Valid() {
-				errs := make([]string, 0, len(res.ValidationErrors()))
-				for _, e := range res.ValidationErrors() {
-					errs = append(errs, e.String())
-				}
-				fmt.Fprintf(os.Stderr, "MVP Spec is invalid: %v\n", errs)
-				return
-			}
-
-			fmt.Println("valid!.")
-		},
-	}
-	cliCmd.Flags().StringVar(&inFlag, "in", "", "input mvep spec file")
-	rootCmd.AddCommand(cliCmd)
-
 }

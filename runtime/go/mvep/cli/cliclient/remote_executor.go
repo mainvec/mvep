@@ -10,8 +10,6 @@ import (
 	"github.com/mainvec/mvep/runtime/go/mvep/client"
 )
 
-// EXPERIMENTAL: see cli/executor.go.
-
 // RemoteExecutor adapts a *client.PackageClient to the cli.Executor
 // interface, so a single CLI binary can target a remote server by swapping
 // in this executor for a cli.LocalExecutor.

@@ -389,7 +389,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T13 — Pre/post execution hooks
 - [x] T14 — Result renderers and exit codes
 - [x] T15 — `gen_options.cli: runtime|legacy|none`
-- [ ] T16 — Dogfood mvep's own CLI
+- [x] T16 — Dogfood mvep's own CLI
 - [ ] T17 — Documentation
 
 ## Tasks
@@ -726,6 +726,22 @@ Rebuild `toolkit/mvepapi/cmd/mvep` on the library; drop the `EXPERIMENTAL` marke
 - **Outcome:** mvep's CLI is its own first consumer.
 - **Verification:** `mvep generate` / `init` / `validate` behave identically to today.
 - **Notes:** `mvep_main_cmd.go` carries `// NOMVGEN` and is safe to rewrite.
+  **Done (2026-08-10):** mvepapi regenerated from `gengen/toolkit_plain.jsonc` — `mvep_package.go`
+  now carries the `PackageDesc` literal and derives `NewPackage`/`InstanceOf`/`NameOf` via
+  `NewPackageFromDesc` (T3). `mvep_main_cmd.go` rewritten to use the descriptor-driven
+  `cli.New(api.Describe(), &cli.LocalExecutor{Runner: runner})` path — the same path every
+  generated package will use. `mvep_impl.go` implemented to delegate to the real `toolkit`
+  functions (`ExecuteGenerate`, `ExeucuteInitializeCmd`, `ExecuteValidateCmd`) so the runner is
+  not a stub. The `// NOMVGEN` marker on `mvep_main_cmd.go` updated to `// NOMVEP`.
+  The `EXPERIMENTAL` markers are dropped from all 5 files (descriptor.go, executor.go, app.go,
+  renderer.go, remote_executor.go) — the design is dogfooded and the one-release-cycle stability
+  period is over. Verified end-to-end: `mvep --help` lists generate_cmd/initialize_cmd/
+  validate_cmd (snake_case from the descriptor); `mvep validate -in testdata/05_command_withfields
+  .jsonc` → `valid!.`; `mvep generate -in testdata/05_command_withfields.jsonc -outdir /tmp/...
+  -lang go -format plain` → succeeds. Toolkit suite + runtime suite + vet green.
+  **Release note:** mvepapi regeneration is on the branch (compiles via `go.work`); it cannot
+  ship a toolkit release until `runtime/go` is tagged with the descriptor + `mvep/cli` types and
+  `toolkit/go.mod` is bumped to it (Rollout step 0).
 
 ### T17 — Documentation
 

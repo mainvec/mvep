@@ -594,6 +594,7 @@ func LoadTemplate(tmpltName string, templateReader io.Reader) (*template.Templat
 		"FieldIsRequired":    fieldIsRequired,
 		"GoStringLit":        goStringLit,
 		"GoStringSliceLit":   goStringSliceLit,
+		"CmdDescOrTitle":     cmdDescOrTitle,
 	}
 
 	//Open template
@@ -927,4 +928,15 @@ func goStringSliceLit(ss []string) string {
 		parts[i] = goStringLit(s)
 	}
 	return "[]string{" + strings.Join(parts, ", ") + "}"
+}
+
+// cmdDescOrTitle returns desc if non-empty, otherwise title. The spec's
+// commands carry a "title" but often no "desc"; the descriptor's Desc field
+// is what the CLI shows as the command's Short description, so falling back
+// to title ensures the help output is populated.
+func cmdDescOrTitle(desc, title string) string {
+	if desc != "" {
+		return desc
+	}
+	return title
 }

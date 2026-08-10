@@ -61,16 +61,16 @@ func TestCommandsListedInDeclarationOrder(t *testing.T) {
 	_ = app.RunWithIO(context.Background(), []string{"--help"}, &stdout, &stderr)
 	out := stderr.String() + stdout.String()
 
-	echoIdx := indexOf(out, "echo_cmd")
-	pingIdx := indexOf(out, "ping_cmd")
+	echoIdx := indexOf(out, "echo")
+	pingIdx := indexOf(out, "ping")
 	if echoIdx < 0 {
-		t.Fatal("echo_cmd not found in help output")
+		t.Fatal("echo command not found in help output")
 	}
 	if pingIdx < 0 {
-		t.Fatal("ping_cmd not found in help output")
+		t.Fatal("ping command not found in help output")
 	}
 	if echoIdx > pingIdx {
-		t.Errorf("echo_cmd (idx %d) should appear before ping_cmd (idx %d) in help — declaration order", echoIdx, pingIdx)
+		t.Errorf("echo (idx %d) should appear before ping (idx %d) in help — declaration order", echoIdx, pingIdx)
 	}
 }
 

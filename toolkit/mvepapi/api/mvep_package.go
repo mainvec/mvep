@@ -7,36 +7,155 @@ import (
 	"github.com/mainvec/mvep/runtime/go/mvep"
 )
 
-var _ mvep.Package = &mvepPackage{}
 var _ mvep.CommandRunner = &PkgCommandRunner{}
 
 type GenerateCmdHandler func(context.Context, *GenerateCmd) (*GenerateCmdResult, error)
 type InitializeCmdHandler func(context.Context, *InitializeCmd) (*InitializeCmdResult, error)
 type ValidateCmdHandler func(context.Context, *ValidateCmd) (*ValidateCmdResult, error)
 
-type mvepPackage struct {
+// pkgDesc is the complete runtime descriptor for this package, emitted by
+// codegen from the same run that produced the command structs. NewPackage and
+// the exported InstanceOf / NameOf are derived from it.
+var pkgDesc = mvep.PackageDesc{
+	Name:        "mvep",
+	Namespace:   "mvepNS",
+	Title:       "Mainvec Engineering Platform Toolkit",
+	Desc:        "Command-line toolkit for the Mainvec Engineering Platform",
+	Base:        "",
+	SpecVersion: "v0.1",
+	Commands: []mvep.CommandDesc{
+		{
+			Name:  "GenerateCmd",
+			Alias: "generate",
+			Desc:  "Generate code from an MVEP spec",
+			New:   func() any { return &GenerateCmd{} },
+			Fields: []mvep.FieldDesc{
+				{
+					Name: "in", Alias: "in", Desc: "",
+					Fnum: 1, Type: mvep.FieldString,
+					Repeated: false, Required: true,
+					Tags: []string{"required"},
+					Ptr:  func(c any) any { return &c.(*GenerateCmd).In },
+				},
+				{
+					Name: "outdir", Alias: "", Desc: "",
+					Fnum: 2, Type: mvep.FieldString,
+					Repeated: false, Required: false,
+					Tags: nil,
+					Ptr:  func(c any) any { return &c.(*GenerateCmd).Outdir },
+				},
+				{
+					Name: "lang", Alias: "", Desc: "",
+					Fnum: 3, Type: mvep.FieldString,
+					Repeated: false, Required: true,
+					Tags: []string{"required"},
+					Ptr:  func(c any) any { return &c.(*GenerateCmd).Lang },
+				},
+				{
+					Name: "format", Alias: "", Desc: "",
+					Fnum: 4, Type: mvep.FieldString,
+					Repeated: false, Required: false,
+					Tags: nil,
+					Ptr:  func(c any) any { return &c.(*GenerateCmd).Format },
+				},
+			},
+			Result: &mvep.ResultDesc{
+				Name:   "GenerateCmdResult",
+				New:    func() any { return &GenerateCmdResult{} },
+				Fields: []mvep.FieldDesc{},
+			},
+		},
+		{
+			Name:  "InitializeCmd",
+			Alias: "init",
+			Desc:  "Initialize a new MVEP spec",
+			New:   func() any { return &InitializeCmd{} },
+			Fields: []mvep.FieldDesc{
+				{
+					Name: "name", Alias: "", Desc: "",
+					Fnum: 1, Type: mvep.FieldString,
+					Repeated: false, Required: true,
+					Tags: []string{"required"},
+					Ptr:  func(c any) any { return &c.(*InitializeCmd).Name },
+				},
+				{
+					Name: "namespace", Alias: "ns", Desc: "",
+					Fnum: 2, Type: mvep.FieldString,
+					Repeated: false, Required: false,
+					Tags: nil,
+					Ptr:  func(c any) any { return &c.(*InitializeCmd).Namespace },
+				},
+			},
+			Result: &mvep.ResultDesc{
+				Name:   "InitializeCmdResult",
+				New:    func() any { return &InitializeCmdResult{} },
+				Fields: []mvep.FieldDesc{},
+			},
+		},
+		{
+			Name:  "ValidateCmd",
+			Alias: "validate",
+			Desc:  "Validate MVEP spec",
+			New:   func() any { return &ValidateCmd{} },
+			Fields: []mvep.FieldDesc{
+				{
+					Name: "in", Alias: "in", Desc: "",
+					Fnum: 1, Type: mvep.FieldString,
+					Repeated: false, Required: true,
+					Tags: []string{"required"},
+					Ptr:  func(c any) any { return &c.(*ValidateCmd).In },
+				},
+			},
+			Result: &mvep.ResultDesc{
+				Name: "ValidateCmdResult",
+				New:  func() any { return &ValidateCmdResult{} },
+				Fields: []mvep.FieldDesc{
+					{
+						Name: "valid", Alias: "", Desc: "",
+						Fnum: 1, Type: mvep.FieldBool,
+						Repeated: false, Required: false,
+						Tags: nil,
+						Ptr:  func(r any) any { return &r.(*ValidateCmdResult).Valid },
+					},
+					{
+						Name: "errors", Alias: "", Desc: "",
+						Fnum: 5, Type: mvep.FieldString,
+						Repeated: true, Required: false,
+						Tags: nil,
+						Ptr:  func(r any) any { return &r.(*ValidateCmdResult).Errors },
+					},
+					{
+						Name: "warnings", Alias: "", Desc: "",
+						Fnum: 10, Type: mvep.FieldString,
+						Repeated: true, Required: false,
+						Tags: nil,
+						Ptr:  func(r any) any { return &r.(*ValidateCmdResult).Warnings },
+					},
+				},
+			},
+		},
+	},
+	Records: []mvep.RecordDesc{},
 }
 
+// pkg is the single derived Package for this descriptor. The derived package
+// is immutable after construction, so it is built once and shared by
+// NewPackage and the exported delegators rather than rebuilt on every call.
+var pkg = mvep.NewPackageFromDesc(&pkgDesc)
+
 func NewPackage() mvep.Package {
-	return &mvepPackage{}
+	return pkg
+}
+
+// Describe returns the package descriptor.
+func Describe() *mvep.PackageDesc {
+	return &pkgDesc
 }
 
 type PkgCommandRunner struct {
 	RunGenerateCmd   GenerateCmdHandler
 	RunInitializeCmd InitializeCmdHandler
 	RunValidateCmd   ValidateCmdHandler
-}
-
-func (p *mvepPackage) GetName() string {
-	return "mvepPackage"
-}
-
-func (p *mvepPackage) InstanceOf(compName string) (any, bool) {
-	return InstanceOf(compName)
-}
-
-func (p *mvepPackage) NameOf(comp any) string {
-	return NameOf(comp)
 }
 
 func NewCommandRunner() *PkgCommandRunner {
@@ -56,42 +175,12 @@ func (r *PkgCommandRunner) RunCmd(ctx context.Context, cmd any) (any, error) {
 	}
 }
 
+// InstanceOf constructs a command or result by name, derived from pkgDesc.
 func InstanceOf(compName string) (any, bool) {
-	switch compName {
-
-	case "GenerateCmd":
-		return &GenerateCmd{}, true
-	case "GenerateCmdResult":
-		return &GenerateCmdResult{}, true
-	case "InitializeCmd":
-		return &InitializeCmd{}, true
-	case "InitializeCmdResult":
-		return &InitializeCmdResult{}, true
-	case "ValidateCmd":
-		return &ValidateCmd{}, true
-	case "ValidateCmdResult":
-		return &ValidateCmdResult{}, true
-	default:
-		return nil, false
-	}
+	return pkg.InstanceOf(compName)
 }
 
+// NameOf returns the name of a command or result, derived from pkgDesc.
 func NameOf(comp any) string {
-	switch comp.(type) {
-
-	case *GenerateCmd:
-		return "GenerateCmd"
-	case *GenerateCmdResult:
-		return "GenerateCmdResult"
-	case *InitializeCmd:
-		return "InitializeCmd"
-	case *InitializeCmdResult:
-		return "InitializeCmdResult"
-	case *ValidateCmd:
-		return "ValidateCmd"
-	case *ValidateCmdResult:
-		return "ValidateCmdResult"
-	default:
-		return ""
-	}
+	return pkg.NameOf(comp)
 }

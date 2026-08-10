@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-// EXPERIMENTAL: see executor.go.
-
 // Renderer renders a command result to the given writer. The default renderer
 // prints a human-readable representation; a JSON renderer marshals the result.
 // Implementors swap the renderer via App.SetRenderer (T14).

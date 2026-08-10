@@ -7,10 +7,6 @@ import (
 	"github.com/mainvec/mvep/runtime/go/mvep"
 )
 
-// EXPERIMENTAL: the Executor surface is core public API from day one but its
-// shape may change for one release cycle. The marker is removed once the CLI
-// builder (T16 of plan 025) has dogfooded the design.
-
 // Executor runs a command and returns its result. One interface covers both
 // in-process execution (via mvep.CommandRunner) and remote execution (via
 // client.PackageClient), so a single CLI binary can target either by

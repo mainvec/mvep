@@ -2,10 +2,6 @@ package mvep
 
 import "reflect"
 
-// EXPERIMENTAL: the descriptor types in this file are core public API from day
-// one but their shape may change for one release cycle. The marker is removed
-// once the CLI builder (T16 of plan 025) has dogfooded the design.
-
 // PackageDesc is a complete runtime description of a generated package:
 // its commands, fields, results, types, tags, and ordering. Codegen emits one
 // as a Go literal into the generated mvep_package.go, from the same run that

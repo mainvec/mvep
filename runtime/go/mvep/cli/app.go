@@ -13,10 +13,6 @@ import (
 	"github.com/mainvec/ugo/cli"
 )
 
-// EXPERIMENTAL: the App surface is core public API from day one but its shape
-// may change for one release cycle. The marker is removed once the CLI builder
-// (T16 of plan 025) has dogfooded the design.
-
 // App is a descriptor-driven CLI. New builds it from a *mvep.PackageDesc and
 // an Executor; RunWithIO parses argv, dispatches the matching command through
 // the Executor, and returns the result or error.
@@ -250,20 +246,24 @@ func isZeroReflect(v any) bool {
 	return elem.IsZero()
 }
 
-// commandName converts a CommandDesc name to the CLI subcommand name. The
-// descriptor carries Go CamelCase names (e.g. "EchoCmd"); the CLI uses
-// snake_case (e.g. "echo_cmd") for a shell-friendly UX. The alias preserves
-// the original name and the spec alias.
+// commandName converts a CommandDesc to the CLI subcommand name. The spec's
+// alias field is the shell-friendly name (e.g. "generate", "init", "validate");
+// when absent, the CamelCase name is snake_cased (e.g. "EchoCmd" -> "echo_cmd").
 func commandName(d *mvep.CommandDesc) string {
+	if d.Alias != "" {
+		return d.Alias
+	}
 	return toSnake(d.Name)
 }
 
-// aliasesFor returns the aliases for a command: the original CamelCase name and
-// the spec-declared alias (if any).
+// aliasesFor returns the aliases for a command: the snake_case of the
+// descriptor name (so the CamelCase name is still reachable) plus any
+// additional spec-declared aliases beyond the primary one.
 func aliasesFor(d *mvep.CommandDesc) []string {
 	var out []string
+	// When the alias is the primary name, the snake_case name becomes an alias.
 	if d.Alias != "" {
-		out = append(out, d.Alias)
+		out = append(out, toSnake(d.Name))
 	}
 	return out
 }

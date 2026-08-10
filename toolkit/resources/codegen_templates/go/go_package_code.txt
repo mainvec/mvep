@@ -33,7 +33,7 @@ var pkgDesc = mvep.PackageDesc{
 		{
 			Name:  {{ GoStringLit $cmdName }},
 			Alias: {{ GoStringLit $cmd.Alias }},
-			Desc:  {{ GoStringLit $cmd.Desc }},
+			Desc:  {{ GoStringLit (CmdDescOrTitle $cmd.Desc $cmd.Title) }},
 			New:   func() any { return &{{ $cmdName }}{} },
 			Fields: []mvep.FieldDesc{
 {{- range $nf := SortFieldsByFnum $cmd.Fields }}

@@ -21,7 +21,7 @@ func TestGlobalPersistentFlag(t *testing.T) {
 	app.Root().PersistentFlags().StringVar(&endpoint, "endpoint", "localhost:8080", "server endpoint")
 
 	var stdout, stderr bytes.Buffer
-	err := app.RunWithIO(context.Background(), []string{"echo_cmd", "--in", "hello", "--endpoint", "remote:9090"}, &stdout, &stderr)
+	err := app.RunWithIO(context.Background(), []string{"echo", "--in", "hello", "--endpoint", "remote:9090"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -80,14 +80,14 @@ func TestOverrideGeneratedCommand(t *testing.T) {
 	ex := &recordingExecutor{}
 	app := New(&t8Desc, ex)
 
-	// The implementor overrides the echo_cmd subcommand's RunE to add
+	// The implementor overrides the echo subcommand's RunE to add
 	// pre-processing. We find it by name using ugo's Find.
-	cmd, _ := app.Root().Find([]string{"echo_cmd"})
+	cmd, _ := app.Root().Find([]string{"echo"})
 	if cmd == nil {
-		t.Fatal("echo_cmd not found in command tree")
+		t.Fatal("echo not found in command tree")
 	}
-	if cmd.Name() != "echo_cmd" {
-		t.Fatalf("Find returned %q, want echo_cmd", cmd.Name())
+	if cmd.Name() != "echo" {
+		t.Fatalf("Find returned %q, want echo", cmd.Name())
 	}
 
 	// Override the RunE.
@@ -100,7 +100,7 @@ func TestOverrideGeneratedCommand(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	err := app.RunWithIO(context.Background(), []string{"echo_cmd", "--in", "test"}, &stdout, &stderr)
+	err := app.RunWithIO(context.Background(), []string{"echo", "--in", "test"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
