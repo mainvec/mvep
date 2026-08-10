@@ -380,7 +380,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T4 — Field type coverage in the descriptor
 - [x] T5 — Generate-time hard error on unsupported constructs
 - [x] T6 — ugo v0.7.0 bump; local `uint32` / `float32` flag values
-- [ ] T7 — `Executor` interface, local and remote adapters
+- [x] T7 — `Executor` interface, local and remote adapters
 - [ ] T8 — `cli.New` and `App.Run`
 - [ ] T9 — Flag binding via `FieldDesc.Ptr`
 - [ ] T10 — Required flags
@@ -538,6 +538,23 @@ returns a typed error wrapping the code so the CLI can classify without string p
 - **Outcome:** One CLI binary can target in-process or remote execution.
 - **Verification:** Both adapters satisfy `Executor`; a fake runner records the received command.
 - **Notes:** The subpackage exists solely to keep `cli` free of a `client` edge.
+  **Done (2026-08-10):** `cli.Executor` interface (`Run(ctx, cmd) (any, error)`) and `cli.ErrorCode`
+  typed error (wraps `Code`/`Message`/`Err`) added in `runtime/go/mvep/cli/executor.go`. `LocalExecutor`
+  is a struct wrapping `mvep.CommandRunner`; `RemoteExecutor` lives in the new
+  `runtime/go/mvep/cli/cliclient` subpackage (preserving the import boundary — `cli` never imports
+  `mvep/client`) and calls `PackageClient.SendCmdReq` (not `SendCmd`), wrapping `CmdResp.Error.Code`
+  in `*cli.ErrorCode` on failure so T14 can classify exit codes without string parsing. Tests cover:
+  LocalExecutor forwards result + propagates error; RemoteExecutor forwards a command end-to-end
+  over httptest, propagates a server error as `*cli.ErrorCode{Code: "http_500"}`, and surfaces an
+  unknown command as `*cli.ErrorCode{Code: "http_404"}`.
+  **Discovery for T14:** the HTTP transport (`http_transport.go:151`) sets `CmdResp.Error.Code` to
+  `"http_<status>"` (e.g. `http_500`), NOT the semantic code (`command_error`/`unknown_command`)
+  the server sets in the `x-mainvec-error-code` response header. `PackageHandler.executeCmd`
+  builds `CmdResp` with semantic codes; `WriteCmdResp` writes the semantic code to the header and
+  maps it to an HTTP status; the client transport discards the header and synthesises `http_<status>`.
+  T14 must recover the semantic code from the `x-mainvec-error-code` header (or the transport must
+  be fixed to read it) to key exit codes on error-code classes as the plan intends. Runtime suite +
+  vet green. Unblocks T8 (`cli.New` and `App.Run`).
 
 ### T8 — `cli.New` and `App.Run`
 
