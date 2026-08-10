@@ -381,7 +381,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T5 — Generate-time hard error on unsupported constructs
 - [x] T6 — ugo v0.7.0 bump; local `uint32` / `float32` flag values
 - [x] T7 — `Executor` interface, local and remote adapters
-- [ ] T8 — `cli.New` and `App.Run`
+- [x] T8 — `cli.New` and `App.Run`
 - [ ] T9 — Flag binding via `FieldDesc.Ptr`
 - [ ] T10 — Required flags
 - [ ] T11 — Deterministic command and flag ordering
@@ -564,6 +564,21 @@ currently-empty `cli.go`.
 - **Outcome:** A descriptor plus an executor yields a working CLI.
 - **Verification:** End-to-end test parses argv and asserts the populated command struct.
 - **Notes:** Depends on T1 and T7. Use `RunE`, not the deprecated `Run`.
+  **Done (2026-08-10):** `cli.New(desc, executor)` in `runtime/go/mvep/cli/app.go` walks a
+  `*mvep.PackageDesc` and builds a ugo `*cli.Command` tree: one subcommand per `CommandDesc`,
+  with snake_case command names (`EchoCmd` -> `echo_cmd`), spec aliases preserved, and the
+  root rejecting unknown positional args (ugo otherwise silently prints help for an
+  unrecognized command name). Each subcommand's `RunE` constructs the command struct via
+  `New()`, applies parsed flag values through the `FieldDesc.Ptr` accessors, dispatches via
+  `Executor.Run`, and prints the result (T14 replaces this with real rendering). `App.Run`
+  wraps ugo's `Framework.Run` (os.Args); `App.RunWithIO` is the testable entry point.
+  Minimal flag binding in `flags.go` handles string + int32 (the test-fixture types); T9
+  replaces it with the full Ptr-driven type-switch over every `FieldType`. Tests cover:
+  command tree built (verified via --help); EchoCmd end-to-end with --in/--count binding into the
+  struct and dispatch through a recording Executor; PingCmd no-field dispatch; Executor error
+  propagation; unknown command error; --help lists commands. Runtime suite + vet green.
+  Unblocks T9 (full flag binding), T10 (required flags), T11 (ordering), T12 (global flags/
+  custom subcommands — `App.Root()` exposes the root for extension).
 
 ### T9 — Flag binding via `FieldDesc.Ptr`
 

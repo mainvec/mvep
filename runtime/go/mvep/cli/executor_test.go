@@ -29,7 +29,7 @@ func TestLocalExecutor(t *testing.T) {
 		type echoCmd struct{ Msg string }
 		cmd := &echoCmd{Msg: "hi"}
 		runner := &fakeRunner{result: "ok"}
-			ex := &LocalExecutor{Runner: runner}
+		ex := &LocalExecutor{Runner: runner}
 
 		got, err := ex.Run(context.Background(), cmd)
 		if err != nil {
