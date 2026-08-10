@@ -379,7 +379,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T3 — Codegen emits the descriptor into `mvep_package.go`
 - [x] T4 — Field type coverage in the descriptor
 - [x] T5 — Generate-time hard error on unsupported constructs
-- [ ] T6 — ugo v0.7.0 bump; local `uint32` / `float32` flag values
+- [x] T6 — ugo v0.7.0 bump; local `uint32` / `float32` flag values
 - [ ] T7 — `Executor` interface, local and remote adapters
 - [ ] T8 — `cli.New` and `App.Run`
 - [ ] T9 — Flag binding via `FieldDesc.Ptr`
@@ -516,6 +516,14 @@ later ships the helpers, swap them in.
 - **Outcome:** Both modules on v0.7.0; uint32/float32 binding available in `mvep/cli`.
 - **Verification:** `go test ./...` green in both modules after the bump.
 - **Notes:** Blocks T9 and T10. Parallelisable with Phase 1.
+  **Done (2026-08-10):** `runtime/go/go.mod` and `toolkit/go.mod` bumped `ugo` v0.6.0 → v0.7.0;
+  both suites green after the bump with no other change. New `runtime/go/mvep/cli/flag_value.go`
+  adds `Uint32Var` and `Float32Var` as small custom `flag.Value` types (`uint32Value` / `float32Value`)
+  registered via `cli.FlagSet.Var`, since ugo v0.7.0 and the stdlib `flag.FlagSet` it embeds ship
+  neither. `flag_value_test.go` is a table test covering default/zero/value/max/overflow/negative/
+  non-numeric for uint32 and default/zero/value/negative/non-numeric for float32. Full runtime +
+  toolkit suites and vet green. The helpers are ready for T9's flag binding switch; if ugo later
+  ships upstream helpers they can be swapped in directly.
 
 ### T7 — `Executor` interface, local and remote adapters
 
