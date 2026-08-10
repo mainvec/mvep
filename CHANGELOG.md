@@ -10,6 +10,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
 > `references/generated-patterns.md`) for staleness.
 
+## [Unreleased] - 2026-08-10 (plan 025, #25)
+
+### Added — runtime/go
+- **Package descriptor.** A complete runtime description of a generated
+  package (`PackageDesc`, `CommandDesc`, `FieldDesc`, `RecordDesc`,
+  `FieldType`) emitted by codegen into `mvep_package.go`. `FieldDesc.Ptr`
+  closes over a real struct field, so a codegen mistake is a compile error,
+  not a silent runtime drop. `NewPackageFromDesc` derives `InstanceOf`/
+  `NameOf`/`CommandNames` from the descriptor, satisfying `Package`,
+  `CommandLister`, and `PackageDescriber`. `PackageDesc.Record(name)`
+  resolves name-only `$ref` fields to the full record. Build-time inputs
+  (`GenOpts`, `ProtocOpts`) are deliberately excluded.
+- **CLI builder (`mvep/cli`).** A descriptor-driven CLI library that builds
+  a ugo command tree, binds flags to struct fields via `Ptr` (all 14
+  `FieldType`s, repeated, map, depth-1 record flattening), enforces required
+  flags, dispatches via `Executor` (local or remote), and classifies exit
+  codes. Extension surface: `App.Root()` (global flags, custom subcommands,
+  overrides), `AddPreHook`/`AddPostHook` (auth, logging), `SetRenderer`
+  (JSON output). See `runtime/go/mvep/cli/README.md`.
+- **`Executor` interface** with `LocalExecutor` (in-process) and
+  `cliclient.RemoteExecutor` (remote via `SendCmdReq`, wrapping
+  `CmdResp.Error.Code` in `*cli.ErrorCode` for exit-code classification).
+- **`ExitCode(err) int`** mapping: 0 success, 2 usage, 3 not-found, 4 auth,
+  1 other.
+- **Custom `Uint32Var` / `Float32Var`** flag.Value types (ugo v0.7.0 ships
+  neither).
+- **`ugo` bumped v0.6.0 → v0.7.0** (persistent flags, `RunE`, `Int32Var`,
+  `StringSliceVar`, `BytesVar`).
+
+### Added — toolkit
+- **Descriptor emission.** Codegen emits a `PackageDesc` literal into every
+  generated `mvep_package.go` via ordered iterators (`SortedCommandNames`,
+  `SortFieldsByFnum`). `NewPackage`/`InstanceOf`/`NameOf` delegate to
+  `NewPackageFromDesc`; the three hand-shaped switch statements are deleted.
+- **`gen_options.cli: runtime|legacy|none`.** The CLI mode is a spec
+  gen_option (default `runtime`). `runtime` emits a descriptor-driven
+  `cli.New` main; `legacy` emits the old hand-wired pattern; `none` skips.
+  `skipCmd=true` forces `none`.
+- **Generate-time hard error** (`validateDescriptorRepresentable`) on
+  constructs the descriptor cannot represent, naming the offending command
+  and field.
+- **`CmdDescOrTitle`** template helper: emits `title` into the descriptor's
+  `Desc` when `desc` is absent.
+- **`isRequiredField` reconciled** with `fieldIsRequired` (tag-derived) so
+  Go and JS/TS output agree on required-ness.
+- **mvep's own CLI dogfooded** on the descriptor-driven `cli.New` path.
+
+### Changed — runtime/go
+- **`mvep.Package` methods are derived** from the descriptor via
+  `NewPackageFromDesc` rather than emitted as switch statements. Additive —
+  hand-written `Package` implementations keep working. `GetName()` still
+  returns `Name + "Package"` to preserve HTTP routes.
+- **Newly satisfying `CommandLister`** activates duplicate-command detection
+  in multi-package clients. A client whose command names collide now errors
+  at registration where it previously succeeded silently.
+
+### Documentation
+- `runtime/go/mvep/cli/README.md` — CLI builder guide
+- `runtime/go/README.md` — descriptor and CLI sections added
+- `docs/cli-builder-migration.md` — migration from legacy to runtime CLI
+
+### Release ordering
+`runtime/go` must be tagged (e.g. `v0.10.0`) with the descriptor + `mvep/cli`
+types, and `toolkit/go.mod` bumped to it, **before** a toolkit release ships
+the `runtime` CLI default. The generated `main.go` imports `mvep/cli`, which
+does not exist in the published `runtime/go v0.9.0`.
+
 ## [Unreleased] - 2026-07-31 (plan 020, #21)
 
 ### Added

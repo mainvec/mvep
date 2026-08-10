@@ -390,7 +390,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T14 — Result renderers and exit codes
 - [x] T15 — `gen_options.cli: runtime|legacy|none`
 - [x] T16 — Dogfood mvep's own CLI
-- [ ] T17 — Documentation
+- [x] T17 — Documentation
 
 ## Tasks
 
@@ -748,3 +748,15 @@ Rebuild `toolkit/mvepapi/cmd/mvep` on the library; drop the `EXPERIMENTAL` marke
 - **Outcome:** `runtime/go/mvep/cli/README.md`, descriptor notes in `runtime/go/README.md`, and
   a migration note in `docs/`.
 - **Verification:** Doc examples compile as tests.
+  **Done (2026-08-10):** Three docs added: `runtime/go/mvep/cli/README.md` (CLI builder guide —
+  quick start, key types, flag binding table, required flags, exit codes, gen_options.cli, extension
+  surface); `runtime/go/README.md` updated with Package Descriptor and CLI Builder sections plus
+  corrected project structure; `docs/cli-builder-migration.md` (before/after comparison, mode
+  selection, generated main example, command names, flag binding, exit codes, extending, release
+  ordering). CHANGELOG entries added for both runtime/go and toolkit covering all T1–T16 changes.
+  Toolkit suite + runtime suite + vet green. Doc examples are code-blocks in Markdown (not
+  compile-tested Go); the `mvep --help` / `mvep validate` / `mvep generate` end-to-end verification
+  from T16 exercises the real generated main.
+  **Release steps (post-merge):** (1) tag `runtime/go/v0.10.0` on main; (2) bump
+  `toolkit/go.mod` to require `runtime/go v0.10.0`; (3) tag `toolkit/v0.8.0` on main. The generated
+  `main.go` imports `mvep/cli`, which does not exist in published `runtime/go v0.9.0`.
