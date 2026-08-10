@@ -384,7 +384,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T8 — `cli.New` and `App.Run`
 - [x] T9 — Flag binding via `FieldDesc.Ptr`
 - [x] T10 — Required flags
-- [ ] T11 — Deterministic command and flag ordering
+- [x] T11 — Deterministic command and flag ordering
 - [ ] T12 — Global flags, custom subcommands, overrides
 - [ ] T13 — Pre/post execution hooks
 - [ ] T14 — Result renderers and exit codes
@@ -626,6 +626,16 @@ Honour `FieldDesc.Required`; enforce in `cli`, not ugo.
 - **Outcome:** `--help` is byte-identical across runs.
 - **Verification:** Golden-file test run repeatedly within one process.
 - **Notes:** Guards against the `omap` nondeterminism described above.
+  **Done (2026-08-10):** No production change needed — ordering is deterministic by construction:
+  the descriptor uses ordered slices (T1), `cli.New` walks `desc.Commands` in slice order, and
+  ugo's help iterates commands in `AddCommand` order (declaration order). ugo's flag help uses the
+  stdlib `flag.FlagSet.VisitAll`, which sorts flags lexically — a deterministic, stable order
+  (not fnum order; fnum order is preserved in codegen emission via `SortFieldsByFnum` in T3 and in
+  the binding via `bindFlags` walking Fields in slice order in T9). Tests: `TestHelpIsByteStable`
+  runs root --help and subcommand --help 10 times each within one process and asserts byte-
+  identical output; `TestCommandsListedInDeclarationOrder` asserts EchoCmd appears before PingCmd
+  in root help (declaration order); `TestFlagsListedInHelp` asserts both flags appear in
+  subcommand help. Runtime suite + vet green.
 
 ### T12 — Global flags, custom subcommands, overrides
 
