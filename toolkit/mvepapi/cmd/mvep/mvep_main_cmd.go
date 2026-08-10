@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"os"
 
-	api "github.com/mainvec/mvep/toolkit/mvepapi/api"
-	mvep "github.com/mainvec/mvep/toolkit/mvepapi"
 	mveccli "github.com/mainvec/mvep/runtime/go/mvep/cli"
+	mvep "github.com/mainvec/mvep/toolkit/mvepapi"
+	api "github.com/mainvec/mvep/toolkit/mvepapi/api"
 )
 
 func main() {
