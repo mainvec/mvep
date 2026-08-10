@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/mainvec/mvep/runtime/go/mvep"
@@ -253,23 +254,26 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDe
 	}
 
 	// Depth-1 flattening: register --<name>-<subField> for each record field.
+	// Each sub-field is registered with the appropriate FlagSet helper based
+	// on its FieldType, not as a blanket StringVar — so bool fields get
+	// BoolVar (no argument needed), int fields get Int32Var, etc. The parsed
+	// values are encoded as json.RawMessage per FieldType so the unmarshal
+	// into the record struct uses the right JSON type (#36).
 	type subBinding struct {
-		fieldName string
-		strVal    *string
+		field  *mvep.FieldDesc
+		rawVal func() json.RawMessage // returns the JSON-encoded value
+		isSet  func() bool
 	}
 	var subs []subBinding
 	for i := range refFields {
 		rf := &refFields[i]
-		p := new(string)
-		flagName := f.Name + "-" + rf.Name
-		fs.StringVar(p, flagName, "", rf.Desc)
-		subs = append(subs, subBinding{fieldName: rf.Name, strVal: p})
+		subs = append(subs, registerSubFieldFlag(fs, f.Name, rf))
 	}
 
 	return flagBinding{field: f, apply: func(cmd any) error {
 		anySet := false
 		for _, s := range subs {
-			if *s.strVal != "" {
+			if s.isSet() {
 				anySet = true
 				break
 			}
@@ -277,13 +281,14 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDe
 		if !anySet {
 			return nil
 		}
-		// Build a JSON object from the sub-field values and unmarshal into
+		// Build a JSON object with per-field typed values and unmarshal into
 		// the target (Ptr returns **Record; json.Unmarshal handles nil
-		// pointer construction).
-		obj := make(map[string]string, len(subs))
+		// pointer construction). Using json.RawMessage avoids the #36 bug
+		// where all values were JSON strings.
+		obj := make(map[string]json.RawMessage, len(subs))
 		for _, s := range subs {
-			if *s.strVal != "" {
-				obj[s.fieldName] = *s.strVal
+			if s.isSet() {
+				obj[s.field.Name] = s.rawVal()
 			}
 		}
 		jsonBytes, _ := json.Marshal(obj)
@@ -294,7 +299,95 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDe
 	}}
 }
 
-// applyBindings writes the parsed flag values into the command struct via the
+// registerSubFieldFlag registers a single depth-1 record sub-field flag with the
+// appropriate FlagSet helper based on the field's FieldType. It returns closures
+// for reading the parsed value as json.RawMessage (so the JSON object built for
+// unmarshal uses the right type per field — #36) and checking whether the flag
+// was set.
+func registerSubFieldFlag(fs *cli.FlagSet, parentName string, rf *mvep.FieldDesc) struct {
+	field  *mvep.FieldDesc
+	rawVal func() json.RawMessage
+	isSet  func() bool
+} {
+	flagName := parentName + "-" + rf.Name
+	result := struct {
+		field  *mvep.FieldDesc
+		rawVal func() json.RawMessage
+		isSet  func() bool
+	}{field: rf}
+
+	switch rf.Type {
+	case mvep.FieldString, mvep.FieldUUID, mvep.FieldTimestamp, mvep.FieldBytes:
+		p := new(string)
+		fs.StringVar(p, flagName, "", rf.Desc)
+		result.isSet = func() bool { return *p != "" }
+		result.rawVal = func() json.RawMessage { return encodeJSONString(*p) }
+	case mvep.FieldBool:
+		p := new(bool)
+		fs.BoolVar(p, flagName, false, rf.Desc)
+		result.isSet = func() bool { return *p }
+		result.rawVal = func() json.RawMessage {
+			if *p {
+				return json.RawMessage("true")
+			}
+			return json.RawMessage("false")
+		}
+	case mvep.FieldInt32, mvep.FieldSint32:
+		p := new(int32)
+		fs.Int32Var(p, flagName, 0, rf.Desc)
+		result.isSet = func() bool { return *p != 0 }
+		result.rawVal = func() json.RawMessage { return encodeJSONNumber(int64(*p)) }
+	case mvep.FieldInt64:
+		p := new(int64)
+		fs.Int64Var(p, flagName, 0, rf.Desc)
+		result.isSet = func() bool { return *p != 0 }
+		result.rawVal = func() json.RawMessage { return encodeJSONNumber(*p) }
+	case mvep.FieldUint32:
+		p := new(uint32)
+		Uint32Var(fs, p, flagName, 0, rf.Desc)
+		result.isSet = func() bool { return *p != 0 }
+		result.rawVal = func() json.RawMessage { return encodeJSONNumber(int64(*p)) }
+	case mvep.FieldFloat:
+		p := new(float32)
+		Float32Var(fs, p, flagName, 0, rf.Desc)
+		result.isSet = func() bool { return *p != 0 }
+		result.rawVal = func() json.RawMessage { return encodeJSONFloat(float64(*p)) }
+	case mvep.FieldDouble:
+		p := new(float64)
+		fs.Float64Var(p, flagName, 0, rf.Desc)
+		result.isSet = func() bool { return *p != 0 }
+		result.rawVal = func() json.RawMessage { return encodeJSONFloat(*p) }
+	case mvep.FieldDuration:
+		p := new(string)
+		fs.StringVar(p, flagName, "", rf.Desc)
+		result.isSet = func() bool { return *p != "" }
+		result.rawVal = func() json.RawMessage { return encodeJSONString(*p) }
+	default:
+		// Fallback: treat as string.
+		p := new(string)
+		fs.StringVar(p, flagName, "", rf.Desc)
+		result.isSet = func() bool { return *p != "" }
+		result.rawVal = func() json.RawMessage { return encodeJSONString(*p) }
+	}
+	return result
+}
+
+// encodeJSONString returns a JSON-encoded string literal.
+func encodeJSONString(s string) json.RawMessage {
+	b, _ := json.Marshal(s)
+	return b
+}
+
+// encodeJSONNumber returns a JSON-encoded integer.
+func encodeJSONNumber(n int64) json.RawMessage {
+	return json.RawMessage(strconv.FormatInt(n, 10))
+}
+
+// encodeJSONFloat returns a JSON-encoded float.
+func encodeJSONFloat(f float64) json.RawMessage {
+	return json.RawMessage(strconv.FormatFloat(f, 'g', -1, 64))
+}
+
 // FieldDesc.Ptr accessors. Returns the first error encountered (e.g. invalid
 // JSON for a --*-json flag); remaining bindings are still applied.
 func applyBindings(cmd any, bindings []flagBinding) error {
