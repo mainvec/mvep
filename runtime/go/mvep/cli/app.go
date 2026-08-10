@@ -35,6 +35,9 @@ type App struct {
 	// rendering. The command still completes (the error propagates). Hooks
 	// run in registration order.
 	postHooks []PostHook
+	// renderer renders the result to stdout. Defaults to defaultRenderer;
+	// swapped via SetRenderer (T14).
+	renderer Renderer
 }
 
 // PreHook runs before the executor dispatches a command. Returning an error
@@ -64,6 +67,7 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 		desc:     desc,
 		executor: executor,
 		commands: make(map[string]*mvep.CommandDesc, len(desc.Commands)),
+		renderer: defaultRenderer,
 	}
 
 	root := &cli.Command{
@@ -172,10 +176,10 @@ func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings [
 		return err
 	}
 
-	// T14 will add result rendering. For now, print a simple representation
-	// so the caller can see the command ran.
+	// Render the result (T14). The renderer writes to the command's stdout
+	// (the ugo Context implements io.Writer).
 	if result != nil {
-		fmt.Fprintln(ctx, result)
+		a.renderer(ctx, result)
 	}
 	return nil
 }

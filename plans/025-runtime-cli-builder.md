@@ -387,7 +387,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T11 — Deterministic command and flag ordering
 - [x] T12 — Global flags, custom subcommands, overrides
 - [x] T13 — Pre/post execution hooks
-- [ ] T14 — Result renderers and exit codes
+- [x] T14 — Result renderers and exit codes
 - [ ] T15 — `gen_options.cli: runtime|legacy|none`
 - [ ] T16 — Dogfood mvep's own CLI
 - [ ] T17 — Documentation
@@ -678,6 +678,21 @@ rejections, unknown command names); the common in-command failure lands in class
 - **Outcome:** Results are printed instead of discarded; failures are scriptable.
 - **Verification:** Renderer and exit-code table tests.
 - **Notes:** Fixes two concrete `go_cli_main.txt` defects.
+  **Done (2026-08-10):** `Renderer` type (`func(w io.Writer, result any)`) and `App.SetRenderer` added in
+  renderer.go. The default renderer (`defaultRenderer`) prints the result via `fmt.Fprintln`, giving
+  a human-readable representation for struct types. The implementor swaps the renderer (e.g. to JSON
+  via `encoding/json.Marshal`) and drives the switch with a `--output` persistent flag they add via
+  `App.Root().PersistentFlags()` (T12). `ExitCode(err) int` maps errors to process exit codes by
+  class: 0 success; 2 usage (required-flag errors from T10, detected by string match on
+  "required flag"); 3 not-found (`http_404`); 4 auth (`http_401`/`http_403`); 1 all other. The
+  classification keys on `*cli.ErrorCode.Code` (T7), which carries `http_<status>` from the wire
+  (the T7 discovery — the transport sets `http_<status>`, not the semantic code; T14 works with
+  what the wire provides). Tests: exit code table (success/required/execution-error/http_404/
+  http_401/http_403/http_500); default text renderer prints result; JSON renderer marshals result
+  via custom `SetRenderer` + `--output=json`. Runtime suite + vet green.
+  **Open note:** the `executeCmd`-collapses-runner-errors-to-`command_error` wrinkle from the plan
+  is documented in `ExitCode`'s doc comment. Classes 3 and 4 surface only for pre-dispatch failures
+  (interceptor rejections, unknown command names); the common in-command failure lands in class 1.
 
 ### T15 — `gen_options.cli: runtime|legacy|none`
 
