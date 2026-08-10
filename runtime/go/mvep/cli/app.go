@@ -27,7 +27,33 @@ type App struct {
 	// commandName maps a ugo command's Name() to the descriptor CommandDesc
 	// that produced it, so RunE can look up the New() closure and fields.
 	commands map[string]*mvep.CommandDesc
+	// preHooks run after flag binding + required check, before the executor.
+	// A pre-hook returning an error aborts execution. Hooks run in
+	// registration order. Use for auth, logging, metrics (T13).
+	preHooks []PreHook
+	// postHooks run after the executor, receiving the result and error, before
+	// rendering. The command still completes (the error propagates). Hooks
+	// run in registration order.
+	postHooks []PostHook
 }
+
+// PreHook runs before the executor dispatches a command. Returning an error
+// aborts execution — the executor is NOT called. Use for auth checks, input
+// validation, or logging.
+type PreHook func(ctx *cli.Context, cmd any) error
+
+// PostHook runs after the executor returns, receiving the result and any
+// error. The command's error (if any) propagates to the caller regardless of
+// what the post-hook does. Use for logging, metrics, or result inspection.
+type PostHook func(ctx *cli.Context, cmd, result any, err error)
+
+// AddPreHook registers a hook that runs before the executor. Hooks run in
+// registration order. A pre-hook returning an error aborts execution.
+func (a *App) AddPreHook(h PreHook) { a.preHooks = append(a.preHooks, h) }
+
+// AddPostHook registers a hook that runs after the executor, receiving the
+// result and error. Hooks run in registration order.
+func (a *App) AddPostHook(h PostHook) { a.postHooks = append(a.postHooks, h) }
 
 // New builds a CLI app from a package descriptor and an executor. Every
 // CommandDesc becomes a ugo subcommand under the root. Flag binding (T9),
@@ -125,7 +151,23 @@ func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings [
 		return err
 	}
 
+	// Pre-hooks (T13): run in registration order before the executor. A
+	// pre-hook returning an error aborts — the executor is NOT called.
+	for _, h := range a.preHooks {
+		if err := h(ctx, cmd); err != nil {
+			return err
+		}
+	}
+
 	result, err := a.executor.Run(ctx, cmd)
+
+	// Post-hooks (T13): run after the executor, receiving the result and any
+	// error, before rendering. The error propagates regardless of what the
+	// post-hook does.
+	for _, h := range a.postHooks {
+		h(ctx, cmd, result, err)
+	}
+
 	if err != nil {
 		return err
 	}

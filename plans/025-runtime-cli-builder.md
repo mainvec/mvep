@@ -386,7 +386,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T10 — Required flags
 - [x] T11 — Deterministic command and flag ordering
 - [x] T12 — Global flags, custom subcommands, overrides
-- [ ] T13 — Pre/post execution hooks
+- [x] T13 — Pre/post execution hooks
 - [ ] T14 — Result renderers and exit codes
 - [ ] T15 — `gen_options.cli: runtime|legacy|none`
 - [ ] T16 — Dogfood mvep's own CLI
@@ -654,6 +654,15 @@ Honour `FieldDesc.Required`; enforce in `cli`, not ugo.
 
 - **Outcome:** Auth, logging and metrics can wrap execution.
 - **Verification:** Hook order asserted; a pre-hook error aborts execution.
+  **Done (2026-08-10):** `PreHook` and `PostHook` function types added to app.go, with
+  `App.AddPreHook` / `App.AddPostHook` registration methods. Pre-hooks run after flag binding
+  + required check and before the executor, in registration order; a pre-hook returning an error
+  aborts — the executor is NOT called. Post-hooks run after the executor, receiving the result and
+  any error, before rendering; the error propagates regardless of what the post-hook does. Tests:
+  pre-hook runs before executor (receives same command struct); pre-hook error aborts (executor
+  not called); post-hook runs after executor (receives result + nil error); post-hook receives
+  executor error; hook order (pre1, pre2, post1, post2 in registration order). Runtime suite + vet
+  green.
 
 ### T14 — Result renderers and exit codes
 
