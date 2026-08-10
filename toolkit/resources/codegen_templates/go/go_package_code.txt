@@ -2,6 +2,7 @@
 {{- $SRVNAME := .SRVNAME }}
 {{- $NS := .NS }}
 {{- $PKG := print .NAME "Package"}}
+{{- $SPEC := .SPEC }}
 package api
 
 import (
@@ -10,39 +11,111 @@ import (
 	"github.com/mainvec/mvep/runtime/go/mvep"
 )
 
-var _ mvep.Package = &{{$PKG}}{}
 var _ mvep.CommandRunner = &PkgCommandRunner{}
 
-
-{{range $name, $v :=  .CMDS }} 
+{{range $name, $v :=  .CMDS }}
 type {{$name}}Handler func(context.Context, *{{$name}}) (*{{$name}}Result, error)
 {{- end }}
 
-
-type {{$PKG}} struct {
+// pkgDesc is the complete runtime descriptor for this package, emitted by
+// codegen from the same run that produced the command structs. NewPackage and
+// the exported InstanceOf / NameOf are derived from it.
+var pkgDesc = mvep.PackageDesc{
+	Name:        {{ GoStringLit .NAME }},
+	Namespace:   {{ GoStringLit $NS }},
+	Title:       {{ GoStringLit $SPEC.Title }},
+	Desc:        {{ GoStringLit $SPEC.Desc }},
+	Base:        {{ GoStringLit .BASE }},
+	SpecVersion: {{ GoStringLit $SPEC.Version }},
+	Commands: []mvep.CommandDesc{
+{{- range $cmdName := SortedCommandNames .CMDS }}
+{{- $cmd := index $.CMDS $cmdName }}
+		{
+			Name:  {{ GoStringLit $cmdName }},
+			Alias: {{ GoStringLit $cmd.Alias }},
+			Desc:  {{ GoStringLit (CmdDescOrTitle $cmd.Desc $cmd.Title) }},
+			New:   func() any { return &{{ $cmdName }}{} },
+			Fields: []mvep.FieldDesc{
+{{- range $nf := SortFieldsByFnum $cmd.Fields }}
+{{- $f := $nf.Field }}
+				{
+					Name: {{ GoStringLit $nf.Name }}, Alias: {{ GoStringLit $f.Alias }}, Desc: {{ GoStringLit $f.Desc }},
+					Fnum: {{ $f.Fnum }}, Type: mvep.{{ GoFieldTypeEnum $f }},
+					Repeated: {{ $f.Repeated }}, Required: {{ FieldIsRequired $f }},
+					Tags: {{ GoStringSliceLit $f.Tags }},
+					Ptr: func(c any) any { return &c.(*{{ $cmdName }}).{{ ToCamel $nf.Name }} },
+{{- if eq $f.Type "recRef" }}
+					Ref: &mvep.RecordDesc{Name: {{ GoStringLit (RecRefName $f.RecRef) }}},
+{{- end }}
+				},
+{{- end }}
+			},
+			Result: &mvep.ResultDesc{
+				Name: {{ GoStringLit (print $cmdName "Result") }},
+				New:  func() any { return &{{ $cmdName }}Result{} },
+				Fields: []mvep.FieldDesc{
+{{- range $nf := SortFieldsByFnum $cmd.ResultFields }}
+{{- $f := $nf.Field }}
+					{
+						Name: {{ GoStringLit $nf.Name }}, Alias: {{ GoStringLit $f.Alias }}, Desc: {{ GoStringLit $f.Desc }},
+						Fnum: {{ $f.Fnum }}, Type: mvep.{{ GoFieldTypeEnum $f }},
+						Repeated: {{ $f.Repeated }}, Required: {{ FieldIsRequired $f }},
+						Tags: {{ GoStringSliceLit $f.Tags }},
+						Ptr: func(r any) any { return &r.(*{{ $cmdName }}Result).{{ ToCamel $nf.Name }} },
+{{- if eq $f.Type "recRef" }}
+						Ref: &mvep.RecordDesc{Name: {{ GoStringLit (RecRefName $f.RecRef) }}},
+{{- end }}
+					},
+{{- end }}
+				},
+			},
+		},
+{{- end }}
+	},
+	Records: []mvep.RecordDesc{
+{{- range $recName := SortedRecordNames $SPEC.Records }}
+{{- $rec := index $SPEC.Records $recName }}
+		{
+			Name: {{ GoStringLit $recName }},
+			Fields: []mvep.FieldDesc{
+{{- range $nf := SortFieldsByFnum $rec.Fields }}
+{{- $f := $nf.Field }}
+				{
+					Name: {{ GoStringLit $nf.Name }}, Alias: {{ GoStringLit $f.Alias }}, Desc: {{ GoStringLit $f.Desc }},
+					Fnum: {{ $f.Fnum }}, Type: mvep.{{ GoFieldTypeEnum $f }},
+					Repeated: {{ $f.Repeated }}, Required: {{ FieldIsRequired $f }},
+					Tags: {{ GoStringSliceLit $f.Tags }},
+					Ptr: func(r any) any { return &r.(*{{ $recName }}).{{ ToCamel $nf.Name }} },
+{{- if eq $f.Type "recRef" }}
+					Ref: &mvep.RecordDesc{Name: {{ GoStringLit (RecRefName $f.RecRef) }}},
+{{- end }}
+				},
+{{- end }}
+			},
+		},
+{{- end }}
+	},
 }
 
+// pkg is the single derived Package for this descriptor. The derived package
+// is immutable after construction, so it is built once and shared by
+// NewPackage and the exported delegators rather than rebuilt on every call.
+var pkg = mvep.NewPackageFromDesc(&pkgDesc)
+
 func NewPackage() mvep.Package {
-	return &{{$PKG}}{}
+	return pkg
+}
+
+// Describe returns the package descriptor.
+func Describe() *mvep.PackageDesc {
+	return &pkgDesc
 }
 
 
 type PkgCommandRunner struct {
-{{range $name, $v :=  .CMDS }} 
-	Run{{$name}} {{$name}}Handler	
+{{range $name, $v :=  .CMDS }}
+	Run{{$name}} {{$name}}Handler
 {{- end }}
-}
-
-func (p *{{$PKG}}) GetName() string {
-	return "{{$PKG}}" 
-}
-
-func (p *{{$PKG}}) InstanceOf(compName string) (any, bool) {
-	return InstanceOf(compName)
-}
-
-func (p *{{$PKG}}) NameOf(comp any) string {
-	return NameOf(comp)
 }
 
 func NewCommandRunner() *PkgCommandRunner {
@@ -60,29 +133,13 @@ func (r *PkgCommandRunner) RunCmd(ctx context.Context, cmd any) (any, error) {
 }
 
 
+// InstanceOf constructs a command or result by name, derived from pkgDesc.
 func InstanceOf(compName string) (any, bool) {
-	switch compName {
-{{range $name, $v :=  .CMDS }} 
-	case "{{$name}}":
-		return &{{$name}}{},true
-	case "{{$name}}Result":
-		return &{{$name}}Result{},true
-{{- end }}
-	default:
-		return nil,false
-	}
+	return pkg.InstanceOf(compName)
 }
 
+// NameOf returns the name of a command or result, derived from pkgDesc.
 func NameOf(comp any) string {
-	switch comp.(type) {
-{{range $name, $v :=  .CMDS }} 
-	case *{{$name}}:
-		return "{{$name}}"
-	case *{{$name}}Result:
-		return "{{$name}}Result"
-{{- end }}
-	default:
-		return ""
-	}
+	return pkg.NameOf(comp)
 }
 

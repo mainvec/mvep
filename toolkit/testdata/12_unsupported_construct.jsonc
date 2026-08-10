@@ -1,0 +1,25 @@
+{
+	"$id": "test12Unsupported",
+	"$schema": "resources/mvepspec/0.2/schema/2026-01-15",
+	"name": "test12",
+	"namespace": "test12ns",
+	"title": "Unsupported construct for descriptor emission",
+	"desc": "Negative fixture for plan 025 T5: an inline 'record' field type is not representable in the runtime descriptor and must fail generation with an error naming the command and field.",
+	"version": "0.2",
+	"commands": {
+		"BadCmd": {
+			"title": "Command with an unrepresentable field",
+			"fields": {
+				"inlineRec": { "fnum": 1, "type": "record", "recordDefName": "Thing" }
+			}
+		}
+	},
+	"recordsDefs": {
+		"Thing": {
+			"name": "Thing",
+			"fields": {
+				"x": { "fnum": 1, "type": "string" }
+			}
+		}
+	}
+}

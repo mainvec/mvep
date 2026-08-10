@@ -6,6 +6,8 @@ A Go library for building MVEP (MainVec Package) servers and clients with HTTP/U
 
 - **Server**: Create MVEP package servers with HTTP or Unix socket transports
 - **Client Library**: Connect to MVEP servers with automatic command encoding/decoding
+- **Package Descriptor**: A complete runtime description of a generated package (commands, fields, results, types, tags, order) emitted by codegen into `mvep_package.go`
+- **CLI Builder**: A descriptor-driven CLI library (`mvep/cli`) that builds a ugo command tree, binds flags to struct fields, and dispatches locally or remotely — see [mvep/cli/README.md](mvep/cli/README.md)
 - **Multiple Transports**: Support for HTTP, HTTPS, and Unix sockets
 - **Flexible Encoding**: Built-in support for JSON, Protocol Buffers, and custom encoders
 - **Request/Response Headers**: Pass authentication tokens, trace IDs, and custom metadata
@@ -361,10 +363,17 @@ Custom headers use the `x-mvep-` prefix. For example, `x-mvep-auth` becomes `aut
 
 ```
 runtime/go/
-├── mvp/
+├── mvep/
+│   ├── descriptor.go      # PackageDesc / CommandDesc / FieldDesc types
 │   ├── envelope.go        # CmdReq/CmdResp types for headers support
 │   ├── http_transport.go  # HTTP transport layer
-│   ├── mvpackge.go        # Package and handler interfaces
+│   ├── mvepackge.go       # Package and handler interfaces
+│   ├── cli/               # Descriptor-driven CLI builder (see cli/README.md)
+│   │   ├── app.go         # cli.New, App.Run, hooks, renderer
+│   │   ├── executor.go    # Executor interface, LocalExecutor, ErrorCode
+│   │   ├── flags.go       # Ptr-driven flag binding (all FieldTypes)
+│   │   ├── renderer.go    # ExitCode, Renderer, SetRenderer
+│   │   └── cliclient/     # RemoteExecutor (keeps cli free of client dep)
 │   ├── client/
 │   │   └── client.go      # Client implementation
 │   └── server/
@@ -376,6 +385,54 @@ runtime/go/
 └── test/
     └── api/               # Test API definitions
 ```
+
+## Package Descriptor
+
+Codegen emits a `mvep.PackageDesc` Go literal into every generated
+`mvep_package.go`, from the same `ExecuteGenerate` run that produces the
+command structs. The descriptor and structs are generated together, so they
+cannot disagree.
+
+Key types:
+
+- `PackageDesc` — name, namespace, title, desc, base, spec version, commands, records
+- `CommandDesc` — name, alias, desc, `New()` closure, fields, result
+- `FieldDesc` — name, alias, desc, fnum, type, repeated, required, tags, `Ptr` accessor, `Ref`
+- `RecordDesc` — name, fields (for `$ref` records)
+- `FieldType` — runtime-owned enum mirroring the spec's types (14 variants)
+
+`FieldDesc.Ptr` is a typed pointer accessor (`func(any) any`) that closes
+over a real struct field. If codegen emits a field that doesn't exist or a
+type that doesn't match, the generated package **fails to compile** — not a
+silent runtime drop. The same accessor serves binding (CLI), validation
+(zero-value test), and redaction (scrub).
+
+`mvep.NewPackageFromDesc(desc)` builds a `Package` from a descriptor,
+satisfying `Package`, `CommandLister`, and `PackageDescriber`. Generated
+`NewPackage()` delegates to it; the three hand-shaped switch statements
+(`InstanceOf`, `NameOf`, `CommandNames`) are derived rather than emitted.
+
+`PackageDesc.Record(name)` resolves a name-only `FieldDesc.Ref` to the full
+`RecordDesc` in `Records`, so CLI flag flattening (T9) can reach record fields
+without codegen duplicating them.
+
+The descriptor deliberately excludes build-time inputs (`GenOpts`,
+`ProtocOpts`) — it describes what a package *is* at runtime, not how it was
+*built*.
+
+## CLI Builder
+
+The `mvep/cli` package builds a descriptor-driven CLI on top of the package
+descriptor. See [mvep/cli/README.md](mvep/cli/README.md) for the full
+guide. In short:
+
+```go
+app := cli.New(api.Describe(), &cli.LocalExecutor{Runner: runner})
+err := app.Run(ctx)
+os.Exit(cli.ExitCode(err))
+```
+
+Codegen selects this path via `gen_options.cli: runtime` (the default).
 
 ## Examples
 

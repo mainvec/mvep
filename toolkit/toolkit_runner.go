@@ -156,6 +156,13 @@ func executeGenerateJS(srvDef *SrvDef, outdir string, format string) error {
 }
 
 func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format string, skipCmd bool) error {
+	// T5: fail fast on constructs the runtime descriptor cannot represent,
+	// before any template executes. The error names the offending command (or
+	// record) and field, rather than panicking deep in template execution.
+	if err := validateDescriptorRepresentable(srvDef); err != nil {
+		return err
+	}
+
 	goApiDir := filepath.Join(outdir, "api")
 	err := os.MkdirAll(goApiDir, dirPerm)
 	if err != nil {
@@ -221,35 +228,79 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 	}
 
 	if !skipCmd {
-		goMainCmdDir := filepath.Join(outdir, "cmd", srvDef.Name)
-		err = os.MkdirAll(goMainCmdDir, dirPerm)
-		if err != nil {
-			return fmt.Errorf("creating go main cmd dir %s: %w", goMainCmdDir, err)
+		// T15: CLI mode is a spec gen_option, read like the format genopt
+		// fallback. skipCmd=true forces "none" regardless of the genopt.
+		// Absent genopt → "runtime" (the default flipped from "legacy" in T15).
+		cliMode := "runtime"
+		if cliOpt, hasCliOpt := srvDef.GenOpts["cli"]; hasCliOpt {
+			cliMode = cliOpt
 		}
-		// cli main is protectable: honor NOMVEP/NOMVGEN/NOWOGEN markers so
-		// hand-customized entry points are not overwritten on regeneration.
-		gocliMainFile := filepath.Join(goMainCmdDir, srvDef.Name+"_main_cmd.go")
-		if allow, _ := isAllowMVGen(gocliMainFile); allow {
-			gocli, err := GenerateFromEmbeddTemplate(srvDef, "go_cli_main", "resources/codegen_templates/go/go_cli_main.txt")
+		switch cliMode {
+		case "none":
+			// No CLI main generated.
+		case "runtime":
+			// T15: build the CLI from the runtime descriptor via cli.New.
+			goMainCmdDir := filepath.Join(outdir, "cmd", srvDef.Name)
+			err = os.MkdirAll(goMainCmdDir, dirPerm)
 			if err != nil {
-				return fmt.Errorf("generating go cli: %w", err)
+				return fmt.Errorf("creating go main cmd dir %s: %w", goMainCmdDir, err)
 			}
-			err = os.WriteFile(gocliMainFile, formatGoSource(gocliMainFile, gocli), filePerm)
+			gocliMainFile := filepath.Join(goMainCmdDir, srvDef.Name+"_main_cmd.go")
+			if allow, _ := isAllowMVGen(gocliMainFile); allow {
+				gocli, err := GenerateFromEmbeddTemplate(srvDef, "go_cli_runtime_main", "resources/codegen_templates/go/go_cli_runtime_main.txt")
+				if err != nil {
+					return fmt.Errorf("generating go cli (runtime): %w", err)
+				}
+				err = os.WriteFile(gocliMainFile, formatGoSource(gocliMainFile, gocli), filePerm)
+				if err != nil {
+					return fmt.Errorf("writing go cli file %s: %w", gocliMainFile, err)
+				}
+			}
+			// version file is shared between legacy and runtime modes.
+			goVersionFile := filepath.Join(goMainCmdDir, srvDef.Name+"_version.go")
+			if allow, _ := isAllowMVGen(goVersionFile); allow {
+				goVersion, err := GenerateFromEmbeddTemplate(srvDef, "go_cli_version", "resources/codegen_templates/go/go_cli_version.txt")
+				if err != nil {
+					return fmt.Errorf("generating go cli version: %w", err)
+				}
+				err = os.WriteFile(goVersionFile, formatGoSource(goVersionFile, goVersion), filePerm)
+				if err != nil {
+					return fmt.Errorf("writing go cli version file %s: %w", goVersionFile, err)
+				}
+			}
+		default:
+			// "legacy" (and any unknown value): emit the existing
+			// go_cli_main.txt-based main.
+			goMainCmdDir := filepath.Join(outdir, "cmd", srvDef.Name)
+			err = os.MkdirAll(goMainCmdDir, dirPerm)
 			if err != nil {
-				return fmt.Errorf("writing go cli file %s: %w", gocliMainFile, err)
+				return fmt.Errorf("creating go main cmd dir %s: %w", goMainCmdDir, err)
 			}
-		}
+			// cli main is protectable: honor NOMVEP/NOMVGEN/NOWOGEN markers so
+			// hand-customized entry points are not overwritten on regeneration.
+			gocliMainFile := filepath.Join(goMainCmdDir, srvDef.Name+"_main_cmd.go")
+			if allow, _ := isAllowMVGen(gocliMainFile); allow {
+				gocli, err := GenerateFromEmbeddTemplate(srvDef, "go_cli_main", "resources/codegen_templates/go/go_cli_main.txt")
+				if err != nil {
+					return fmt.Errorf("generating go cli: %w", err)
+				}
+				err = os.WriteFile(gocliMainFile, formatGoSource(gocliMainFile, gocli), filePerm)
+				if err != nil {
+					return fmt.Errorf("writing go cli file %s: %w", gocliMainFile, err)
+				}
+			}
 
-		// generate version file (generate-once, protected by isAllowMVGen)
-		goVersionFile := filepath.Join(goMainCmdDir, srvDef.Name+"_version.go")
-		if allow, _ := isAllowMVGen(goVersionFile); allow {
-			goVersion, err := GenerateFromEmbeddTemplate(srvDef, "go_cli_version", "resources/codegen_templates/go/go_cli_version.txt")
-			if err != nil {
-				return fmt.Errorf("generating go cli version: %w", err)
-			}
-			err = os.WriteFile(goVersionFile, formatGoSource(goVersionFile, goVersion), filePerm)
-			if err != nil {
-				return fmt.Errorf("writing go cli version file %s: %w", goVersionFile, err)
+			// generate version file (generate-once, protected by isAllowMVGen)
+			goVersionFile := filepath.Join(goMainCmdDir, srvDef.Name+"_version.go")
+			if allow, _ := isAllowMVGen(goVersionFile); allow {
+				goVersion, err := GenerateFromEmbeddTemplate(srvDef, "go_cli_version", "resources/codegen_templates/go/go_cli_version.txt")
+				if err != nil {
+					return fmt.Errorf("generating go cli version: %w", err)
+				}
+				err = os.WriteFile(goVersionFile, formatGoSource(goVersionFile, goVersion), filePerm)
+				if err != nil {
+					return fmt.Errorf("writing go cli version file %s: %w", goVersionFile, err)
+				}
 			}
 		}
 	}
