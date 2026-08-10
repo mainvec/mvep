@@ -3,8 +3,6 @@ package cli
 import (
 	"bytes"
 	"context"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -124,32 +122,3 @@ func TestRecordFlatteningHelpShowsFields(t *testing.T) {
 		t.Errorf("help should list -addr-street flag (depth-1 flattening from Records); got:\n%s", out)
 	}
 }
-
-// TestRecordFlatteningFromCodegenOutput verifies #28 end-to-end: generate a
-// descriptor from fixture 06 (which has a recRef), build an App from the
-// generated *PackageDesc, and assert --addr-* flags exist. This is the test
-// the issue says would have caught the bug — it exercises the real codegen
-// output shape.
-func TestRecordFlatteningFromCodegenOutput(t *testing.T) {
-	// This test requires running mvep generate, which needs the toolkit
-	// module. It's skipped under -short to keep hermetic CI fast.
-	if testing.Short() {
-		t.Skip("requires toolkit codegen")
-	}
-
-	// We can't import toolkit from runtime/go tests (import cycle). Instead,
-	// we verify the contract by loading the generated package file from
-	// a prior generation and checking the descriptor shape. The real
-	// end-to-end test lives in toolkit's test suite.
-	//
-	// Here we just assert the runtime-side fix: a name-only Ref resolves
-	// via Records. The TestRecordFlatteningFromGeneratedDescriptor above
-	// covers this already; this test is a placeholder for the toolkit-side
-	// integration test that should generate from fixture 06 and verify
-	// the --addr-* flags appear in the built App's help.
-	t.Skip("toolkit-side integration test — see toolkit/cli_mode_test.go or descriptor tests")
-}
-
-// Ensure os and filepath imports are used (for future codegen integration).
-var _ = os.Stat
-var _ = filepath.Join
