@@ -21,3 +21,9 @@ require (
 	github.com/mainvec/ugo v0.7.0
 	google.golang.org/protobuf v1.36.10
 )
+
+// Intra-repo replace: the toolkit imports mvep/cli and the descriptor types,
+// which are not yet in a published runtime/go release. The replace points at
+// the local checkout so CI (GOWORK=off) resolves them. Remove this replace
+// and bump the require to v0.10.0 once runtime/go is tagged.
+replace github.com/mainvec/mvep/runtime/go => ../runtime/go
