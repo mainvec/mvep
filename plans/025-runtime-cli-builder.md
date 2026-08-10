@@ -382,7 +382,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T6 — ugo v0.7.0 bump; local `uint32` / `float32` flag values
 - [x] T7 — `Executor` interface, local and remote adapters
 - [x] T8 — `cli.New` and `App.Run`
-- [ ] T9 — Flag binding via `FieldDesc.Ptr`
+- [x] T9 — Flag binding via `FieldDesc.Ptr`
 - [ ] T10 — Required flags
 - [ ] T11 — Deterministic command and flag ordering
 - [ ] T12 — Global flags, custom subcommands, overrides
@@ -589,6 +589,18 @@ Type-switch on the accessor's dynamic type to select the `FlagSet` var helper.
 - **Notes:** Depends on T4 and T6. Flatten nested records to depth 1 (`--record-field`); maps and
   anything deeper get `--x-json` / `--x-file`. Depth 1 is deliberate — deeper nesting is a
   generate-time error per T5.
+  **Done (2026-08-10):** `flags.go` rewritten with the full Ptr-driven type-switch covering every
+  spec FieldType: string, bool, int32/sint32 (both *int32), int64, uint32 (T6's custom Uint32Var),
+  float32 (T6's custom Float32Var), float64, bytes (ugo BytesVar, base64), timestamp (custom
+  timeValue flag.Value, RFC3339), duration (ugo DurationVar), uuid (string flag +
+  encoding.TextUnmarshaler, no google/uuid dependency), map (JSON object via --<name>-json), and
+  $ref record (depth-1 flattening: each record field becomes --<name>-<subField>, constructed via
+  JSON unmarshal which handles nil pointer construction). Repeated string uses ugo StringSliceVar;
+  repeated non-string gets --<name>-json (JSON array). The binding does NOT mutate the shared
+  descriptor's Ptr — parsed values are held in per-execution closures and written back via Ptr
+  after parsing. Tests: one subtest per scalar type (all 11), repeated string accumulation, map
+  JSON binding, record depth-1 flattening. Runtime suite + vet green. Unblocks T10 (required
+  flags — the binding now knows which fields are Required), T11 (ordering).
 
 ### T10 — Required flags
 
