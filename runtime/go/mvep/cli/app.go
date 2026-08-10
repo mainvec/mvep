@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 
 	"github.com/mainvec/mvep/runtime/go/mvep"
@@ -107,13 +108,22 @@ func (a *App) RunWithIO(ctx context.Context, args []string, stdout, stderr io.Wr
 }
 
 // runCommand constructs the command struct, applies flag values via the Ptr
-// accessors, dispatches through the Executor, and renders the result.
+// accessors, enforces required flags, dispatches through the Executor, and
+// renders the result.
 func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings []flagBinding) error {
 	cmd := cmdDesc.New()
 
 	// Write the parsed flag values into the command struct via the descriptor's
 	// Ptr accessors. T9 owns the full type-switch.
 	applyBindings(cmd, bindings)
+
+	// Enforce required flags (T10): a required field left at its zero value
+	// after parsing is a usage error, not an execution error. Enforcement
+	// lives in cli, not ugo, so the behaviour is ours to define. The error
+	// names the missing flag so the caller can surface it and exit 2.
+	if err := checkRequired(cmdDesc, cmd); err != nil {
+		return err
+	}
 
 	result, err := a.executor.Run(ctx, cmd)
 	if err != nil {
@@ -126,6 +136,72 @@ func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings [
 		fmt.Fprintln(ctx, result)
 	}
 	return nil
+}
+
+// checkRequired returns an error naming the first required field whose value
+// is still the zero value of its type after flag parsing. A required field set
+// to its zero value intentionally (e.g. --count 0) is indistinguishable from a
+// missing flag; this is the standard CLI convention for required flags.
+func checkRequired(cmdDesc *mvep.CommandDesc, cmd any) error {
+	for i := range cmdDesc.Fields {
+		f := &cmdDesc.Fields[i]
+		if !f.Required {
+			continue
+		}
+		if isZeroValue(f.Ptr(cmd)) {
+			return fmt.Errorf("required flag --%s is missing", f.Name)
+		}
+	}
+	return nil
+}
+
+// isZeroValue reports whether v (a pointer returned by FieldDesc.Ptr) points
+// at the zero value of its type. It type-switches on the concrete pointer type
+// because Ptr returns any.
+func isZeroValue(v any) bool {
+	switch p := v.(type) {
+	case *string:
+		return *p == ""
+	case *bool:
+		return !*p
+	case *int32:
+		return *p == 0
+	case *int64:
+		return *p == 0
+	case *uint32:
+		return *p == 0
+	case *float32:
+		return *p == 0
+	case *float64:
+		return *p == 0
+	case *[]byte:
+		return len(*p) == 0
+	case *[]string:
+		return len(*p) == 0
+	case *map[string]string:
+		return len(*p) == 0
+	default:
+		// For pointer-to-struct fields (records) and types we can't probe
+		// (time.Time, uuid.UUID), fall back to reflect. A nil pointer or a
+		// zero struct is treated as missing.
+		return isZeroReflect(v)
+	}
+}
+
+// isZeroReflect uses reflect to test whether v points at a zero value for
+// types not handled by the isZeroValue type-switch (time.Time, uuid.UUID,
+// pointer-to-struct records). Ptr returns a pointer, so we deref one level.
+func isZeroReflect(v any) bool {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Ptr {
+		return true
+	}
+	elem := rv.Elem()
+	if elem.Kind() == reflect.Ptr {
+		// **Record: zero if the inner pointer is nil.
+		return elem.IsNil()
+	}
+	return elem.IsZero()
 }
 
 // commandName converts a CommandDesc name to the CLI subcommand name. The

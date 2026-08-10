@@ -383,7 +383,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T7 — `Executor` interface, local and remote adapters
 - [x] T8 — `cli.New` and `App.Run`
 - [x] T9 — Flag binding via `FieldDesc.Ptr`
-- [ ] T10 — Required flags
+- [x] T10 — Required flags
 - [ ] T11 — Deterministic command and flag ordering
 - [ ] T12 — Global flags, custom subcommands, overrides
 - [ ] T13 — Pre/post execution hooks
@@ -609,6 +609,17 @@ Honour `FieldDesc.Required`; enforce in `cli`, not ugo.
 - **Outcome:** A missing required flag produces a usage error and exit code 2.
 - **Verification:** Test asserts both message and exit code.
 - **Notes:** Depends on T6.
+  **Done (2026-08-10):** `checkRequired` in app.go runs after `applyBindings` and before
+  dispatch: it walks `CommandDesc.Fields` and returns `"required flag --<name> is missing"` for
+  the first `Required` field whose value is still the zero value of its type. Enforcement
+  lives in `cli`, not ugo, so the behaviour is ours to define. `isZeroValue` type-switches on the
+  Ptr return type for scalars/slices/maps and falls back to `reflect.IsZero` for pointer-to-struct
+  records and non-probeable types (time.Time, uuid.UUID). A required field set to its zero value
+  intentionally (--count 0) is indistinguishable from missing — the standard CLI convention. The
+  executor is NOT called when a required flag is missing. Tests: missing required string flag,
+  provided required string flag, missing required int32 flag, provided required int32 flag.
+  Runtime suite + vet green. Exit-code 2 mapping is T14's job (this returns the error; the caller
+  sets the exit code).
 
 ### T11 — Deterministic command and flag ordering
 
