@@ -101,7 +101,7 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 		// call), because ugo parses flags against the command's FlagSet which
 		// is created on first Flags() call. We register flags eagerly so the
 		// same FlagSet and its parsed values are reused.
-		bindings := bindFlags(sub.Flags(), cmdDesc)
+		bindings := bindFlags(sub.Flags(), cmdDesc, desc)
 		sub.RunE = func(ctx *cli.Context, args []string) error {
 			return app.runCommand(ctx, cmdDesc, bindings)
 		}

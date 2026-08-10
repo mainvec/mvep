@@ -28,11 +28,15 @@ type flagBinding struct {
 // The type-switch keys on FieldType plus the Repeated flag, because FieldType
 // alone cannot distinguish FieldSint32 from FieldInt32 (both return *int32)
 // or FieldString repeated from FieldString scalar.
-func bindFlags(fs *cli.FlagSet, cmdDesc *mvep.CommandDesc) []flagBinding {
+//
+// desc is the owning PackageDesc, needed to resolve name-only FieldDesc.Ref
+// to the full RecordDesc in Records (codegen emits Ref name-only to avoid
+// field duplication; see #28).
+func bindFlags(fs *cli.FlagSet, cmdDesc *mvep.CommandDesc, desc *mvep.PackageDesc) []flagBinding {
 	var bindings []flagBinding
 	for i := range cmdDesc.Fields {
 		f := &cmdDesc.Fields[i]
-		bindings = append(bindings, registerFlag(fs, f))
+		bindings = append(bindings, registerFlag(fs, f, desc))
 	}
 	return bindings
 }
@@ -40,9 +44,9 @@ func bindFlags(fs *cli.FlagSet, cmdDesc *mvep.CommandDesc) []flagBinding {
 // registerFlag registers a single flag for a field, type-switching on the
 // FieldType (and Repeated) to select the right FlagSet var helper. This is the
 // T9 full binding covering every spec FieldType.
-func registerFlag(fs *cli.FlagSet, f *mvep.FieldDesc) flagBinding {
+func registerFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDesc) flagBinding {
 	if f.Repeated {
-		return registerRepeatedFlag(fs, f)
+		return registerRepeatedFlag(fs, f, desc)
 	}
 
 	switch f.Type {
@@ -156,7 +160,7 @@ func registerFlag(fs *cli.FlagSet, f *mvep.FieldDesc) flagBinding {
 	case mvep.FieldRecord:
 		// Records flatten to depth 1: each record field becomes
 		// --<name>-<field> and the record struct is constructed and filled.
-		return registerRecordFlag(fs, f)
+		return registerRecordFlag(fs, f, desc)
 	default:
 		// An unhandled type is a generate-time bug (T5 catches it at codegen).
 		// Register a string placeholder so the parser doesn't reject the flag.
@@ -167,7 +171,7 @@ func registerFlag(fs *cli.FlagSet, f *mvep.FieldDesc) flagBinding {
 }
 
 // registerRepeatedFlag handles repeated fields, which produce slice types.
-func registerRepeatedFlag(fs *cli.FlagSet, f *mvep.FieldDesc) flagBinding {
+func registerRepeatedFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDesc) flagBinding {
 	switch f.Type {
 	case mvep.FieldString:
 		p := new([]string)
@@ -195,8 +199,22 @@ func registerRepeatedFlag(fs *cli.FlagSet, f *mvep.FieldDesc) flagBinding {
 // field becomes --<name>-<subField>; the record struct is constructed and
 // filled after parsing via JSON unmarshal (which handles nil pointer
 // construction).
-func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc) flagBinding {
-	if f.Ref == nil || len(f.Ref.Fields) == 0 {
+//
+// Codegen emits Ref name-only (Ref.Fields is empty) to avoid duplicating field
+// data; the full fields live in PackageDesc.Records. When Ref.Fields is empty,
+// the record is resolved via desc.Record(Ref.Name) (#28). If the record is not
+// found, the flag falls back to --<name>-json.
+func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDesc) flagBinding {
+	// Resolve the record fields. Codegen emits Ref name-only; the full fields
+	// are in PackageDesc.Records, resolvable via Record(name).
+	refFields := f.Ref.Fields
+	if len(refFields) == 0 && f.Ref != nil && desc != nil {
+		if rec, ok := desc.Record(f.Ref.Name); ok {
+			refFields = rec.Fields
+		}
+	}
+
+	if len(refFields) == 0 {
 		// No record fields to flatten; bind as a JSON object via --<name>-json.
 		p := new(string)
 		fs.StringVar(p, f.Name+"-json", "", f.Desc+" (JSON object)")
@@ -215,8 +233,8 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc) flagBinding {
 		strVal    *string
 	}
 	var subs []subBinding
-	for i := range f.Ref.Fields {
-		rf := &f.Ref.Fields[i]
+	for i := range refFields {
+		rf := &refFields[i]
 		p := new(string)
 		flagName := f.Name + "-" + rf.Name
 		fs.StringVar(p, flagName, "", rf.Desc)
