@@ -166,8 +166,7 @@ func (p *descPackage) InstanceOf(compName string) (any, bool) {
 }
 
 func (p *descPackage) NameOf(comp any) string {
-	name, _ := p.nameByType[reflect.TypeOf(comp)]
-	return name
+	return p.nameByType[reflect.TypeOf(comp)]
 }
 
 func (p *descPackage) CommandNames() []string {
@@ -176,4 +175,9 @@ func (p *descPackage) CommandNames() []string {
 	return out
 }
 
+// Describe returns the package descriptor. The returned *PackageDesc shares
+// the descriptor's internal slices; callers must not mutate them. The
+// descriptor is immutable after construction (NewPackageFromDesc does not
+// retain a mutable reference), so sharing is safe. Defensively copying on
+// every call would be wasteful for a structure that never changes.
 func (p *descPackage) Describe() *PackageDesc { return p.desc }
