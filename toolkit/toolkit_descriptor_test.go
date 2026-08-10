@@ -276,3 +276,39 @@ func TestExecuteGenerateUnsupportedConstructReturnsError(t *testing.T) {
 		t.Errorf("error should name the offending field; got: %s", msg)
 	}
 }
+
+// TestDescriptorOutputLeaksNoGenOptionsPaths verifies #30: generated descriptor
+// output for a spec whose gen_options set go_package and go_api_package must
+// contain neither value. This guards the stated rationale for excluding
+// GenOpts from PackageDesc: those are internal module and filesystem paths,
+// and any discovery endpoint serialising the descriptor would publish
+// repository layout to every client. That is a security argument, so it
+// deserves a regression test rather than a one-time manual check.
+func TestDescriptorOutputLeaksNoGenOptionsPaths(t *testing.T) {
+	outdir := t.TempDir()
+	// Fixture 06 sets go_package in gen_options.
+	spec := filepath.Join("testdata", "06_command_with_ref.jsonc")
+	if err := ExecuteGenerate(context.Background(), spec, outdir, "go", true, "plain"); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(outdir, "api", "test6Name_package.go"))
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	s := string(b)
+
+	// The go_package value from fixture 06's gen_options.
+	const goPackage = "github.com/mainvec/wo/mvep/wopdb/wopdb2api"
+	if strings.Contains(s, goPackage) {
+		t.Errorf("descriptor output leaks go_package path: %q appears in generated code", goPackage)
+	}
+
+	// Also verify the literal gen_options key names don't appear in the
+	// descriptor (they could appear in comments, but the descriptor literal
+	// should not reference them).
+	for _, key := range []string{"go_package", "go_api_package"} {
+		if strings.Contains(s, `"`+key+`"`) {
+			t.Errorf("descriptor output references gen_options key %q", key)
+		}
+	}
+}
