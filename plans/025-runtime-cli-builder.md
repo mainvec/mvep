@@ -378,7 +378,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T2 — Derive `InstanceOf` / `NameOf` / `CommandNames`
 - [x] T3 — Codegen emits the descriptor into `mvep_package.go`
 - [x] T4 — Field type coverage in the descriptor
-- [ ] T5 — Generate-time hard error on unsupported constructs
+- [x] T5 — Generate-time hard error on unsupported constructs
 - [ ] T6 — ugo v0.7.0 bump; local `uint32` / `float32` flag values
 - [ ] T7 — `Executor` interface, local and remote adapters
 - [ ] T8 — `cli.New` and `App.Run`
@@ -493,6 +493,17 @@ plus `repeated`, maps, and `$ref` records.
 - **Verification:** A negative testdata spec makes `ExecuteGenerate` return an error naming the
   offending command and field.
 - **Notes:** Depends on T4. The message must identify command and field, not just "unsupported".
+  **Done (2026-08-10):** Negative fixture `testdata/12_unsupported_construct.jsonc` added (an
+  inline `record` field type — schema-valid but unrepresentable in the descriptor). New
+  `validateDescriptorRepresentable(srvDef)` in toolkit.go walks every command and record field
+  (via `omap.IteratorByKey` so the owner name is in scope) against a single
+  `descriptorSupportedFieldTypes` set, kept in sync with `goFieldTypeEnum`, and returns an error
+  naming the offending command/record and field. Called from `executeGenerateGo` before any
+  template executes, replacing the deep `goZeroValue`/`goFieldTypeEnum` panics with a clear,
+  actionable error. `TestExecuteGenerateUnsupportedConstructReturnsError` asserts the error
+  names `BadCmd` and `inlineRec`. Toolkit suite + runtime suite + vet all green. The check is
+  Go-only for now (JS codegen has no descriptor emission yet); JS can adopt it when it gains a
+  descriptor.
 
 ### T6 — ugo v0.7.0 bump; local `uint32` / `float32` flag values
 

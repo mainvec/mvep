@@ -156,6 +156,13 @@ func executeGenerateJS(srvDef *SrvDef, outdir string, format string) error {
 }
 
 func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format string, skipCmd bool) error {
+	// T5: fail fast on constructs the runtime descriptor cannot represent,
+	// before any template executes. The error names the offending command (or
+	// record) and field, rather than panicking deep in template execution.
+	if err := validateDescriptorRepresentable(srvDef); err != nil {
+		return err
+	}
+
 	goApiDir := filepath.Join(outdir, "api")
 	err := os.MkdirAll(goApiDir, dirPerm)
 	if err != nil {

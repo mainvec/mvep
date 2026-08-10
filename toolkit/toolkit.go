@@ -834,6 +834,72 @@ func goFieldTypeEnum(field FieldDef) string {
 	}
 }
 
+// descriptorSupportedFieldTypes is the set of spec field types the runtime
+// descriptor can represent. A spec using a type outside this set fails
+// generation with a clear error (validateDescriptorRepresentable) rather
+// than panicking deep in template execution. Kept in sync with goFieldTypeEnum.
+var descriptorSupportedFieldTypes = map[FieldDataType]bool{
+	"string":    true,
+	"boolean":   true,
+	"int32":     true,
+	"int64":     true,
+	"uint32":    true,
+	"sint32":    true,
+	"float":     true,
+	"double":    true,
+	"bytes":     true,
+	"timestamp": true,
+	"duration":  true,
+	"uuid":      true,
+	"map":       true,
+	"recRef":    true,
+}
+
+// validateDescriptorRepresentable walks every command and record field in the
+// spec and rejects any construct the runtime descriptor cannot represent,
+// returning an error that names the offending command (or record) and field.
+// This is the T5 generate-time hard error: unrepresentable specs fail here,
+// at mvep generate with the spec in hand, rather than panicking in a template
+// or failing silently at runtime.
+func validateDescriptorRepresentable(srvDef *SrvDef) error {
+	// Commands: iterate by key so the command name is available for the error.
+	it := omap.IteratorByKey(srvDef.Commands)
+	for it.HasNext() {
+		cmdName, cmd := it.Next()
+		if err := checkFieldsRepresentable(cmd.Fields, "command", cmdName); err != nil {
+			return err
+		}
+		if err := checkFieldsRepresentable(cmd.ResultFields, "command", cmdName); err != nil {
+			return err
+		}
+	}
+	// Records: iterate by key so the record name is available for the error.
+	rit := omap.IteratorByKey(srvDef.Records)
+	for rit.HasNext() {
+		recName, rec := rit.Next()
+		if err := checkFieldsRepresentable(rec.Fields, "record", recName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkFieldsRepresentable checks every field in a FieldDefs for descriptor
+// representability, naming the owning command or record and the field.
+func checkFieldsRepresentable(fields FieldDefs, ownerKind, ownerName string) error {
+	fit := omap.IteratorByKey(fields)
+	for fit.HasNext() {
+		fieldName, field := fit.Next()
+		if !descriptorSupportedFieldTypes[field.Type] {
+			return fmt.Errorf(
+				"descriptor cannot represent field %q (type %q) on %s %q: supported types are string, boolean, int32, int64, uint32, sint32, float, double, bytes, timestamp, duration, uuid, map, recRef",
+				fieldName, field.Type, ownerKind, ownerName,
+			)
+		}
+	}
+	return nil
+}
+
 // fieldIsRequired reports whether a field is required. Required-ness is
 // tag-derived in the current spec (`tags: ["required"]`).
 func fieldIsRequired(field FieldDef) bool {

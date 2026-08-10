@@ -255,3 +255,24 @@ func TestIsRequiredFieldAgreesWithFieldIsRequired(t *testing.T) {
 		}
 	}
 }
+
+// TestExecuteGenerateUnsupportedConstructReturnsError verifies T5: a spec using
+// a construct the descriptor cannot represent (here, an inline "record" field
+// type, which the runtime descriptor has no FieldType for) fails at
+// ExecuteGenerate with a returned error naming the offending command and
+// field — rather than panicking deep in template execution.
+func TestExecuteGenerateUnsupportedConstructReturnsError(t *testing.T) {
+	outdir := t.TempDir()
+	err := ExecuteGenerate(context.Background(), filepath.Join("testdata", "12_unsupported_construct.jsonc"), outdir, "go", true, "plain")
+	if err == nil {
+		t.Fatal("expected an error for an unsupported construct, got nil")
+	}
+	msg := err.Error()
+	// The error must identify the offending command and field, not just "unsupported".
+	if !strings.Contains(msg, "BadCmd") {
+		t.Errorf("error should name the offending command; got: %s", msg)
+	}
+	if !strings.Contains(msg, "inlineRec") {
+		t.Errorf("error should name the offending field; got: %s", msg)
+	}
+}
