@@ -385,7 +385,7 @@ Wire compatibility is unaffected: no envelope, header, or encoding change.
 - [x] T9 — Flag binding via `FieldDesc.Ptr`
 - [x] T10 — Required flags
 - [x] T11 — Deterministic command and flag ordering
-- [ ] T12 — Global flags, custom subcommands, overrides
+- [x] T12 — Global flags, custom subcommands, overrides
 - [ ] T13 — Pre/post execution hooks
 - [ ] T14 — Result renderers and exit codes
 - [ ] T15 — `gen_options.cli: runtime|legacy|none`
@@ -641,6 +641,14 @@ Honour `FieldDesc.Required`; enforce in `cli`, not ugo.
 
 - **Outcome:** Implementors extend the app without touching generated code.
 - **Verification:** Test adds `--endpoint`, adds a custom subcommand, and overrides a generated one.
+  **Done (2026-08-10):** No new production API needed — `App.Root()` (added in T8) exposes the
+  underlying ugo `*cli.Command`, which is the complete extension surface. Tests verify: (1) a
+  global `--endpoint` persistent flag added via `Root().PersistentFlags()` is inherited by
+  generated subcommands and parses alongside command flags; (2) a custom subcommand added via
+  `Root().AddCommand()` runs alongside generated commands and does NOT invoke the generated
+  executor; (3) a generated command is overridable via `Root().Find()` + replacing `RunE` (the
+  original closure is accessible and chainable); (4) custom subcommands appear in `--help`. Runtime
+  suite + vet green.
 
 ### T13 — Pre/post execution hooks
 
