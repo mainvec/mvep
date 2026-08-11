@@ -20,9 +20,6 @@ type App struct {
 	root     *cli.Command
 	desc     *mvep.PackageDesc
 	executor Executor
-	// commandName maps a ugo command's Name() to the descriptor CommandDesc
-	// that produced it, so RunE can look up the New() closure and fields.
-	commands map[string]*mvep.CommandDesc
 	// preHooks run after flag binding + required check, before the executor.
 	// A pre-hook returning an error aborts execution. Hooks run in
 	// registration order. Use for auth, logging, metrics (T13).
@@ -56,16 +53,17 @@ func (a *App) AddPostHook(h PostHook) { a.postHooks = append(a.postHooks, h) }
 
 // New builds a CLI app from a package descriptor and an executor. Every
 // CommandDesc becomes a ugo subcommand under the root, or under a group parent
-// when the command declares a Group (plan 040). Group parents are built from
-// desc.Groups in order, carry their own title/description/aliases/hidden flag,
-// and have no RunE so ugo prints their help. Flag binding (T9), required-flag
-// enforcement (T10), and result rendering (T14) layer on top of this; T8
-// establishes the command tree and the execute-via-Executor seam.
+// when the command declares a Group (plan 040). Group parents are created
+// lazily on first reference, in command-iteration order (commands are emitted
+// sorted, so the tree is deterministic); each carries its own
+// title/description/aliases/hidden flag and has no RunE so ugo prints its
+// help. Flag binding (T9), required-flag enforcement (T10), and result
+// rendering (T14) layer on top of this; T8 establishes the command tree and
+// the execute-via-Executor seam.
 func New(desc *mvep.PackageDesc, executor Executor) *App {
 	app := &App{
 		desc:     desc,
 		executor: executor,
-		commands: make(map[string]*mvep.CommandDesc, len(desc.Commands)),
 		renderer: defaultRenderer,
 	}
 
@@ -126,10 +124,6 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 	for i := range desc.Commands {
 		cmdDesc := &desc.Commands[i]
 		cmdName := commandName(cmdDesc)
-		// Key by full path so two groups can each hold a same-named command
-		// (e.g. a "list" under "server" and under "server/keys") without
-		// overwriting each other (plan 040 T6).
-		app.commands[cmdDesc.Group+"/"+cmdName] = cmdDesc
 
 		// Declare sub first so its FlagSet exists for bindFlags; the RunE
 		// closure captures bindings, which is assigned next.
@@ -155,10 +149,12 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 
 // unknownSubcommandArgs is the Args guard shared by the root and every group
 // parent: no positional arguments are accepted, so an unrecognized subcommand
-// name is an error rather than a silently-printed help.
+// name is an error rather than a silently-printed help. It reports the full
+// command path (e.g. "keys") via CommandPath so a nested group's error names
+// the group, not just the leaf segment.
 func unknownSubcommandArgs(cmd *cli.Command, args []string) error {
 	if len(args) > 0 {
-		return fmt.Errorf("unknown command %q for %q", args[0], cmd.Name())
+		return fmt.Errorf("unknown command %q for %q", args[0], cmd.CommandPath())
 	}
 	return nil
 }

@@ -1125,6 +1125,15 @@ func validateCommandGroups(srvDef *SrvDef) error {
 			cmdLeafByParent[parent] = map[string]string{}
 		}
 		cmdLeafByParent[parent][leaf] = cmdName
+		// A command with an alias also registers the snake_case descriptor name
+		// as a secondary ugo alias (cli.aliasesFor), so it can collide with a
+		// group too (#45).
+		if cmd.Alias != "" {
+			secondary := toSnake(cmdName)
+			if secondary != leaf {
+				cmdLeafByParent[parent][secondary] = cmdName
+			}
+		}
 	}
 
 	for parent, leaves := range cmdLeafByParent {
