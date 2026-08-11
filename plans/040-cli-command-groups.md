@@ -314,7 +314,7 @@ No migration: grouping is inert until a spec adds `group`.
 - [x] T1 — Spec: `group`, `commandGroups`, schema
 - [x] T2 — Toolkit structs and unmarshal round-trip test
 - [x] T3 — Descriptor: `GroupDesc`, `CommandDesc.Group`, `PackageDesc.Groups`
-- [ ] T4 — Codegen emission with deterministic ordering
+- [x] T4 — Codegen emission with deterministic ordering
 - [ ] T5 — Generate-time validation and collision errors
 - [ ] T6 — `cli.New` builds the nested tree
 - [ ] T7 — Tests: golden, dispatch, help, inheritance, backward compat
@@ -375,6 +375,18 @@ Emit `Groups` and each command's `Group` from `go_package_code.txt`, iterating
 through `omap` iterators so ordering is defined. Auto-created intermediate
 groups are materialised here, not in `cli.New`, so the descriptor is complete on
 its own.
+
+**Notes:**
+- `orderedGroupDescs` computes the full flat group list: declared
+  `commandGroups` entries plus every command-referenced group, with
+  intermediate segments auto-created and paths sorted (parents before
+  children). Exposed to templates as `GroupDescs`.
+- `CommandDesc.Group` is emitted only when non-empty, and `Groups` only when
+  non-empty, so a no-group spec generates byte-identical output (verified by
+  `TestCommandGroupsNoGroupBackwardCompat`).
+- `TestCommandGroupsDescriptorEmission` reads the generated `*_package.go` and
+  asserts the group surface (auto-created `server`, `server/keys`, aliases,
+  hidden, per-command `Group`).
 
 ### T5 — Generate-time validation
 

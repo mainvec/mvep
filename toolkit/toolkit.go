@@ -134,18 +134,18 @@ func (g GenOptsDef) Get(k string) (string, bool) {
 }
 
 type SrvDef struct {
-	Id         string      `json:"$id"`
-	Name       string      `json:"name"`
-	Namespace  string      `json:"namespace"`
-	Title      string      `json:"title,omitempty"`
-	Base       string      `json:"base,omitempty"`
-	Desc       string      `json:"desc,omitempty"`
-	Version    string      `json:"version,omitempty"`
-	Commands   CommandDefs `json:"commands,omitempty"`
-	CommandGroups GroupDefs `json:"commandGroups,omitempty"`
-	Records    RecordsDefs `json:"recordsDefs,omitempty"`
-	GenOpts    GenOptsDef  `json:"gen_options,omitempty"`
-	ProtocOpts []string    `json:"-"` //Transient Holder for now, filled why processing options
+	Id            string      `json:"$id"`
+	Name          string      `json:"name"`
+	Namespace     string      `json:"namespace"`
+	Title         string      `json:"title,omitempty"`
+	Base          string      `json:"base,omitempty"`
+	Desc          string      `json:"desc,omitempty"`
+	Version       string      `json:"version,omitempty"`
+	Commands      CommandDefs `json:"commands,omitempty"`
+	CommandGroups GroupDefs   `json:"commandGroups,omitempty"`
+	Records       RecordsDefs `json:"recordsDefs,omitempty"`
+	GenOpts       GenOptsDef  `json:"gen_options,omitempty"`
+	ProtocOpts    []string    `json:"-"` //Transient Holder for now, filled why processing options
 }
 
 type ValidationResult interface {
@@ -615,6 +615,9 @@ func LoadTemplate(tmpltName string, templateReader io.Reader) (*template.Templat
 		"GoStringLit":        goStringLit,
 		"GoStringSliceLit":   goStringSliceLit,
 		"CmdDescOrTitle":     cmdDescOrTitle,
+		// Command-group descriptor emission (plan 040, T4)
+		"GroupDescs":       GroupDescs,
+		"SortedGroupNames": sortedGroupNames,
 	}
 
 	//Open template
@@ -814,6 +817,90 @@ func sortedRecordNames(recs RecordsDefs) []string {
 		names = append(names, k)
 	}
 	return names
+}
+
+// sortedGroupNames returns command-group paths in deterministic (sorted-key)
+// order, so the descriptor's Groups slice is emitted deterministically. Group
+// ordering matters: cli.New builds parents in Groups order, so help output and
+// the parent-of finding must be stable (plan 040 T4).
+func sortedGroupNames(groups GroupDefs) []string {
+	names := make([]string, 0, len(groups))
+	it := omap.IteratorByKey(groups)
+	for it.HasNext() {
+		k, _ := it.Next()
+		names = append(names, k)
+	}
+	return names
+}
+
+// GroupDesc is the toolkit-side projection of a group for descriptor emission.
+// The runtime mvep.GroupDesc is authored by codegen from this.
+type GroupDesc struct {
+	Path    string
+	Name    string
+	Title   string
+	Desc    string
+	Aliases []string
+	Hidden  bool
+}
+
+// orderedGroupDescs computes the full, deterministic, flat group list for
+// descriptor emission: every declared commandGroups entry plus every group
+// referenced by a command, with intermediate segments auto-created so the
+// descriptor is complete on its own (plan 040 T4). Paths are sorted, which
+// guarantees a parent sorts before its children. Metadata for an undeclared
+// group defaults to the last path segment as Name and empty metadata.
+func orderedGroupDescs(srvDef *SrvDef) []GroupDesc {
+	seen := map[string]bool{}
+	var out []GroupDesc
+	add := func(path string) {
+		if path == "" || seen[path] {
+			return
+		}
+		seen[path] = true
+		gd := GroupDesc{Path: path}
+		if len(path) > 0 {
+			segs := strings.Split(path, "/")
+			gd.Name = segs[len(segs)-1]
+		}
+		if meta, ok := srvDef.CommandGroups[path]; ok {
+			gd.Title = meta.Title
+			gd.Desc = meta.Desc
+			gd.Aliases = meta.Aliases
+			gd.Hidden = meta.Hidden
+		}
+		out = append(out, gd)
+	}
+	// Add each path's full segment chain (parents before children).
+	chain := func(path string) {
+		if path == "" {
+			return
+		}
+		prefix := ""
+		for _, seg := range strings.Split(path, "/") {
+			if prefix == "" {
+				prefix = seg
+			} else {
+				prefix = prefix + "/" + seg
+			}
+			add(prefix)
+		}
+	}
+	for _, p := range sortedGroupNames(srvDef.CommandGroups) {
+		chain(p)
+	}
+	it := omap.IteratorByKey(srvDef.Commands)
+	for it.HasNext() {
+		_, cmd := it.Next()
+		chain(cmd.Group)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out
+}
+
+// GroupDescs exposes orderedGroupDescs to templates (plan 040 T4).
+func GroupDescs(srvDef *SrvDef) []GroupDesc {
+	return orderedGroupDescs(srvDef)
 }
 
 // goFieldTypeEnum maps a spec FieldDataType to its runtime mvep.FieldType

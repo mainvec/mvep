@@ -3,6 +3,8 @@ package toolkit_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/mainvec/mvep/toolkit"
@@ -92,5 +94,69 @@ func TestCommandGroupsRoundTrip(t *testing.T) {
 	}
 	if ungrouped.Group != "" {
 		t.Errorf("UngroupedCmd.Group = %q, want empty", ungrouped.Group)
+	}
+}
+
+// TestCommandGroupsDescriptorEmission is the T4 check: generating the grouped
+// fixture emits a pkgDesc whose Groups slice and per-command Group fields carry
+// the group metadata. It reads the generated *_package.go rather than calling
+// unexported toolkit helpers, exercising the real codegen path.
+func TestCommandGroupsDescriptorEmission(t *testing.T) {
+	outdir := t.TempDir()
+	if err := toolkit.ExecuteGenerate(t.Context(), filepath.Join("testdata", "13_command_groups.jsonc"), outdir, "go", true, "plain"); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(outdir, "api", "test13_package.go"))
+	if err != nil {
+		t.Fatalf("read generated package: %v", err)
+	}
+	src := string(got)
+
+	// The generated package must contain the groups surface: auto-created
+	// intermediates (server for server/keys), declared metadata, and hidden.
+	// gofmt aligns struct fields, so match on the value with flexible spacing.
+	for _, want := range []string{
+		`Path: "server"`,
+		`Path: "server/keys"`,
+		`Name: "keys"`,
+		`Title: "LLM Servers"`,
+		`Aliases: []string{"key"}`,
+		`Hidden: true`,
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("generated package missing %q\n---\n%s", want, src)
+		}
+	}
+	// Group is gofmt-aligned, so match with a regexp.
+	groupRe := regexp.MustCompile(`Group:\s+"server/keys"`)
+	if !groupRe.MatchString(src) {
+		t.Errorf("generated package missing Group: \"server/keys\"\n---\n%s", src)
+	}
+
+	// A root command must not carry a group: the round-trip test covers the
+	// empty-Group case; here we only assert the grouped surface is emitted.
+}
+
+// TestCommandGroupsNoGroupBackwardCompat is the T4/T7 backward-compat guard: a
+// spec with no groups must emit a pkgDesc with no Groups field at all, so
+// existing consumers generate byte-identical output.
+func TestCommandGroupsNoGroupBackwardCompat(t *testing.T) {
+	outdir := t.TempDir()
+	if err := toolkit.ExecuteGenerate(t.Context(), filepath.Join("testdata", "05_command_withfields.jsonc"), outdir, "go", true, "plain"); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(outdir, "api", "test5Name_package.go"))
+	if err != nil {
+		t.Fatalf("read generated package: %v", err)
+	}
+	src := string(got)
+
+	if strings.Contains(src, "Groups:") {
+		t.Errorf("no-group spec emitted a Groups field; output should be unchanged:\n%s", src)
+	}
+	if strings.Contains(src, "Group:") {
+		t.Errorf("no-group spec emitted a CommandDesc.Group field; output should be unchanged:\n%s", src)
 	}
 }
