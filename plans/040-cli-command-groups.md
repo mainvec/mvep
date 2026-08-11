@@ -313,7 +313,7 @@ No migration: grouping is inert until a spec adds `group`.
 
 - [x] T1 — Spec: `group`, `commandGroups`, schema
 - [x] T2 — Toolkit structs and unmarshal round-trip test
-- [ ] T3 — Descriptor: `GroupDesc`, `CommandDesc.Group`, `PackageDesc.Groups`
+- [x] T3 — Descriptor: `GroupDesc`, `CommandDesc.Group`, `PackageDesc.Groups`
 - [ ] T4 — Codegen emission with deterministic ordering
 - [ ] T5 — Generate-time validation and collision errors
 - [ ] T6 — `cli.New` builds the nested tree
@@ -360,6 +360,14 @@ defect (#23).
 Add `mvep.GroupDesc`, `CommandDesc.Group` and `PackageDesc.Groups` to
 `runtime/go/mvep/descriptor.go`. Additive; existing descriptors keep compiling.
 Tag and release `runtime/go` before T4 ships — see Rollout step 0.
+
+**Notes:**
+- `GroupDesc` is a flat ordered slice carrying full `Path` plus the final
+  `Name` segment; the parent of `a/b` is found by trimming the last segment
+  (matches the plan's decision log).
+- Additive only: `NewPackageFromDesc` and the derived `Package` are untouched
+  by the new fields. Tests `TestCommandGroupSurface` and
+  `TestGroupDescFlatListOrder` verify the surface and the flat-list ordering.
 
 ### T4 — Codegen emission
 

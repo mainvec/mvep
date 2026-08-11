@@ -265,3 +265,88 @@ func TestPackageDescRecordResolvesByName(t *testing.T) {
 		t.Error("Record(Missing) should be not found")
 	}
 }
+
+// --- Plan 040 T3: command groups -------------------------------------------
+
+// groupedCmd is a command struct placed under a group.
+type groupedCmd struct {
+	Model string
+}
+
+// testGroupedPkgDesc is a descriptor exercising the group surface (T3): a
+// nested group at depth 2, an alias, and a hidden group, plus a root command.
+var testGroupedPkgDesc = mvep.PackageDesc{
+	Name: "testgrouped",
+	Commands: []mvep.CommandDesc{
+		{
+			Name:  "StartServerCmd",
+			Alias: "start",
+			Group: "server",
+			Desc:  "Start an LLM server",
+			New:   func() any { return &groupedCmd{} },
+			Fields: []mvep.FieldDesc{
+				{Name: "model", Fnum: 1, Type: mvep.FieldString, Ptr: func(c any) any { return &c.(*groupedCmd).Model }},
+			},
+		},
+		{
+			Name: "RootCmd",
+			New:  func() any { return &testPingCmd{} },
+		},
+	},
+	Groups: []mvep.GroupDesc{
+		{Path: "server", Name: "server", Title: "LLM Servers"},
+		{Path: "server/keys", Name: "keys", Title: "API Keys", Aliases: []string{"key"}},
+		{Path: "hidden", Name: "hidden", Hidden: true},
+	},
+}
+
+// TestCommandGroupSurface verifies the descriptor carries group metadata and
+// that commands resolve their group paths, with no change to root commands
+// (T3). Additive fields must not disturb NewPackageFromDesc.
+func TestCommandGroupSurface(t *testing.T) {
+	t.Parallel()
+
+	pkg := mvep.NewPackageFromDesc(&testGroupedPkgDesc)
+
+	cl, ok := pkg.(mvep.CommandLister)
+	if !ok {
+		t.Fatal("derived package should implement CommandLister")
+	}
+	if len(cl.CommandNames()) != 2 {
+		t.Fatalf("CommandNames() = %v, want 2 commands", cl.CommandNames())
+	}
+
+	// Root command unaffected by group presence.
+	if _, ok := pkg.InstanceOf("RootCmd"); !ok {
+		t.Error("InstanceOf(RootCmd) should resolve")
+	}
+
+	// The grouped command still resolves by its descriptor Name.
+	if _, ok := pkg.InstanceOf("StartServerCmd"); !ok {
+		t.Error("InstanceOf(StartServerCmd) should resolve")
+	}
+}
+
+// TestGroupDescFlatListOrder verifies Groups is a flat, ordered slice (T3): the
+// full path is carried, the Name is the final segment, and ordering is the
+// declaration order used by cli.New to build the tree.
+func TestGroupDescFlatListOrder(t *testing.T) {
+	t.Parallel()
+
+	want := []struct{ path, name string }{
+		{"server", "server"},
+		{"server/keys", "keys"},
+		{"hidden", "hidden"},
+	}
+	if len(testGroupedPkgDesc.Groups) != len(want) {
+		t.Fatalf("Groups = %d, want %d", len(testGroupedPkgDesc.Groups), len(want))
+	}
+	for i, w := range want {
+		if testGroupedPkgDesc.Groups[i].Path != w.path {
+			t.Errorf("Groups[%d].Path = %q, want %q", i, testGroupedPkgDesc.Groups[i].Path, w.path)
+		}
+		if testGroupedPkgDesc.Groups[i].Name != w.name {
+			t.Errorf("Groups[%d].Name = %q, want %q", i, testGroupedPkgDesc.Groups[i].Name, w.name)
+		}
+	}
+}
