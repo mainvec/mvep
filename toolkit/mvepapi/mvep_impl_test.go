@@ -100,8 +100,15 @@ func TestRunGenerateCmd(t *testing.T) {
 	}
 }
 
-// TestRunInitializeCmd verifies the init command validates name/namespace.
+// TestRunInitializeCmd verifies the init command validates name/namespace and
+// scaffolds a spec. It runs in a temp dir so the scaffolded file does not
+// pollute the repo working tree.
 func TestRunInitializeCmd(t *testing.T) {
+	chdirToolkitRoot(t)
+	dir := t.TempDir()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir to temp dir: %v", err)
+	}
 	if _, err := runInitializeCmd(context.Background(), &api.InitializeCmd{Name: "svc", Namespace: "ns"}); err != nil {
 		t.Fatalf("runInitializeCmd with valid args: %v", err)
 	}
