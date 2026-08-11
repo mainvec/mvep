@@ -160,3 +160,24 @@ func TestCommandGroupsNoGroupBackwardCompat(t *testing.T) {
 		t.Errorf("no-group spec emitted a CommandDesc.Group field; output should be unchanged:\n%s", src)
 	}
 }
+
+// TestCommandGroupsJSTolerance is the T7 check: --lang js over the grouped
+// fixture succeeds and its output is unchanged by the new metadata (the JS
+// generator tolerates the group fields without behaviour change).
+func TestCommandGroupsJSTolerance(t *testing.T) {
+	outdir := t.TempDir()
+	if err := toolkit.ExecuteGenerate(t.Context(), filepath.Join("testdata", "13_command_groups.jsonc"), outdir, "js", true, "plain"); err != nil {
+		t.Fatalf("generate js: %v", err)
+	}
+
+	// The JS output must not reference group metadata (it is a CLI concern).
+	for _, f := range []string{"test13.js", "test13.d.ts"} {
+		b, err := os.ReadFile(filepath.Join(outdir, "api", f))
+		if err != nil {
+			t.Fatalf("read %s: %v", f, err)
+		}
+		if strings.Contains(string(b), "commandGroups") || strings.Contains(string(b), `"group"`) {
+			t.Errorf("%s should not reference group metadata", f)
+		}
+	}
+}

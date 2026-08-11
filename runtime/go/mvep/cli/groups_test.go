@@ -232,3 +232,85 @@ func TestGroupRootCommandUnaffected(t *testing.T) {
 		t.Fatalf("executor received %T, want *gRootCmd", ex.gotCmd)
 	}
 }
+
+// TestGroupDispatchFlagBeforeSubcommand verifies T7: a flag before the
+// subcommand (`--output json server start`) resolves through ugo's flag-aware
+// findCommand, exercising the same path as the root guard.
+func TestGroupDispatchFlagBeforeSubcommand(t *testing.T) {
+	t.Parallel()
+
+	ex := &recordingExecutor{result: &gServerCmdResult{PID: 1}}
+	app := New(&gDesc, ex)
+
+	// Register --output as a global persistent flag so it can appear before
+	// the subcommand.
+	var output string
+	app.Root().PersistentFlags().StringVar(&output, "output", "text", "output format")
+
+	var stdout, stderr bytes.Buffer
+	err := app.RunWithIO(context.Background(), []string{"--output", "json", "server", "start", "--model", "x"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output != "json" {
+		t.Errorf("output = %q, want %q", output, "json")
+	}
+	if _, ok := ex.gotCmd.(*gServerCmd); !ok {
+		t.Fatalf("executor received %T, want *gServerCmd", ex.gotCmd)
+	}
+}
+
+// TestGroupPersistentFlagInheritance verifies T7: a persistent flag registered
+// on app.Root() is inherited by a command nested under a group, appears under
+// Global Flags in the group command's help, and binds when supplied.
+func TestGroupPersistentFlagInheritance(t *testing.T) {
+	t.Parallel()
+
+	ex := &recordingExecutor{result: &gServerCmdResult{PID: 1}}
+	app := New(&gDesc, ex)
+
+	var endpoint string
+	app.Root().PersistentFlags().StringVar(&endpoint, "endpoint", "localhost:8080", "server endpoint")
+
+	// The persistent flag appears in the nested command's help.
+	var stdout, stderr bytes.Buffer
+	_ = app.RunWithIO(context.Background(), []string{"server", "start", "--help"}, &stdout, &stderr)
+	combined := stdout.String() + stderr.String()
+	if !strings.Contains(combined, "endpoint") {
+		t.Errorf("nested command help should list the inherited persistent flag; got: %s", combined)
+	}
+
+	// And it binds when supplied.
+	stdout.Reset()
+	stderr.Reset()
+	err := app.RunWithIO(context.Background(), []string{"server", "start", "--model", "x", "--endpoint", "remote:9090"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if endpoint != "remote:9090" {
+		t.Errorf("endpoint = %q, want %q", endpoint, "remote:9090")
+	}
+	if _, ok := ex.gotCmd.(*gServerCmd); !ok {
+		t.Fatalf("executor received %T, want *gServerCmd", ex.gotCmd)
+	}
+}
+
+// TestGroupHelpByteStable verifies T7: the group help output is byte-stable
+// across repeated runs in one process (deterministic ordering of groups and
+// commands within a group).
+func TestGroupHelpByteStable(t *testing.T) {
+	t.Parallel()
+
+	ex := &recordingExecutor{}
+	app := New(&gDesc, ex)
+
+	var first bytes.Buffer
+	_ = app.RunWithIO(context.Background(), []string{"server", "--help"}, &first, &bytes.Buffer{})
+	for i := 0; i < 20; i++ {
+		var got bytes.Buffer
+		_ = app.RunWithIO(context.Background(), []string{"server", "--help"}, &got, &bytes.Buffer{})
+		if got.String() != first.String() {
+			t.Fatalf("run %d: help output not byte-stable\nfirst:\n%s\n\ngot:\n%s", i, first.String(), got.String())
+		}
+	}
+}

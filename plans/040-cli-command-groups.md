@@ -317,7 +317,7 @@ No migration: grouping is inert until a spec adds `group`.
 - [x] T4 — Codegen emission with deterministic ordering
 - [x] T5 — Generate-time validation and collision errors
 - [x] T6 — `cli.New` builds the nested tree
-- [ ] T7 — Tests: golden, dispatch, help, inheritance, backward compat
+- [x] T7 — Tests: golden, dispatch, help, inheritance, backward compat
 - [ ] T8 — Documentation
 
 ## Tasks
@@ -429,6 +429,14 @@ full path.
 
 Every item in [Verification](#verification) above. The backward-compat golden
 test matters most: it is what proves an existing consumer sees no change.
+
+**Notes:**
+- `cli/groups_test.go` covers dispatch at depth 1/2, group aliases, group help,
+  unknown subcommand, hidden groups, root commands, flag-before-subcommand
+  dispatch, persistent-flag inheritance through a group, and byte-stable help.
+- `toolkit_groups_test.go` covers the no-group backward-compat golden (no
+  `Groups`/`Group` emitted) and JS tolerance over the grouped fixture.
+- Full `go test ./...` passes for both `toolkit` and `runtime/go`.
 
 ### T8 — Documentation
 
