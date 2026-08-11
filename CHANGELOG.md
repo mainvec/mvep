@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-08-11 (plan 040, #40)
 
+### Fixed — toolkit
+- **`mvep` CLI commands implemented.** `mvep generate`, `mvep init`, and
+  `mvep validate` were "command not implemented" stubs; they now delegate to
+  the real toolkit functions. `mvep init` scaffolds a `<name>.jsonc` spec with
+  a couple of dummy commands (`PingCmd`, `StatusCmd`) as a valid, editable
+  starting point. The impl file is `// NOMVEP`-guarded so regeneration cannot
+  clobber it.
+
+## [Unreleased] - 2026-08-11 (plan 040, #40)
+
 ### Added — spec
 - **Command groups.** A command's optional `group` field (a `/`-separated
   path) places it under a nested CLI subcommand, so `"group": "server"` with
