@@ -10,6 +10,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
 > `references/generated-patterns.md`) for staleness.
 
+## [Unreleased] - 2026-08-11 (plan 040, #40)
+
+### Added — spec
+- **Command groups.** A command's optional `group` field (a `/`-separated
+  path) places it under a nested CLI subcommand, so `"group": "server"` with
+  `"alias": "start"` yields `svc server start`. Group metadata (title,
+  description, aliases, hidden) lives in the optional top-level
+  `commandGroups` object, keyed by full path; a group referenced by a command
+  but absent there is auto-created with the path segment as its name.
+  Intermediate segments are auto-created too, and may carry their own
+  metadata. Additive optional properties — a spec with no `group` generates
+  byte-identical output.
+
+### Added — runtime/go
+- **Group descriptor types.** `mvep.GroupDesc` (flat, ordered, carrying full
+  path), `CommandDesc.Group`, and `PackageDesc.Groups`.
+- **`mvep/cli` group support.** `cli.New` builds the nested tree from
+  `desc.Groups`; group parents carry their own title/description/aliases/
+  hidden flag, have no `RunE` (so ugo prints their help), and share the root's
+  unknown-subcommand guard. `--help`, dispatch, aliases, hidden, and
+  persistent-flag inheritance all work through groups with no `ugo` change.
+
+### Added — toolkit
+- **Generate-time validation** (`validateCommandGroups`) rejects group/command
+  name and alias collisions (including at depth), duplicate command names
+  under a parent, malformed group paths, and unreferenced `commandGroups`
+  entries, naming the spec path and the colliding command.
+- **Descriptor emission** of `Groups` and per-command `Group`, auto-creating
+  intermediates so the descriptor is complete on its own. A no-group spec
+  still generates byte-identical output.
+
+### Release ordering
+`runtime/go v0.11.0` ships `GroupDesc` / `CommandDesc.Group` /
+`PackageDesc.Groups`, and `toolkit/go.mod` is bumped to it, before this
+toolkit release.
+
 ## [Unreleased] - 2026-08-10 (plan 025, #25)
 
 ### Added — runtime/go
