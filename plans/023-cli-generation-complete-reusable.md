@@ -268,7 +268,7 @@ comment in generated code is indistinguishable from no warning at all.
 | # | Wish | Acceptance criteria |
 |---|---|---|
 | **C1** | **Naming policy** gen options: flag style `kebab \| camel \| snake`, command style `kebab \| snake` | Sets the convention for a whole surface without an `alias` on every field. Explicit `alias` always wins. Default preserves current output |
-| **C2** | **Command groups** → nested subcommands. `"group": "server"` on a command yields `svc server start` | Generator-side only; `AddCommand` already supports it. Ungrouped commands stay at root |
+| **C2** | **Command groups** → nested subcommands. `"group": "server"` on a command yields `svc server start` | Generator-side only; `AddCommand` already supports it. Ungrouped commands stay at root. **Delivered by [plan 040](040-cli-command-groups.md)** |
 | **C3** | **Positional args** from spec | A field marked positional generates `svc server stop <id>` and wires the matching `ExactArgs`/`RangeArgs` validator |
 | **C4** | **Required enforcement** — needs `FieldDef.Tags` (or roadmap `required: true`) to reach codegen first | Missing required flag → usage error, exit 2, before dispatch |
 | **C5** | **Shorthand flags** from spec | Collision detected at generation time, not runtime |

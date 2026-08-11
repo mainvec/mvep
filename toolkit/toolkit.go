@@ -36,9 +36,21 @@ type CommandDef struct {
 	Id           string    `json:"-"`
 	Title        string    `json:"title,omitempty"`
 	Alias        string    `json:"alias,omitempty"`
+	Group        string    `json:"group,omitempty"` // command group path, /-separated
 	Desc         string    `json:"desc,omitempty"`
 	Fields       FieldDefs `json:"fields,omitempty"`
 	ResultFields FieldDefs `json:"resultFields,omitempty"`
+}
+
+// GroupDef carries optional metadata for a command group, keyed by full
+// group path in SrvDef.CommandGroups. All fields are optional; a
+// group referenced by a command but absent from CommandGroups is auto-created
+// with the path segment as its name and no metadata.
+type GroupDef struct {
+	Title   string   `json:"title,omitempty"`
+	Desc    string   `json:"desc,omitempty"`
+	Aliases []string `json:"aliases,omitempty"`
+	Hidden  bool     `json:"hidden,omitempty"`
 }
 
 type RecordDef struct {
@@ -89,10 +101,17 @@ type CommandDefs omap.OMap[string, CommandDef]
 type FieldDefs omap.OMap[string, FieldDef]
 type RecordsDefs omap.OMap[string, RecordDef]
 type GenOptsDef omap.OMap[string, string]
+type GroupDefs omap.OMap[string, GroupDef]
 
 // Get returns the CommandDef for key k and ok=true if present.
 func (c CommandDefs) Get(k string) (CommandDef, bool) {
 	v, ok := c[k]
+	return v, ok
+}
+
+// Get returns the GroupDef for key k and ok=true if present.
+func (g GroupDefs) Get(k string) (GroupDef, bool) {
+	v, ok := g[k]
 	return v, ok
 }
 
@@ -115,17 +134,18 @@ func (g GenOptsDef) Get(k string) (string, bool) {
 }
 
 type SrvDef struct {
-	Id         string      `json:"$id"`
-	Name       string      `json:"name"`
-	Namespace  string      `json:"namespace"`
-	Title      string      `json:"title,omitempty"`
-	Base       string      `json:"base,omitempty"`
-	Desc       string      `json:"desc,omitempty"`
-	Version    string      `json:"version,omitempty"`
-	Commands   CommandDefs `json:"commands,omitempty"`
-	Records    RecordsDefs `json:"recordsDefs,omitempty"`
-	GenOpts    GenOptsDef  `json:"gen_options,omitempty"`
-	ProtocOpts []string    `json:"-"` //Transient Holder for now, filled why processing options
+	Id            string      `json:"$id"`
+	Name          string      `json:"name"`
+	Namespace     string      `json:"namespace"`
+	Title         string      `json:"title,omitempty"`
+	Base          string      `json:"base,omitempty"`
+	Desc          string      `json:"desc,omitempty"`
+	Version       string      `json:"version,omitempty"`
+	Commands      CommandDefs `json:"commands,omitempty"`
+	CommandGroups GroupDefs   `json:"commandGroups,omitempty"`
+	Records       RecordsDefs `json:"recordsDefs,omitempty"`
+	GenOpts       GenOptsDef  `json:"gen_options,omitempty"`
+	ProtocOpts    []string    `json:"-"` //Transient Holder for now, filled why processing options
 }
 
 type ValidationResult interface {
@@ -595,6 +615,9 @@ func LoadTemplate(tmpltName string, templateReader io.Reader) (*template.Templat
 		"GoStringLit":        goStringLit,
 		"GoStringSliceLit":   goStringSliceLit,
 		"CmdDescOrTitle":     cmdDescOrTitle,
+		// Command-group descriptor emission (plan 040, T4)
+		"GroupDescs":       GroupDescs,
+		"SortedGroupNames": sortedGroupNames,
 	}
 
 	//Open template
@@ -796,6 +819,90 @@ func sortedRecordNames(recs RecordsDefs) []string {
 	return names
 }
 
+// sortedGroupNames returns command-group paths in deterministic (sorted-key)
+// order, so the descriptor's Groups slice is emitted deterministically. Group
+// ordering matters: cli.New builds parents in Groups order, so help output and
+// the parent-of finding must be stable (plan 040 T4).
+func sortedGroupNames(groups GroupDefs) []string {
+	names := make([]string, 0, len(groups))
+	it := omap.IteratorByKey(groups)
+	for it.HasNext() {
+		k, _ := it.Next()
+		names = append(names, k)
+	}
+	return names
+}
+
+// GroupDesc is the toolkit-side projection of a group for descriptor emission.
+// The runtime mvep.GroupDesc is authored by codegen from this.
+type GroupDesc struct {
+	Path    string
+	Name    string
+	Title   string
+	Desc    string
+	Aliases []string
+	Hidden  bool
+}
+
+// orderedGroupDescs computes the full, deterministic, flat group list for
+// descriptor emission: every declared commandGroups entry plus every group
+// referenced by a command, with intermediate segments auto-created so the
+// descriptor is complete on its own (plan 040 T4). Paths are sorted, which
+// guarantees a parent sorts before its children. Metadata for an undeclared
+// group defaults to the last path segment as Name and empty metadata.
+func orderedGroupDescs(srvDef *SrvDef) []GroupDesc {
+	seen := map[string]bool{}
+	var out []GroupDesc
+	add := func(path string) {
+		if path == "" || seen[path] {
+			return
+		}
+		seen[path] = true
+		gd := GroupDesc{Path: path}
+		if len(path) > 0 {
+			segs := strings.Split(path, "/")
+			gd.Name = segs[len(segs)-1]
+		}
+		if meta, ok := srvDef.CommandGroups[path]; ok {
+			gd.Title = meta.Title
+			gd.Desc = meta.Desc
+			gd.Aliases = meta.Aliases
+			gd.Hidden = meta.Hidden
+		}
+		out = append(out, gd)
+	}
+	// Add each path's full segment chain (parents before children).
+	chain := func(path string) {
+		if path == "" {
+			return
+		}
+		prefix := ""
+		for _, seg := range strings.Split(path, "/") {
+			if prefix == "" {
+				prefix = seg
+			} else {
+				prefix = prefix + "/" + seg
+			}
+			add(prefix)
+		}
+	}
+	for _, p := range sortedGroupNames(srvDef.CommandGroups) {
+		chain(p)
+	}
+	it := omap.IteratorByKey(srvDef.Commands)
+	for it.HasNext() {
+		_, cmd := it.Next()
+		chain(cmd.Group)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out
+}
+
+// GroupDescs exposes orderedGroupDescs to templates (plan 040 T4).
+func GroupDescs(srvDef *SrvDef) []GroupDesc {
+	return orderedGroupDescs(srvDef)
+}
+
 // goFieldTypeEnum maps a spec FieldDataType to its runtime mvep.FieldType
 // constant name. Unknown types panic: an unrepresentable construct must fail
 // generation loudly, never emit a wrong descriptor (T5 hardens this into a
@@ -882,7 +989,208 @@ func validateDescriptorRepresentable(srvDef *SrvDef) error {
 			return err
 		}
 	}
+	// Command groups: reject collisions and malformed paths (plan 040 T5).
+	if err := validateCommandGroups(srvDef); err != nil {
+		return err
+	}
 	return nil
+}
+
+// validateCommandGroups enforces the plan 040 generate-time group rules. Every
+// error names the spec path, the group, and the colliding command so the
+// developer holding the spec can fix it without digging.
+func validateCommandGroups(srvDef *SrvDef) error {
+	// leafName is the name a command resolves to under its parent: the alias
+	// when present, else the snake_case of the command name (mirrors
+	// runtime cli.commandName).
+	leafName := func(cmd CommandDef, cmdName string) string {
+		if cmd.Alias != "" {
+			return cmd.Alias
+		}
+		return toSnake(cmdName)
+	}
+
+	// nameByParent maps "parentPath/leafName" -> command name for duplicate
+	// detection. parentPath is the group path ("" for root).
+	nameByParent := map[string]string{}
+	// referencedGroups records every group path a command references.
+	referencedGroups := map[string]bool{}
+
+	it := omap.IteratorByKey(srvDef.Commands)
+	for it.HasNext() {
+		cmdName, cmd := it.Next()
+		group := cmd.Group
+
+		// Malformed path: empty segment, or leading/trailing slash.
+		if group != "" {
+			if strings.HasPrefix(group, "/") || strings.HasSuffix(group, "/") {
+				return fmt.Errorf("command %q: group path %q must not have a leading or trailing '/'", cmdName, group)
+			}
+			for _, seg := range strings.Split(group, "/") {
+				if seg == "" {
+					return fmt.Errorf("command %q: group path %q contains an empty segment", cmdName, group)
+				}
+			}
+			// Seed referencedGroups with every prefix of the path, mirroring
+			// orderedGroupDescs' chain, so a titled intermediate segment is not
+			// reported unreferenced (#43). The exact group and all its parents
+			// count as referenced by this command.
+			prefix := ""
+			for _, seg := range strings.Split(group, "/") {
+				if prefix == "" {
+					prefix = seg
+				} else {
+					prefix = prefix + "/" + seg
+				}
+				referencedGroups[prefix] = true
+			}
+		}
+
+		leaf := leafName(cmd, cmdName)
+		key := group + "/" + leaf
+		if prev, dup := nameByParent[key]; dup {
+			return fmt.Errorf(
+				"commands %q and %q both resolve to name %q under group %q",
+				prev, cmdName, leaf, group,
+			)
+		}
+		nameByParent[key] = cmdName
+	}
+
+	// Build the set of group names and aliases at each parent, and check
+	// collisions between a group and a sibling command's name/alias.
+	// groupNamesByParent: parentPath -> set of group leaf names.
+	// groupAliasesByParent: parentPath -> map[alias]groupPath.
+	groupNamesByParent := map[string]map[string]bool{}
+	groupAliasesByParent := map[string]map[string]string{}
+	groupPathByLeaf := map[string]string{} // "parent/leaf" -> full group path
+
+	// Register all group paths (declared + referenced), including intermediate
+	// segments, so a group can collide with a sibling group. Build the prefix
+	// chains into a second map rather than mutating allGroups while ranging
+	// over it (#45).
+	allGroups := map[string]bool{}
+	for _, p := range sortedGroupNames(srvDef.CommandGroups) {
+		allGroups[p] = true
+	}
+	for g := range referencedGroups {
+		allGroups[g] = true
+	}
+	expanded := map[string]bool{}
+	for g := range allGroups {
+		prefix := ""
+		for _, seg := range strings.Split(g, "/") {
+			if prefix == "" {
+				prefix = seg
+			} else {
+				prefix = prefix + "/" + seg
+			}
+			expanded[prefix] = true
+		}
+	}
+	for p := range expanded {
+		allGroups[p] = true
+	}
+
+	for g := range allGroups {
+		parent, leaf := splitGroupPath(g)
+		if groupNamesByParent[parent] == nil {
+			groupNamesByParent[parent] = map[string]bool{}
+		}
+		groupNamesByParent[parent][leaf] = true
+		groupPathByLeaf[parent+"/"+leaf] = g
+		// Group aliases come from declared metadata only.
+		if meta, ok := srvDef.CommandGroups[g]; ok {
+			if groupAliasesByParent[parent] == nil {
+				groupAliasesByParent[parent] = map[string]string{}
+			}
+			for _, a := range meta.Aliases {
+				groupAliasesByParent[parent][a] = g
+			}
+		}
+	}
+
+	// A group name or alias must not collide with a sibling command's name or
+	// alias. A command's leaf name under its parent is its alias or snake_case.
+	// A command's parent IS its group path (empty for root), not the path minus
+	// its last segment (#42): a command under "server" is a sibling of the
+	// "server/keys" group, not of the "server" group's siblings.
+	cmdLeafByParent := map[string]map[string]string{} // parent -> leaf -> cmdName
+	it2 := omap.IteratorByKey(srvDef.Commands)
+	for it2.HasNext() {
+		cmdName, cmd := it2.Next()
+		parent := cmd.Group
+		leaf := leafName(cmd, cmdName)
+		if cmdLeafByParent[parent] == nil {
+			cmdLeafByParent[parent] = map[string]string{}
+		}
+		cmdLeafByParent[parent][leaf] = cmdName
+		// A command with an alias also registers the snake_case descriptor name
+		// as a secondary ugo alias (cli.aliasesFor), so it can collide with a
+		// group too (#45).
+		if cmd.Alias != "" {
+			secondary := toSnake(cmdName)
+			if secondary != leaf {
+				cmdLeafByParent[parent][secondary] = cmdName
+			}
+		}
+	}
+
+	for parent, leaves := range cmdLeafByParent {
+		for leaf, cmdName := range leaves {
+			if groupNamesByParent[parent][leaf] {
+				return fmt.Errorf(
+					"command %q name/alias %q collides with group %q under %q",
+					cmdName, leaf, groupPathByLeaf[parent+"/"+leaf], parent,
+				)
+			}
+			if gpath, ok := groupAliasesByParent[parent][leaf]; ok {
+				return fmt.Errorf(
+					"command %q name/alias %q collides with an alias of group %q under %q",
+					cmdName, leaf, gpath, parent,
+				)
+			}
+		}
+	}
+
+	// A declared commandGroups entry must be referenced by at least one
+	// command; an unreferenced entry is almost always a typo.
+	for _, p := range sortedGroupNames(srvDef.CommandGroups) {
+		if !referencedGroups[p] {
+			return fmt.Errorf("commandGroups entry %q is not referenced by any command", p)
+		}
+	}
+
+	return nil
+}
+
+// splitGroupPath splits a group path into its parent path and final segment.
+// The root's parent is "" and leaf is the whole path.
+func splitGroupPath(path string) (parent, leaf string) {
+	if path == "" {
+		return "", ""
+	}
+	idx := strings.LastIndex(path, "/")
+	if idx < 0 {
+		return "", path
+	}
+	return path[:idx], path[idx+1:]
+}
+
+// toSnake converts CamelCase to snake_case (mirrors runtime cli.toSnake).
+func toSnake(s string) string {
+	var b strings.Builder
+	for i, r := range s {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			b.WriteByte('_')
+		}
+		if r >= 'A' && r <= 'Z' {
+			b.WriteRune(r + 32)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // checkFieldsRepresentable checks every field in a FieldDefs for descriptor

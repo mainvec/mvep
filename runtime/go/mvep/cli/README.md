@@ -46,6 +46,32 @@ via `FieldDesc.Ptr`. The command name is the spec's `alias` (or snake_case
 of the struct name if no alias). The snake_case name is registered as a ugo
 alias so both forms work.
 
+## Command groups
+
+A command can be placed under a group by setting its `Group` field to a
+`/`-separated path (empty or absent means the root). `cli.New` builds the
+nested tree from `desc.Groups` in order, so `svc server start` dispatches to a
+command with `Group: "server"` and `Alias: "start"`.
+
+Group parents are built with their own title, description, aliases and hidden
+flag, and have no `RunE`, so ugo prints their help when invoked with no
+subcommand. They also carry the same unknown-subcommand guard as the root, so
+`svc server bogus` is an error rather than a silently-printed help.
+
+```go
+// A command under the "server" group, reachable as `svc server start`.
+mvep.CommandDesc{
+    Name:  "StartServerCmd",
+    Alias: "start",
+    Group: "server",
+    // ...
+}
+```
+
+Groups are a CLI presentation concern: they do not affect `GetName()`, routes,
+envelopes or encodings, and `Group` is not consulted by the server or client.
+A spec that declares no group generates the same flat tree as before.
+
 ### `Executor`
 
 ```go

@@ -1,0 +1,22 @@
+{
+	"$id": "test20Id",
+	"$schema": "resources/mvepspec/0.2/schema/2026-01-15",
+	"name": "test20",
+	"namespace": "test20ns",
+	"commands": {
+		"CreateKeyCmd": {
+			"title": "Create Key",
+			"alias": "create",
+			"group": "server/keys",
+			"desc": "A command at depth 2; its intermediate parent 'server' holds no commands"
+		}
+	},
+	"commandGroups": {
+		"server": {
+			"title": "LLM Servers"
+		},
+		"server/keys": {
+			"title": "API Keys"
+		}
+	}
+}

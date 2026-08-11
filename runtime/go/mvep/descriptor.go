@@ -20,6 +20,7 @@ type PackageDesc struct {
 	Base        string
 	SpecVersion string // informational only (e.g. --version output)
 	Commands    []CommandDesc
+	Groups      []GroupDesc // ordered, includes auto-created intermediates
 	Records     []RecordDesc
 }
 
@@ -28,10 +29,24 @@ type PackageDesc struct {
 type CommandDesc struct {
 	Name   string
 	Alias  string
+	Group  string // full group path, empty for root
 	Desc   string
 	New    func() any // constructs a new command struct
 	Fields []FieldDesc
 	Result *ResultDesc
+}
+
+// GroupDesc describes a command group: a named, possibly nested, parent for
+// commands. Groups is a flat, ordered slice carrying the full path; the parent
+// of "a/b" is found by trimming the last segment. Path is the full path, Name
+// the final segment.
+type GroupDesc struct {
+	Path    string
+	Name    string
+	Title   string
+	Desc    string
+	Aliases []string
+	Hidden  bool
 }
 
 // ResultDesc describes a command's result struct. It is not optional garnish:

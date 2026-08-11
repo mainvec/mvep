@@ -277,6 +277,78 @@ func TestExecuteGenerateUnsupportedConstructReturnsError(t *testing.T) {
 	}
 }
 
+// TestExecuteGenerateGroupValidation is the T5 net: each rejected group
+// configuration fails mvep generate with a non-zero error naming the spec
+// path and the colliding command/group. One case per validation rule in the
+// plan's Generate-time validation section.
+func TestExecuteGenerateGroupValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		fixture string
+		wantSub []string // substrings the error must contain
+	}{
+		{
+			name:    "group name collides with sibling command alias",
+			fixture: "14_group_collides_command.jsonc",
+			wantSub: []string{"server", "ServerCmd"},
+		},
+		{
+			name:    "group alias collides with sibling command alias",
+			fixture: "15_group_alias_collides_command.jsonc",
+			wantSub: []string{"server", "start"},
+		},
+		{
+			name:    "two commands resolve to same name under same parent",
+			fixture: "16_duplicate_command_name.jsonc",
+			wantSub: []string{"start", "server"},
+		},
+		{
+			name:    "group path has a leading slash",
+			fixture: "17_group_leading_slash.jsonc",
+			wantSub: []string{"server"},
+		},
+		{
+			name:    "commandGroups entry is not referenced by any command",
+			fixture: "18_unreferenced_group.jsonc",
+			wantSub: []string{"server"},
+		},
+		{
+			// #42: a command's parent is its group path (not the path minus the
+			// last segment), so a depth-1 command colliding with a depth-2
+			// group must be rejected. Fixture 14 only exercises the root case.
+			name:    "group collides with sibling command at depth",
+			fixture: "19_group_collides_command_depth.jsonc",
+			wantSub: []string{"keys", "server"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outdir := t.TempDir()
+			err := ExecuteGenerate(context.Background(), filepath.Join("testdata", tt.fixture), outdir, "go", true, "plain")
+			if err == nil {
+				t.Fatal("expected an error, got nil")
+			}
+			msg := err.Error()
+			for _, sub := range tt.wantSub {
+				if !strings.Contains(msg, sub) {
+					t.Errorf("error should contain %q; got: %s", sub, msg)
+				}
+			}
+		})
+	}
+}
+
+// TestTitledIntermediateGroupAllowed verifies #43: a commandGroups entry that
+// is an intermediate segment of a referenced path (its parent holds no
+// commands directly) must not be rejected as unreferenced — declaring metadata
+// on an intermediate is the main reason to declare it.
+func TestTitledIntermediateGroupAllowed(t *testing.T) {
+	outdir := t.TempDir()
+	if err := ExecuteGenerate(context.Background(), filepath.Join("testdata", "20_titled_intermediate_group.jsonc"), outdir, "go", true, "plain"); err != nil {
+		t.Fatalf("generate should succeed for a titled intermediate group: %v", err)
+	}
+}
+
 // TestDescriptorOutputLeaksNoGenOptionsPaths verifies #30: generated descriptor
 // output for a spec whose gen_options set go_package and go_api_package must
 // contain neither value. This guards the stated rationale for excluding

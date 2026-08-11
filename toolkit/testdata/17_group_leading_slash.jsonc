@@ -1,0 +1,14 @@
+{
+	"$id": "test17Id",
+	"$schema": "resources/mvepspec/0.2/schema/2026-01-15",
+	"name": "test17",
+	"namespace": "test17ns",
+	"commands": {
+		"StartCmd": {
+			"title": "Start",
+			"alias": "start",
+			"group": "/server",
+			"desc": "Start with a leading slash"
+		}
+	}
+}

@@ -121,6 +121,32 @@ app.SetRenderer(func(w io.Writer, result any) {
 })
 ```
 
+## Command groups (plan 040)
+
+A command's optional `group` field (a `/`-separated path) places it under a
+nested CLI subcommand, so `"group": "server"` with `"alias": "start"` yields
+`svc server start`. Group metadata (title, description, aliases, hidden) lives
+in the optional top-level `commandGroups` object, keyed by full path; a group
+referenced by a command but absent there is auto-created with the path segment
+as its name.
+
+```json
+"commands": {
+  "StartServerCmd": { "title": "Start", "alias": "start", "group": "server" }
+},
+"commandGroups": {
+  "server": { "title": "LLM Servers", "desc": "Start, stop and inspect servers" }
+}
+```
+
+Adopting groups is opt-in and inert until a spec adds `group`: a spec with no
+group generates the same flat tree as before. Groups are a CLI presentation
+concern only — they do not affect routes, envelopes or encodings. Note that
+adding `group` changes how a command is invoked (`svc start_llm_server` becomes
+`svc server start`); no automatic flat-name compatibility alias is generated.
+A consumer wanting one can add a hidden root command reusing the leaf's `RunE`,
+reached via `app.Root().Find([]string{"server", "start"})`.
+
 ## Release ordering
 
 The `runtime` CLI mode generates a `main.go` that imports

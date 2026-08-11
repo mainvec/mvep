@@ -59,6 +59,7 @@
 | **Streaming** | `"stream": true` on `resultFields` → SSE/WebSocket server handler + client consumer | Spec schema + codegen + runtime |
 | **Multi-spec composition** | `$ref` across spec files for shared records between microservices | Spec schema + toolkit resolver |
 | **Pagination pattern** | `"paginated": true` on commands → auto-generates cursor/limit fields + iterator client helpers | Spec schema + codegen |
+| **Help categories** | Flat command list visually grouped by heading (kubectl style), distinct from nested command groups (plan 040) | Spec schema + codegen + runtime |
 | **Event/webhook definitions** | `"events"` section in spec for async notifications | Spec schema + codegen |
 
 ## Priority Order

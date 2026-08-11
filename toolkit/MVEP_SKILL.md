@@ -156,6 +156,7 @@ Legacy specs using `https://spec.mainvec.com/mvepspec/0.1/schema/...` remain sup
     "OrderCreateCmd": {
       "title": "Create a new order",
       "alias": "create_order",
+      "group": "orders",           // optional: place under a CLI command group
       "fields": {
         "customerID": { "fnum": 1, "type": "string", "tags": ["required"] },
         "items":      { "fnum": 2, "type": "recRef", "$ref": "#/recordsDefs/OrderItem", "repeated": true, "title": "Order items" },
@@ -167,6 +168,11 @@ Legacy specs using `https://spec.mainvec.com/mvepspec/0.1/schema/...` remain sup
         "createdAt": { "fnum": 3, "type": "timestamp" }
       }
     }
+  },
+
+  "commandGroups": {
+    // Optional metadata for CLI command groups, keyed by full path.
+    "orders": { "title": "Orders", "desc": "Create and manage orders" }
   },
 
   "recordsDefs": {
@@ -272,6 +278,17 @@ go install <module>/mvepapi/cmd/mvep@latest
 > snake_case struct name (`generate_cmd`) is an alias. The `gen` alias from
 > the legacy hand-wired CLI is not present by default — add it via
 > `App.Root().AddCommand()` if needed.
+
+### Command groups
+
+A command's optional `group` field (a `/`-separated path) places it under a
+nested CLI subcommand, so `"group": "orders"` with `"alias": "create_order"`
+yields `svc orders create_order`. Group metadata (title, description, aliases,
+hidden) lives in the optional top-level `commandGroups` object, keyed by full
+path; a group referenced by a command but absent there is auto-created with the
+path segment as its name. Groups are a CLI presentation concern only — they do
+not affect routes, envelopes or encodings, and a spec with no `group` generates
+the same flat tree as before.
 
 ### Flags
 

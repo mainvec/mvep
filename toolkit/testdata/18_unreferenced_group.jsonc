@@ -1,0 +1,18 @@
+{
+	"$id": "test18Id",
+	"$schema": "resources/mvepspec/0.2/schema/2026-01-15",
+	"name": "test18",
+	"namespace": "test18ns",
+	"commands": {
+		"StartCmd": {
+			"title": "Start",
+			"alias": "start",
+			"desc": "Start"
+		}
+	},
+	"commandGroups": {
+		"server": {
+			"title": "Servers"
+		}
+	}
+}

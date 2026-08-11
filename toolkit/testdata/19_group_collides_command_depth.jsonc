@@ -1,0 +1,25 @@
+{
+	"$id": "test19Id",
+	"$schema": "resources/mvepspec/0.2/schema/2026-01-15",
+	"name": "test19",
+	"namespace": "test19ns",
+	"commands": {
+		"KeysCmd": {
+			"title": "Keys",
+			"alias": "keys",
+			"group": "server",
+			"desc": "A command under server whose name collides with the server/keys group"
+		},
+		"CreateKeyCmd": {
+			"title": "Create Key",
+			"alias": "create",
+			"group": "server/keys",
+			"desc": "A command under server/keys"
+		}
+	},
+	"commandGroups": {
+		"server/keys": {
+			"title": "API Keys"
+		}
+	}
+}

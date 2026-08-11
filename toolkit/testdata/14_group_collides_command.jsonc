@@ -1,0 +1,19 @@
+{
+	"$id": "test14Id",
+	"$schema": "resources/mvepspec/0.2/schema/2026-01-15",
+	"name": "test14",
+	"namespace": "test14ns",
+	"commands": {
+		"StartCmd": {
+			"title": "Start",
+			"alias": "start",
+			"group": "server",
+			"desc": "Start"
+		},
+		"ServerCmd": {
+			"title": "Server",
+			"alias": "server",
+			"desc": "A command whose alias collides with the group name"
+		}
+	}
+}

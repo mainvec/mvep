@@ -33,6 +33,9 @@ var pkgDesc = mvep.PackageDesc{
 		{
 			Name:  {{ GoStringLit $cmdName }},
 			Alias: {{ GoStringLit $cmd.Alias }},
+{{- if $cmd.Group }}
+			Group: {{ GoStringLit $cmd.Group }},
+{{- end }}
 			Desc:  {{ GoStringLit (CmdDescOrTitle $cmd.Desc $cmd.Title) }},
 			New:   func() any { return &{{ $cmdName }}{} },
 			Fields: []mvep.FieldDesc{
@@ -72,6 +75,18 @@ var pkgDesc = mvep.PackageDesc{
 		},
 {{- end }}
 	},
+{{- $groupDescs := GroupDescs $SPEC }}
+{{- if $groupDescs }}
+	Groups: []mvep.GroupDesc{
+{{- range $gd := $groupDescs }}
+		{
+			Path: {{ GoStringLit $gd.Path }}, Name: {{ GoStringLit $gd.Name }},
+			Title: {{ GoStringLit $gd.Title }}, Desc: {{ GoStringLit $gd.Desc }},
+			Aliases: {{ GoStringSliceLit $gd.Aliases }}, Hidden: {{ $gd.Hidden }},
+		},
+{{- end }}
+	},
+{{- end }}
 	Records: []mvep.RecordDesc{
 {{- range $recName := SortedRecordNames $SPEC.Records }}
 {{- $rec := index $SPEC.Records $recName }}
