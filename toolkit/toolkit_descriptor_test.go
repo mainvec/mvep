@@ -312,6 +312,14 @@ func TestExecuteGenerateGroupValidation(t *testing.T) {
 			fixture: "18_unreferenced_group.jsonc",
 			wantSub: []string{"server"},
 		},
+		{
+			// #42: a command's parent is its group path (not the path minus the
+			// last segment), so a depth-1 command colliding with a depth-2
+			// group must be rejected. Fixture 14 only exercises the root case.
+			name:    "group collides with sibling command at depth",
+			fixture: "19_group_collides_command_depth.jsonc",
+			wantSub: []string{"keys", "server"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -327,6 +335,17 @@ func TestExecuteGenerateGroupValidation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestTitledIntermediateGroupAllowed verifies #43: a commandGroups entry that
+// is an intermediate segment of a referenced path (its parent holds no
+// commands directly) must not be rejected as unreferenced — declaring metadata
+// on an intermediate is the main reason to declare it.
+func TestTitledIntermediateGroupAllowed(t *testing.T) {
+	outdir := t.TempDir()
+	if err := ExecuteGenerate(context.Background(), filepath.Join("testdata", "20_titled_intermediate_group.jsonc"), outdir, "go", true, "plain"); err != nil {
+		t.Fatalf("generate should succeed for a titled intermediate group: %v", err)
 	}
 }
 

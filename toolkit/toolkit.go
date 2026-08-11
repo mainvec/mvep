@@ -1031,7 +1031,19 @@ func validateCommandGroups(srvDef *SrvDef) error {
 					return fmt.Errorf("command %q: group path %q contains an empty segment", cmdName, group)
 				}
 			}
-			referencedGroups[group] = true
+			// Seed referencedGroups with every prefix of the path, mirroring
+			// orderedGroupDescs' chain, so a titled intermediate segment is not
+			// reported unreferenced (#43). The exact group and all its parents
+			// count as referenced by this command.
+			prefix := ""
+			for _, seg := range strings.Split(group, "/") {
+				if prefix == "" {
+					prefix = seg
+				} else {
+					prefix = prefix + "/" + seg
+				}
+				referencedGroups[prefix] = true
+			}
 		}
 
 		leaf := leafName(cmd, cmdName)
@@ -1054,7 +1066,9 @@ func validateCommandGroups(srvDef *SrvDef) error {
 	groupPathByLeaf := map[string]string{} // "parent/leaf" -> full group path
 
 	// Register all group paths (declared + referenced), including intermediate
-	// segments, so a group can collide with a sibling group.
+	// segments, so a group can collide with a sibling group. Build the prefix
+	// chains into a second map rather than mutating allGroups while ranging
+	// over it (#45).
 	allGroups := map[string]bool{}
 	for _, p := range sortedGroupNames(srvDef.CommandGroups) {
 		allGroups[p] = true
@@ -1062,6 +1076,7 @@ func validateCommandGroups(srvDef *SrvDef) error {
 	for g := range referencedGroups {
 		allGroups[g] = true
 	}
+	expanded := map[string]bool{}
 	for g := range allGroups {
 		prefix := ""
 		for _, seg := range strings.Split(g, "/") {
@@ -1070,8 +1085,11 @@ func validateCommandGroups(srvDef *SrvDef) error {
 			} else {
 				prefix = prefix + "/" + seg
 			}
-			allGroups[prefix] = true
+			expanded[prefix] = true
 		}
+	}
+	for p := range expanded {
+		allGroups[p] = true
 	}
 
 	for g := range allGroups {
@@ -1093,12 +1111,15 @@ func validateCommandGroups(srvDef *SrvDef) error {
 	}
 
 	// A group name or alias must not collide with a sibling command's name or
-	// alias. A command's leaf name under a parent is its alias or snake_case.
+	// alias. A command's leaf name under its parent is its alias or snake_case.
+	// A command's parent IS its group path (empty for root), not the path minus
+	// its last segment (#42): a command under "server" is a sibling of the
+	// "server/keys" group, not of the "server" group's siblings.
 	cmdLeafByParent := map[string]map[string]string{} // parent -> leaf -> cmdName
 	it2 := omap.IteratorByKey(srvDef.Commands)
 	for it2.HasNext() {
 		cmdName, cmd := it2.Next()
-		parent, _ := splitGroupPath(cmd.Group)
+		parent := cmd.Group
 		leaf := leafName(cmd, cmdName)
 		if cmdLeafByParent[parent] == nil {
 			cmdLeafByParent[parent] = map[string]string{}
