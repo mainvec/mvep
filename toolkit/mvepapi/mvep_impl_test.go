@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -115,5 +116,48 @@ func TestRunInitializeCmdMissingName(t *testing.T) {
 	}
 	if err.Error() == "command not implemented" {
 		t.Fatalf("got generic stub error, want validation error: %v", err)
+	}
+}
+
+// TestRunInitializeCmdScaffoldsSpec verifies init writes a <name>.jsonc spec
+// file into the current directory with a couple of dummy commands, and that
+// the scaffolded spec is itself valid.
+func TestRunInitializeCmdScaffoldsSpec(t *testing.T) {
+	chdirToolkitRoot(t)
+	dir := t.TempDir()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir to temp dir: %v", err)
+	}
+
+	if _, err := runInitializeCmd(context.Background(), &api.InitializeCmd{Name: "myservice", Namespace: "myservicens"}); err != nil {
+		t.Fatalf("runInitializeCmd: %v", err)
+	}
+
+	specPath := filepath.Join(dir, "myservice.jsonc")
+	b, err := os.ReadFile(specPath)
+	if err != nil {
+		t.Fatalf("expected scaffolded spec file %s: %v", specPath, err)
+	}
+	src := string(b)
+
+	// The scaffold must carry the name and namespace.
+	if !strings.Contains(src, `"name": "myservice"`) {
+		t.Errorf("scaffold missing name; got:\n%s", src)
+	}
+	if !strings.Contains(src, `"namespace": "myservicens"`) {
+		t.Errorf("scaffold missing namespace; got:\n%s", src)
+	}
+	// It must include a couple of dummy commands.
+	if !strings.Contains(src, `"commands"`) {
+		t.Errorf("scaffold missing commands; got:\n%s", src)
+	}
+
+	// The scaffolded spec must itself validate.
+	res, err := runValidateCmd(context.Background(), &api.ValidateCmd{In: specPath})
+	if err != nil {
+		t.Fatalf("validate scaffolded spec: %v", err)
+	}
+	if !res.Valid {
+		t.Errorf("scaffolded spec is invalid: %v", res.Errors)
 	}
 }
