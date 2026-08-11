@@ -405,6 +405,21 @@ non-zero exit and a message naming the spec path.
 - Fixtures `14`–`18` cover each rejected case; `TestExecuteGenerateGroupValidation`
   asserts a non-zero error naming the group and colliding command.
 
+**Follow-up fixes (review of PR #41):**
+- **#42** — the command-vs-group collision loop derived a command's parent by
+  trimming a segment (`splitGroupPath`), but a command's parent IS its group
+  path; a depth-1 command could collide with a depth-2 group undetected. Fixed
+  to `parent := cmd.Group`; regression fixture `19` covers the depth >= 1 case.
+- **#43** — `referencedGroups` recorded only the exact `cmd.Group`, so a titled
+  intermediate segment (parent holding no direct commands) was rejected as
+  unreferenced. Fixed by seeding every path prefix; regression fixture `20`.
+- **#45** — cleanups: dropped the write-only `app.commands` map, corrected
+  `New`'s doc comment (groups are lazy, command-order, not `desc.Groups`-order),
+  switched `unknownSubcommandArgs` to `cmd.CommandPath()`, avoided mutating a
+  map while ranging in `validateCommandGroups`, and closed the alias blind spot
+  (validation now registers the snake_case secondary alias that `cli.aliasesFor`
+  attaches).
+
 ### T6 — `cli.New` builds the nested tree
 
 Resolve each command's parent, memoising group commands by path and creating
