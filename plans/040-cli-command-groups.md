@@ -318,7 +318,7 @@ No migration: grouping is inert until a spec adds `group`.
 - [x] T5 — Generate-time validation and collision errors
 - [x] T6 — `cli.New` builds the nested tree
 - [x] T7 — Tests: golden, dispatch, help, inheritance, backward compat
-- [ ] T8 — Documentation
+- [x] T8 — Documentation
 
 ## Tasks
 
@@ -445,3 +445,14 @@ Update `runtime/go/mvep/cli/README.md` with a groups section,
 023. Note in `toolkit/MVEP_ROADMAP.md` that help categories remain a separate,
 unbuilt item. Add a short section to `docs/cli-builder-migration.md` for
 consumers adopting groups.
+
+**Notes:**
+- `runtime/go/mvep/cli/README.md`: added a "Command groups" section.
+- `toolkit/MVEP_SKILL.md`: added `group` to the spec example, a `commandGroups`
+  block, and a "Command groups" subsection under the CLI reference.
+- `plans/023-cli-generation-complete-reusable.md`: marked **C2** delivered.
+- `toolkit/MVEP_ROADMAP.md`: added "Help categories" as a separate, unbuilt
+  item (distinct from nested groups).
+- `docs/cli-builder-migration.md`: added a "Command groups (plan 040)" section
+  for consumers, including the no-compat-alias note and the manual escape
+  hatch.
