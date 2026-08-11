@@ -989,7 +989,178 @@ func validateDescriptorRepresentable(srvDef *SrvDef) error {
 			return err
 		}
 	}
+	// Command groups: reject collisions and malformed paths (plan 040 T5).
+	if err := validateCommandGroups(srvDef); err != nil {
+		return err
+	}
 	return nil
+}
+
+// validateCommandGroups enforces the plan 040 generate-time group rules. Every
+// error names the spec path, the group, and the colliding command so the
+// developer holding the spec can fix it without digging.
+func validateCommandGroups(srvDef *SrvDef) error {
+	// leafName is the name a command resolves to under its parent: the alias
+	// when present, else the snake_case of the command name (mirrors
+	// runtime cli.commandName).
+	leafName := func(cmd CommandDef, cmdName string) string {
+		if cmd.Alias != "" {
+			return cmd.Alias
+		}
+		return toSnake(cmdName)
+	}
+
+	// nameByParent maps "parentPath/leafName" -> command name for duplicate
+	// detection. parentPath is the group path ("" for root).
+	nameByParent := map[string]string{}
+	// referencedGroups records every group path a command references.
+	referencedGroups := map[string]bool{}
+
+	it := omap.IteratorByKey(srvDef.Commands)
+	for it.HasNext() {
+		cmdName, cmd := it.Next()
+		group := cmd.Group
+
+		// Malformed path: empty segment, or leading/trailing slash.
+		if group != "" {
+			if strings.HasPrefix(group, "/") || strings.HasSuffix(group, "/") {
+				return fmt.Errorf("command %q: group path %q must not have a leading or trailing '/'", cmdName, group)
+			}
+			for _, seg := range strings.Split(group, "/") {
+				if seg == "" {
+					return fmt.Errorf("command %q: group path %q contains an empty segment", cmdName, group)
+				}
+			}
+			referencedGroups[group] = true
+		}
+
+		leaf := leafName(cmd, cmdName)
+		key := group + "/" + leaf
+		if prev, dup := nameByParent[key]; dup {
+			return fmt.Errorf(
+				"commands %q and %q both resolve to name %q under group %q",
+				prev, cmdName, leaf, group,
+			)
+		}
+		nameByParent[key] = cmdName
+	}
+
+	// Build the set of group names and aliases at each parent, and check
+	// collisions between a group and a sibling command's name/alias.
+	// groupNamesByParent: parentPath -> set of group leaf names.
+	// groupAliasesByParent: parentPath -> map[alias]groupPath.
+	groupNamesByParent := map[string]map[string]bool{}
+	groupAliasesByParent := map[string]map[string]string{}
+	groupPathByLeaf := map[string]string{} // "parent/leaf" -> full group path
+
+	// Register all group paths (declared + referenced), including intermediate
+	// segments, so a group can collide with a sibling group.
+	allGroups := map[string]bool{}
+	for _, p := range sortedGroupNames(srvDef.CommandGroups) {
+		allGroups[p] = true
+	}
+	for g := range referencedGroups {
+		allGroups[g] = true
+	}
+	for g := range allGroups {
+		prefix := ""
+		for _, seg := range strings.Split(g, "/") {
+			if prefix == "" {
+				prefix = seg
+			} else {
+				prefix = prefix + "/" + seg
+			}
+			allGroups[prefix] = true
+		}
+	}
+
+	for g := range allGroups {
+		parent, leaf := splitGroupPath(g)
+		if groupNamesByParent[parent] == nil {
+			groupNamesByParent[parent] = map[string]bool{}
+		}
+		groupNamesByParent[parent][leaf] = true
+		groupPathByLeaf[parent+"/"+leaf] = g
+		// Group aliases come from declared metadata only.
+		if meta, ok := srvDef.CommandGroups[g]; ok {
+			if groupAliasesByParent[parent] == nil {
+				groupAliasesByParent[parent] = map[string]string{}
+			}
+			for _, a := range meta.Aliases {
+				groupAliasesByParent[parent][a] = g
+			}
+		}
+	}
+
+	// A group name or alias must not collide with a sibling command's name or
+	// alias. A command's leaf name under a parent is its alias or snake_case.
+	cmdLeafByParent := map[string]map[string]string{} // parent -> leaf -> cmdName
+	it2 := omap.IteratorByKey(srvDef.Commands)
+	for it2.HasNext() {
+		cmdName, cmd := it2.Next()
+		parent, _ := splitGroupPath(cmd.Group)
+		leaf := leafName(cmd, cmdName)
+		if cmdLeafByParent[parent] == nil {
+			cmdLeafByParent[parent] = map[string]string{}
+		}
+		cmdLeafByParent[parent][leaf] = cmdName
+	}
+
+	for parent, leaves := range cmdLeafByParent {
+		for leaf, cmdName := range leaves {
+			if groupNamesByParent[parent][leaf] {
+				return fmt.Errorf(
+					"command %q name/alias %q collides with group %q under %q",
+					cmdName, leaf, groupPathByLeaf[parent+"/"+leaf], parent,
+				)
+			}
+			if gpath, ok := groupAliasesByParent[parent][leaf]; ok {
+				return fmt.Errorf(
+					"command %q name/alias %q collides with an alias of group %q under %q",
+					cmdName, leaf, gpath, parent,
+				)
+			}
+		}
+	}
+
+	// A declared commandGroups entry must be referenced by at least one
+	// command; an unreferenced entry is almost always a typo.
+	for _, p := range sortedGroupNames(srvDef.CommandGroups) {
+		if !referencedGroups[p] {
+			return fmt.Errorf("commandGroups entry %q is not referenced by any command", p)
+		}
+	}
+
+	return nil
+}
+
+// splitGroupPath splits a group path into its parent path and final segment.
+// The root's parent is "" and leaf is the whole path.
+func splitGroupPath(path string) (parent, leaf string) {
+	if path == "" {
+		return "", ""
+	}
+	idx := strings.LastIndex(path, "/")
+	if idx < 0 {
+		return "", path
+	}
+	return path[:idx], path[idx+1:]
+}
+
+// toSnake converts CamelCase to snake_case (mirrors runtime cli.toSnake).
+func toSnake(s string) string {
+	var b strings.Builder
+	for i, r := range s {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			b.WriteByte('_')
+		}
+		if r >= 'A' && r <= 'Z' {
+			b.WriteRune(r + 32)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // checkFieldsRepresentable checks every field in a FieldDefs for descriptor

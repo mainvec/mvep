@@ -315,7 +315,7 @@ No migration: grouping is inert until a spec adds `group`.
 - [x] T2 — Toolkit structs and unmarshal round-trip test
 - [x] T3 — Descriptor: `GroupDesc`, `CommandDesc.Group`, `PackageDesc.Groups`
 - [x] T4 — Codegen emission with deterministic ordering
-- [ ] T5 — Generate-time validation and collision errors
+- [x] T5 — Generate-time validation and collision errors
 - [ ] T6 — `cli.New` builds the nested tree
 - [ ] T7 — Tests: golden, dispatch, help, inheritance, backward compat
 - [ ] T8 — Documentation
@@ -394,6 +394,16 @@ Implement the checks in
 [Generate-time validation](#generate-time-validation) inside the existing strict
 pass in `toolkit_runner.go`. One test per rejected case, each asserting a
 non-zero exit and a message naming the spec path.
+
+**Notes:**
+- Implemented in `validateCommandGroups`, called from
+  `validateDescriptorRepresentable` (the existing strict pass in
+  `toolkit_runner.go`'s `executeGenerateGo`).
+- A group's alias collides with a *sibling* command at the group's own level
+  (e.g. root group `server` alias `start` vs root command `start`), not with a
+  child command under the group.
+- Fixtures `14`–`18` cover each rejected case; `TestExecuteGenerateGroupValidation`
+  asserts a non-zero error naming the group and colliding command.
 
 ### T6 — `cli.New` builds the nested tree
 

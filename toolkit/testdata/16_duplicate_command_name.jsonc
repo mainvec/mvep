@@ -1,0 +1,20 @@
+{
+	"$id": "test16Id",
+	"$schema": "resources/mvepspec/0.2/schema/2026-01-15",
+	"name": "test16",
+	"namespace": "test16ns",
+	"commands": {
+		"StartCmd": {
+			"title": "Start",
+			"alias": "start",
+			"group": "server",
+			"desc": "Start"
+		},
+		"StartAgainCmd": {
+			"title": "Start Again",
+			"alias": "start",
+			"group": "server",
+			"desc": "Another command resolving to the same name under the same parent"
+		}
+	}
+}
