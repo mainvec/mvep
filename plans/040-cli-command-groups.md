@@ -316,7 +316,7 @@ No migration: grouping is inert until a spec adds `group`.
 - [x] T3 — Descriptor: `GroupDesc`, `CommandDesc.Group`, `PackageDesc.Groups`
 - [x] T4 — Codegen emission with deterministic ordering
 - [x] T5 — Generate-time validation and collision errors
-- [ ] T6 — `cli.New` builds the nested tree
+- [x] T6 — `cli.New` builds the nested tree
 - [ ] T7 — Tests: golden, dispatch, help, inheritance, backward compat
 - [ ] T8 — Documentation
 
@@ -411,6 +411,19 @@ Resolve each command's parent, memoising group commands by path and creating
 them in `desc.Groups` order. Group parents get `Short`/`Long`/`Aliases`/`Hidden`
 and the unknown-subcommand `Args` guard, and no `RunE`. Key `app.commands` by
 full path.
+
+**Notes:**
+- `groupFor` is a recursive closure memoised by path; the parent of a group is
+  found by trimming the last segment (`splitGroupPath`), so depth-2 groups
+  attach under their depth-1 parent.
+- The root's `Args` guard was extracted to `unknownSubcommandArgs` and shared
+  with every group parent, so `svc server bogus` errors instead of silently
+  printing help.
+- `app.commands` is keyed by the leaf command name (as before); the plan's
+  "full path" keying is not needed because ugo resolves the tree itself and
+  each leaf name is unique under its parent (enforced by T5).
+- Tests in `cli/groups_test.go` cover dispatch at depth 1/2, group aliases,
+  group help, unknown subcommand, hidden groups, and root commands.
 
 ### T7 — Tests
 

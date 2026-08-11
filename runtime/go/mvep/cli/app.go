@@ -55,9 +55,12 @@ func (a *App) AddPreHook(h PreHook) { a.preHooks = append(a.preHooks, h) }
 func (a *App) AddPostHook(h PostHook) { a.postHooks = append(a.postHooks, h) }
 
 // New builds a CLI app from a package descriptor and an executor. Every
-// CommandDesc becomes a ugo subcommand under the root. Flag binding (T9),
-// required-flag enforcement (T10), and result rendering (T14) layer on top of
-// this; T8 establishes the command tree and the execute-via-Executor seam.
+// CommandDesc becomes a ugo subcommand under the root, or under a group parent
+// when the command declares a Group (plan 040). Group parents are built from
+// desc.Groups in order, carry their own title/description/aliases/hidden flag,
+// and have no RunE so ugo prints their help. Flag binding (T9), required-flag
+// enforcement (T10), and result rendering (T14) layer on top of this; T8
+// establishes the command tree and the execute-via-Executor seam.
 func New(desc *mvep.PackageDesc, executor Executor) *App {
 	app := &App{
 		desc:     desc,
@@ -74,21 +77,59 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 		// subcommand name or a flag. Without this, ugo prints help and
 		// returns nil for an unrecognized command name (treating it as a
 		// positional), which would silently swallow typos.
-		Args: func(cmd *cli.Command, args []string) error {
-			if len(args) > 0 {
-				return fmt.Errorf("unknown command %q for %q", args[0], cmd.Name())
-			}
-			return nil
-		},
+		Args: unknownSubcommandArgs,
 	}
 	if desc.SpecVersion != "" {
 		root.Version = desc.SpecVersion
 	}
 
+	// groupByPath memoises a ugo *cli.Command per group path, created on
+	// demand in desc.Groups order. The parent of a group is found by trimming
+	// the last path segment, so a depth-2 group attaches under its depth-1
+	// parent.
+	groupByPath := make(map[string]*cli.Command, len(desc.Groups))
+	var groupFor func(path string) *cli.Command
+	groupFor = func(path string) *cli.Command {
+		if path == "" {
+			return root
+		}
+		if c, ok := groupByPath[path]; ok {
+			return c
+		}
+		// Find the GroupDesc for this path (auto-created intermediates are
+		// materialised in the descriptor by codegen, so it is always present).
+		var gd *mvep.GroupDesc
+		for i := range desc.Groups {
+			if desc.Groups[i].Path == path {
+				gd = &desc.Groups[i]
+				break
+			}
+		}
+		parentPath, name := splitGroupPath(path)
+		parent := groupFor(parentPath)
+		g := &cli.Command{
+			Usage:   name,
+			Short:   groupTitle(gd, name),
+			Long:    groupLong(gd),
+			Aliases: groupAliases(gd),
+			Hidden:  groupHidden(gd),
+			// A group takes no positional arguments: every argument is a
+			// subcommand name or a flag. Without this, ugo treats an unknown
+			// subcommand as a positional and silently prints help.
+			Args: unknownSubcommandArgs,
+		}
+		parent.AddCommand(g)
+		groupByPath[path] = g
+		return g
+	}
+
 	for i := range desc.Commands {
 		cmdDesc := &desc.Commands[i]
 		cmdName := commandName(cmdDesc)
-		app.commands[cmdName] = cmdDesc
+		// Key by full path so two groups can each hold a same-named command
+		// (e.g. a "list" under "server" and under "server/keys") without
+		// overwriting each other (plan 040 T6).
+		app.commands[cmdDesc.Group+"/"+cmdName] = cmdDesc
 
 		// Declare sub first so its FlagSet exists for bindFlags; the RunE
 		// closure captures bindings, which is assigned next.
@@ -105,11 +146,64 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 		sub.RunE = func(ctx *cli.Context, args []string) error {
 			return app.runCommand(ctx, cmdDesc, bindings)
 		}
-		root.AddCommand(sub)
+		groupFor(cmdDesc.Group).AddCommand(sub)
 	}
 
 	app.root = root
 	return app
+}
+
+// unknownSubcommandArgs is the Args guard shared by the root and every group
+// parent: no positional arguments are accepted, so an unrecognized subcommand
+// name is an error rather than a silently-printed help.
+func unknownSubcommandArgs(cmd *cli.Command, args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("unknown command %q for %q", args[0], cmd.Name())
+	}
+	return nil
+}
+
+// groupTitle returns the group's display title, falling back to the path's
+// final segment when the group is undeclared (no metadata).
+func groupTitle(gd *mvep.GroupDesc, name string) string {
+	if gd != nil && gd.Title != "" {
+		return gd.Title
+	}
+	return name
+}
+
+// groupLong returns the group's long description.
+func groupLong(gd *mvep.GroupDesc) string {
+	if gd != nil {
+		return gd.Desc
+	}
+	return ""
+}
+
+// groupAliases returns the group's declared aliases.
+func groupAliases(gd *mvep.GroupDesc) []string {
+	if gd != nil {
+		return gd.Aliases
+	}
+	return nil
+}
+
+// groupHidden reports whether the group is hidden.
+func groupHidden(gd *mvep.GroupDesc) bool {
+	return gd != nil && gd.Hidden
+}
+
+// splitGroupPath splits a group path into its parent path and final segment.
+// The root's parent is "" and leaf is the whole path.
+func splitGroupPath(path string) (parent, leaf string) {
+	if path == "" {
+		return "", ""
+	}
+	idx := strings.LastIndex(path, "/")
+	if idx < 0 {
+		return "", path
+	}
+	return path[:idx], path[idx+1:]
 }
 
 // Root returns the underlying ugo root command, for callers that want to add
