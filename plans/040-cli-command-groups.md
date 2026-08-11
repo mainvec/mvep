@@ -311,8 +311,8 @@ No migration: grouping is inert until a spec adds `group`.
 
 ## Progress
 
-- [ ] T1 — Spec: `group`, `commandGroups`, schema
-- [ ] T2 — Toolkit structs and unmarshal round-trip test
+- [x] T1 — Spec: `group`, `commandGroups`, schema
+- [x] T2 — Toolkit structs and unmarshal round-trip test
 - [ ] T3 — Descriptor: `GroupDesc`, `CommandDesc.Group`, `PackageDesc.Groups`
 - [ ] T4 — Codegen emission with deterministic ordering
 - [ ] T5 — Generate-time validation and collision errors
@@ -329,12 +329,31 @@ Add the optional `group` property to a command and the optional top-level
 `toolkit/testdata/` exercising depth 1 and depth 2, an alias, and a hidden
 group. Resolve Open Question 1 here.
 
+**Notes:**
+- Open Question 1 resolved: extend `0.2/schema/2026-01-15.json` in place
+  (additive optional properties), and keep the no-extension copy
+  (`resources/mvepspec/0.2/schema/2026-01-15`) in sync — fixtures that pin the
+  file-path `$schema` (no `.json`) resolve through it on disk.
+- Fixture `13_command_groups.jsonc` covers: `server` (depth 1), `server/keys`
+  (depth 2), an alias (`server/keys` → `key`), a hidden group (`hidden`, with a
+  `SecretCmd` so it is referenced and thus valid), and a root command
+  (`UngroupedCmd`) for backward-compat.
+- Schema field/def descriptions are kept neutral (no "CLI", no plan number):
+  groups may be reused beyond the CLI.
+
 ### T2 — Toolkit structs and unmarshal round-trip test
 
 Add `CommandDef.Group`, `SrvDef.CommandGroups` and `GroupDef`. **Write the
 round-trip test first**: unmarshal the T1 fixture and assert both fields are
 populated. This is the guard against repeating the `tags` drop-on-unmarshal
 defect (#23).
+
+**Notes:**
+- Test-first: `TestCommandGroupsRoundTrip` written and confirmed failing
+  (undefined fields) before the structs were added.
+- `GroupDefs omap.OMap[string, GroupDef]` mirrors the existing `CommandDefs`;
+  added a `GroupDefs.Get`.
+- Verified `go test .` passes after the round-trip test; no regressions.
 
 ### T3 — Descriptor types
 

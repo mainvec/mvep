@@ -36,9 +36,21 @@ type CommandDef struct {
 	Id           string    `json:"-"`
 	Title        string    `json:"title,omitempty"`
 	Alias        string    `json:"alias,omitempty"`
+	Group        string    `json:"group,omitempty"` // command group path, /-separated
 	Desc         string    `json:"desc,omitempty"`
 	Fields       FieldDefs `json:"fields,omitempty"`
 	ResultFields FieldDefs `json:"resultFields,omitempty"`
+}
+
+// GroupDef carries optional metadata for a command group, keyed by full
+// group path in SrvDef.CommandGroups. All fields are optional; a
+// group referenced by a command but absent from CommandGroups is auto-created
+// with the path segment as its name and no metadata.
+type GroupDef struct {
+	Title   string   `json:"title,omitempty"`
+	Desc    string   `json:"desc,omitempty"`
+	Aliases []string `json:"aliases,omitempty"`
+	Hidden  bool     `json:"hidden,omitempty"`
 }
 
 type RecordDef struct {
@@ -89,10 +101,17 @@ type CommandDefs omap.OMap[string, CommandDef]
 type FieldDefs omap.OMap[string, FieldDef]
 type RecordsDefs omap.OMap[string, RecordDef]
 type GenOptsDef omap.OMap[string, string]
+type GroupDefs omap.OMap[string, GroupDef]
 
 // Get returns the CommandDef for key k and ok=true if present.
 func (c CommandDefs) Get(k string) (CommandDef, bool) {
 	v, ok := c[k]
+	return v, ok
+}
+
+// Get returns the GroupDef for key k and ok=true if present.
+func (g GroupDefs) Get(k string) (GroupDef, bool) {
+	v, ok := g[k]
 	return v, ok
 }
 
@@ -123,6 +142,7 @@ type SrvDef struct {
 	Desc       string      `json:"desc,omitempty"`
 	Version    string      `json:"version,omitempty"`
 	Commands   CommandDefs `json:"commands,omitempty"`
+	CommandGroups GroupDefs `json:"commandGroups,omitempty"`
 	Records    RecordsDefs `json:"recordsDefs,omitempty"`
 	GenOpts    GenOptsDef  `json:"gen_options,omitempty"`
 	ProtocOpts []string    `json:"-"` //Transient Holder for now, filled why processing options

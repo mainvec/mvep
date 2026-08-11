@@ -1,0 +1,66 @@
+{
+	"$id": "test13Id",
+	"$schema": "resources/mvepspec/0.2/schema/2026-01-15",
+	"name": "test13",
+	"namespace": "test13ns",
+	"title": "Command groups fixture",
+	"desc": "Exercises group nesting at depth 1 and 2, aliases, and a hidden group (plan 040 T1)",
+	"version": "0.2",
+	"commands": {
+		"StartServerCmd": {
+			"title": "Start an LLM Server Instance",
+			"alias": "start",
+			"group": "server",
+			"desc": "Start an LLM server",
+			"fields": {
+				"model": { "fnum": 1, "type": "string", "tags": ["required"] }
+			},
+			"resultFields": {
+				"pid": { "fnum": 1, "type": "int64" }
+			}
+		},
+		"StopServerCmd": {
+			"title": "Stop an LLM Server Instance",
+			"alias": "stop",
+			"group": "server",
+			"desc": "Stop an LLM server"
+		},
+		"CreateKeyCmd": {
+			"title": "Create an API Key",
+			"alias": "create",
+			"group": "server/keys",
+			"desc": "Create an API key for a server"
+		},
+		"ListKeyCmd": {
+			"title": "List API Keys",
+			"alias": "list",
+			"group": "server/keys",
+			"desc": "List API keys for a server"
+		},
+		"UngroupedCmd": {
+			"title": "A command at the root",
+			"alias": "ungrouped",
+			"desc": "A command with no group, exercising backward compat"
+		},
+		"SecretCmd": {
+			"title": "A hidden command",
+			"alias": "secret",
+			"group": "hidden",
+			"desc": "A command under a hidden group"
+		}
+	},
+	"commandGroups": {
+		"server": {
+			"title": "LLM Servers",
+			"desc": "Start, stop and inspect servers"
+		},
+		"server/keys": {
+			"title": "API Keys",
+			"aliases": ["key"]
+		},
+		"hidden": {
+			"title": "Hidden Group",
+			"hidden": true
+		}
+	}
+}

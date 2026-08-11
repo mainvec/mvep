@@ -80,6 +80,17 @@
 			"additionalProperties": false,
 			"minProperties": 1
 		},
+		"commandGroups": {
+			"description": "Command group metadata, keyed by full group path",
+			"type": "object",
+			"patternProperties": {
+				"^[^/]+(/[^/]+)*$": {
+					"type": "object",
+					"$ref": "#/$defs/groupDef"
+				}
+			},
+			"additionalProperties": false
+		},
 		"recordsDefs": {
 			"description": "Record definitons Object",
 			"$ref": "#/$defs/recordsDefs"
@@ -102,6 +113,10 @@
 				"alias": {
 					"type": "string",
 					"pattern": "^[A-Za-z][a-zA-Z0-9_]*$"
+				},
+				"group": {
+					"description": "Command group path, /-separated; empty or absent means the root",
+					"type": "string"
 				},
 				"state_type": {
 					"description": "The type of the command. Stateless/Stateful",
@@ -350,6 +365,36 @@
 			},
 			"additionalProperties": false,
 			"minProperties": 1
+		},
+		"groupDef": {
+			"type": "object",
+			"description": "Command group metadata",
+			"properties": {
+				"title": {
+					"description": "Display title for the group",
+					"type": "string"
+				},
+				"desc": {
+					"description": "Long description for the group",
+					"type": "string"
+				},
+				"aliases": {
+					"description": "Alternative names for the group",
+					"type": "array",
+					"items": {
+						"type": "string",
+						"pattern": "^[A-Za-z][a-zA-Z0-9_]*$"
+					},
+					"minItems": 1,
+					"uniqueItems": true
+				},
+				"hidden": {
+					"description": "Mark the group as hidden from discovery output",
+					"type": "boolean",
+					"default": false
+				}
+			},
+			"additionalProperties": false
 		}
 	}
 }
