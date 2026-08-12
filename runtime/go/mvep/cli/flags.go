@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -161,15 +162,26 @@ func registerFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDesc) fl
 			return nil
 		}}
 	case mvep.FieldMap:
-		// Maps bind from a JSON object via --<name>-json.
+		// Maps bind from a JSON object via --<name>-json, or from a file via
+		// --<name>-file (T8). -file supersedes -json when both are given.
 		p := new(string)
+		file := new(string)
 		fs.StringVar(p, f.Name+"-json", "", f.Desc+" (JSON object)")
+		fs.StringVar(file, f.Name+"-file", "", f.Desc+" (read JSON object from file)")
 		return flagBinding{field: f, apply: func(cmd any) error {
-			if *p == "" {
+			data := *p
+			if *file != "" {
+				b, err := os.ReadFile(*file)
+				if err != nil {
+					return fmt.Errorf("--%s-file: %w", f.Name, err)
+				}
+				data = string(b)
+			}
+			if data == "" {
 				return nil
 			}
 			target := f.Ptr(cmd)
-			if err := json.Unmarshal([]byte(*p), target); err != nil {
+			if err := json.Unmarshal([]byte(data), target); err != nil {
 				return fmt.Errorf("--%s-json: %w", f.Name, err)
 			}
 			return nil
@@ -200,15 +212,26 @@ func registerRepeatedFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.Package
 			return nil
 		}}
 	default:
-		// Repeated non-string types: bind as a JSON array via --<name>-json.
+		// Repeated non-string types: bind as a JSON array via --<name>-json,
+		// or from a file via --<name>-file (T8). -file supersedes -json.
 		p := new(string)
+		file := new(string)
 		fs.StringVar(p, f.Name+"-json", "", f.Desc+" (JSON array)")
+		fs.StringVar(file, f.Name+"-file", "", f.Desc+" (read JSON array from file)")
 		return flagBinding{field: f, apply: func(cmd any) error {
-			if *p == "" {
+			data := *p
+			if *file != "" {
+				b, err := os.ReadFile(*file)
+				if err != nil {
+					return fmt.Errorf("--%s-file: %w", f.Name, err)
+				}
+				data = string(b)
+			}
+			if data == "" {
 				return nil
 			}
 			target := f.Ptr(cmd)
-			if err := json.Unmarshal([]byte(*p), target); err != nil {
+			if err := json.Unmarshal([]byte(data), target); err != nil {
 				return fmt.Errorf("--%s-json: %w", f.Name, err)
 			}
 			return nil
@@ -239,15 +262,26 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDe
 	}
 
 	if len(refFields) == 0 {
-		// No record fields to flatten; bind as a JSON object via --<name>-json.
+		// No record fields to flatten; bind as a JSON object via --<name>-json,
+		// or from a file via --<name>-file (T8).
 		p := new(string)
+		file := new(string)
 		fs.StringVar(p, f.Name+"-json", "", f.Desc+" (JSON object)")
+		fs.StringVar(file, f.Name+"-file", "", f.Desc+" (read JSON object from file)")
 		return flagBinding{field: f, apply: func(cmd any) error {
-			if *p == "" {
+			data := *p
+			if *file != "" {
+				b, err := os.ReadFile(*file)
+				if err != nil {
+					return fmt.Errorf("--%s-file: %w", f.Name, err)
+				}
+				data = string(b)
+			}
+			if data == "" {
 				return nil
 			}
 			target := f.Ptr(cmd)
-			if err := json.Unmarshal([]byte(*p), target); err != nil {
+			if err := json.Unmarshal([]byte(data), target); err != nil {
 				return fmt.Errorf("--%s-json: %w", f.Name, err)
 			}
 			return nil
@@ -422,23 +456,35 @@ func registerRepeatedSubFieldFlag(fs *cli.FlagSet, parentName string, rf *mvep.F
 			return b, nil
 		}
 	default:
-		// Repeated non-string: bind as a JSON array via --<record>-<field>-json.
-		// Malformed JSON and non-array values are both validated in the rawVal
+		// Repeated non-string: bind as a JSON array via --<record>-<field>-json,
+		// or from a file via --<record>-<field>-file (T8). -file supersedes
+		// -json when both are given.
+		// Malformed JSON and non-array values are validated in the rawVal
 		// closure so the error names the sub-field flag rather than surfacing as
 		// the parent's opaque --<record>: json: cannot unmarshal ... error.
 		// Unmarshalling into json.RawMessage alone accepts {"a":1}, which then
 		// fails at the parent — so array-ness is checked explicitly here.
 		p := new(string)
+		file := new(string)
 		fs.StringVar(p, flagName+"-json", "", rf.Desc+" (JSON array)")
-		result.isSet = func() bool { return *p != "" }
+		fs.StringVar(file, flagName+"-file", "", rf.Desc+" (read JSON array from file)")
+		result.isSet = func() bool { return *p != "" || *file != "" }
 		result.rawVal = func() (json.RawMessage, error) {
+			data := *p
+			if *file != "" {
+				b, err := os.ReadFile(*file)
+				if err != nil {
+					return nil, fmt.Errorf("--%s-file: %w", flagName, err)
+				}
+				data = string(b)
+			}
 			var raw json.RawMessage
-			if err := json.Unmarshal([]byte(*p), &raw); err != nil {
+			if err := json.Unmarshal([]byte(data), &raw); err != nil {
 				return nil, fmt.Errorf("--%s-json: %w", flagName, err)
 			}
 			var arr []json.RawMessage
-			if err := json.Unmarshal([]byte(*p), &arr); err != nil {
-				return nil, fmt.Errorf("--%s-json: expected a JSON array, got %s", flagName, strings.TrimSpace(*p))
+			if err := json.Unmarshal([]byte(data), &arr); err != nil {
+				return nil, fmt.Errorf("--%s-json: expected a JSON array, got %s", flagName, strings.TrimSpace(data))
 			}
 			return raw, nil
 		}

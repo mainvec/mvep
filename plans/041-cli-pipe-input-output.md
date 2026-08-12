@@ -18,7 +18,7 @@
 - [x] T5: Built-in JSON renderer and `--mvep-output`
 - [x] T6: `mvep send` streaming envelope pipe
 - [x] T7: `mvep list` and `mvep describe`
-- [ ] T8: Per-field `-file` hatch at both nesting levels
+- [x] T8: Per-field `-file` hatch at both nesting levels
 - [ ] T9: Toolkit reserved-name validation
 - [ ] T10: Documentation and release
 
