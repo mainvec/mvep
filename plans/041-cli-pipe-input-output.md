@@ -13,7 +13,7 @@
 
 - [ ] T1: Repeated record sub-fields bind correctly (patch release, unblocks zirafa)
 - [x] T2: Reserved `mvep` namespace and command index
-- [ ] T3: Input sources — file, explicit stdin, implicit pipe
+- [x] T3: Input sources — file, explicit stdin, implicit pipe
 - [ ] T4: `mvep exec` payload dispatch
 - [ ] T5: Built-in JSON renderer and `--mvep-output`
 - [ ] T6: `mvep send` streaming envelope pipe
