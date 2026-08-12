@@ -36,19 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   check. Case handling is unchanged and correct: the runtime resolves names
   case-sensitively, so `MVEP` is distinct from `mvep`.
 
-## [Unreleased] - 2026-08-12 (plan 041, #49)
-
-### Fixed — runtime/go
-- **Repeated record sub-fields bind correctly.** A `repeated string` record
-  sub-field now binds as a repeatable flag (`--<record>-<field> 'a'
-  --<record>-<field> 'b'`) instead of a single string that failed to unmarshal
-  into the record's `[]string`, making any record with a repeated field
-  reachable from the CLI. Every other repeated sub-field type (UUID,
-  timestamp, duration, bytes, numeric, bool, map, `recRef`) binds via
-  `--<record>-<field>-json` as a JSON array, matching the top-level
-  `registerRepeatedFlag` fallback exactly. Malformed or non-array `-json`
-  values error naming the sub-field flag, not the parent record flag.
-  Sub-field and top-level binding now agree on every `FieldType`.
+## [runtime/go v0.12.0] - 2026-08-12 (plan 041, #49)
 
 ### Added — runtime/go
 - **Reserved `mvep` namespace.** Every generated CLI reserves a single `mvep`
@@ -77,6 +65,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   non-string, and record fields, with `-file > -json > flattened sub-flags`
   precedence at both nesting levels.
 
+## [runtime/go v0.11.1] - 2026-08-12 (plan 041 T1, #49)
+
+### Fixed — runtime/go
+- **Repeated record sub-fields bind correctly.** A `repeated string` record
+  sub-field now binds as a repeatable flag (`--<record>-<field> 'a'
+  --<record>-<field> 'b'`) instead of a single string that failed to unmarshal
+  into the record's `[]string`, making any record with a repeated field
+  reachable from the CLI. Every other repeated sub-field type (UUID,
+  timestamp, duration, bytes, numeric, bool, map, `recRef`) binds via
+  `--<record>-<field>-json` as a JSON array, matching the top-level
+  `registerRepeatedFlag` fallback exactly. Malformed or non-array `-json`
+  values error naming the sub-field flag, not the parent record flag.
+  Sub-field and top-level binding now agree on every `FieldType`.
+
+## [toolkit v0.10.0] - 2026-08-12 (plan 041 T9, #49)
+
 ### Added — toolkit
 - **Generate-time reserved-name validation.** A spec declaring a top-level
   command or group named `mvep` fails `mvep generate` with an error naming the
@@ -91,8 +95,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a couple of dummy commands (`PingCmd`, `StatusCmd`) as a valid, editable
   starting point. The impl file is `// NOMVEP`-guarded so regeneration cannot
   clobber it.
-
-## [Unreleased] - 2026-08-11 (plan 040, #40)
 
 ### Added — spec
 - **Command groups.** A command's optional `group` field (a `/`-separated

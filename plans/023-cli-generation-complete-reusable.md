@@ -19,6 +19,27 @@
   (see [Prerequisites in `ugo/cli`](#prerequisites-in-ugocli)). Those are
   hard blockers for several items and should land first.
 
+> **Reconciliation (2026-08-12, plan 041 #49):** several wish-list items were
+> delivered by [plan 041](archived/2026-08-12-041-cli-pipe-input-output.md)
+> (`runtime/go v0.12.0`), which shipped the reserved `mvep` namespace and the
+> payload/nested-field paths:
+>
+> - **B2** (repeated fields → repeatable flags) — delivered for repeated
+>   `FieldString`; repeated non-string types bind via `--<field>-json` /
+>   `--<field>-file` (the B3 JSON/file forms).
+> - **B3** (recRef → flattened + `-json` + `-file`) — delivered at depth 1:
+>   `--<record>-<field>` flattened flags, `--<record>-<field>-json`, and
+>   `--<record>-<field>-file`, with `-file > -json > flattened sub-flags`
+>   precedence. Note the precedence here is **file > json > flags**, the
+>   reverse of this plan's B3 wording.
+> - **D2** (`--output json|...` persistent flag) — partially delivered as the
+>   namespaced `--mvep-output json|text` (the `yaml|table|template` forms
+>   remain open).
+> - **E5** (whole-payload stdin) — delivered as `mvep exec` (`--input <path>`,
+>   `--input -`, or implicit pipe), not as a per-subcommand `--input-file`.
+> - **D2's "flattening beyond depth 1"** remains an explicit non-goal of 041;
+>   depth beyond 1 is reachable only via the `-json`/`-file` escape hatches.
+
 ---
 
 ## Problem / Goal

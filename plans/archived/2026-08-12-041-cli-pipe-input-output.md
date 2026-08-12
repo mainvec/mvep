@@ -1,8 +1,9 @@
-# #NNN: CLI payload reachability — `mvep` namespace, pipes, and nested-field parity
+# 041: CLI payload reachability — `mvep` namespace, pipes, and nested-field parity
 
-**GitHub Issue**: *to create* (`feat(cli): mvep namespace, payload pipes, and nested-field flag parity`)
+**GitHub Issue**: [#49](https://github.com/mainvec/mvep/issues/49)
+  (`feat(cli): mvep namespace, payload pipes, and nested-field flag parity`)
 
-- Branch: `feat/041-cli-pipe-input-output`
+- Branch: `feat/049-cli-pipe-input-output`
 - Supersedes: plan 042 (`fix(cli): bind repeated record sub-fields as repeatable flags`) — folded in as **T1**
 - Related: [plan 023](023-cli-generation-complete-reusable.md) items **B2**, **B3**, **B3c**, **D2**, **E5**;
   [plan 025](archived/2026-08-10-025-runtime-cli-builder.md) T9 (introduced depth-1 flattening);
@@ -11,7 +12,7 @@
 
 ## Progress
 
-- [ ] T1: Repeated record sub-fields bind correctly (patch release, unblocks zirafa)
+- [x] T1: Repeated record sub-fields bind correctly (patch release, unblocks zirafa)
 - [x] T2: Reserved `mvep` namespace and command index
 - [x] T3: Input sources — file, explicit stdin, implicit pipe
 - [x] T4: `mvep exec` payload dispatch
