@@ -20,7 +20,7 @@
 - [x] T7: `mvep list` and `mvep describe`
 - [x] T8: Per-field `-file` hatch at both nesting levels
 - [x] T9: Toolkit reserved-name validation
-- [ ] T10: Documentation and release
+- [x] T10: Documentation and release
 
 ## Problem / Goal
 
