@@ -130,24 +130,64 @@ func runCreateUserCmd(ctx context.Context, cmd *api.CreateUserCmd) (*api.CreateU
 }
 ```
 
-### 5. CLI Command Setup (`*_main_cmd.go`)
+### 5. CLI Entry Point (`*_main_cmd.go`)
+
+The default `runtime` CLI mode emits a descriptor-driven main that builds the
+whole command tree from the package descriptor via `mvep/cli`:
 
 ```go
-func prepareCreateUserCmd(rootCmd *cli.Command) {
-    cmd := &api.CreateUserCmd{}
-    cliCmd := &cli.Command{
-        Usage: "create_user",
-        Short: "create a new user",
-        Run: func(ctx *cli.Context, args []string) {
-            result, err := commandRunner.RunCreateUserCmd(ctx, cmd)
-            // handle result
-        },
+func main() {
+    app := cli.New(api.Describe(), &cli.LocalExecutor{Runner: runner})
+    app.Root().Version = resolveVersion()
+    err := app.Run(context.Background())
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(cli.ExitCode(err))
     }
-    cliCmd.Flags().StringVar(&cmd.Name, "name", "", "user name")
-    cliCmd.Flags().StringVar(&cmd.Email, "email", "", "user email")
-    rootCmd.AddCommand(cliCmd)
 }
 ```
+
+Flags are bound from `FieldDesc.Ptr` (all `FieldType`s), required flags are
+enforced, and results render via the default text renderer or
+`--mvep-output json`. The `legacy` mode emits the older hand-wired
+`prepareXxxCmd` pattern instead; `none` emits no CLI main.
+
+#### The reserved `mvep` namespace
+
+Every generated CLI reserves a single top-level `mvep` group for a
+spec-independent, machine-readable surface:
+
+```
+cat p.json | svc mvep exec generate            # run a command from a JSON payload
+svc mvep exec --input p.json generate          # flags precede the command name
+cat reqs.ndjson | svc mvep send                # stream CmdReq -> CmdResp envelopes
+svc mvep list                                  # command names
+svc mvep describe [command]                    # versioned schema projection
+```
+
+- **`mvep exec`** reads a complete payload from `--input <path>`, `--input -`,
+  or implicitly from stdin when stdin is not a terminal. Payload keys are
+  validated against the descriptor (unknown keys, including nested record
+  fields, hard-error), then decoded with the same encoder registry the server
+  uses.
+- **`mvep send`** reads a stream of `CmdReq` envelopes (NDJSON or concatenated)
+  and emits one `CmdResp` per record, flushing immediately for live pipelines.
+  `--fail-fast` halts at the first error; the process exits non-zero if any
+  record errored. Request headers ride the context, so interceptors behave
+  identically under the CLI and over HTTP, and response headers round-trip.
+- **`mvep list`** prints command names (a JSON array under `--mvep-output json`).
+- **`mvep describe`** emits a versioned JSON projection (name, alias, group,
+  description, fields, result).
+- **`--mvep-output json|text`** (a persistent flag on every command) renders
+  results and errors as machine-readable JSON; errors serialize as
+  `{"error":...}` on stdout, shaped like a `send` record's `CmdResp.Error`.
+
+The namespace name is overridable via `cli.New(desc, executor,
+cli.WithNamespace("acme"))`, which also renames the output flag to
+`--acme-output`. A spec that declares a top-level command or group named `mvep`
+fails generation (reserved-name validation). Because ugo inherits stdlib `flag`
+parsing, `--input`/`--fail-fast` must precede the command name inside the
+namespace verbs. See `runtime/go/mvep/cli/README.md` for the full guide.
 
 ## Working with MVEP Toolkit Projects
 
@@ -262,9 +302,11 @@ func runCreateUserCmd(ctx context.Context, cmd *api.CreateUserCmd) (*api.CreateU
 #### Tracing CLI to Implementation
 
 1. CLI entry point: `cmd/*/___*_main_cmd.go`
-2. Find `prepare{CommandName}Cmd()` function
-3. Traces to `commandRunner.Run{CommandName}Cmd()`
-4. Which calls implementation in `*_impl.go`
+2. In `runtime` mode, the descriptor-driven `cli.New(api.Describe(), ...)` builds
+   the tree; dispatch goes through the `Executor` (`LocalExecutor` →
+   `PkgCommandRunner.RunCmd`) to the implementation in `*_impl.go`.
+3. In `legacy` mode, find `prepare{CommandName}Cmd()` which wires
+   `commandRunner.Run{CommandName}Cmd()` to the implementation in `*_impl.go`.
 
 #### Understanding Protobuf Messages
 
@@ -324,7 +366,8 @@ Templates are located in `resources/codegen_templates/go/`:
 
 | Template | Generates |
 |----------|-----------|
-| `go_cli_main.txt` | CLI entry point |
+| `go_cli_main.txt` | CLI entry point (legacy `prepareXxxCmd` pattern) |
+| `go_cli_runtime_main.txt` | CLI entry point (default `runtime` mode — descriptor-driven `cli.New`) |
 | `go_impl_code.txt` | Implementation stubs |
 | `go_package_code.txt` | Package handlers & dispatcher |
 | `go_commands_runner_code.txt` | Command runner factory |
@@ -399,6 +442,13 @@ Templates use Go `text/template` with custom functions:
 **Problem:** Spec changes don't appear in code.
 
 **Solution:** Always run `mvep generate` after spec modifications.
+
+### 6. Naming a command or group `mvep`
+
+**Problem:** Generation fails with a reserved-name error.
+
+**Solution:** `mvep` is reserved for the generated CLI's framework namespace
+(`svc mvep exec`/`send`/`list`/`describe`). Use a different name.
 
 ## Integration Patterns
 
