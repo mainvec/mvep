@@ -3,6 +3,7 @@ package toolkit
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -182,6 +183,9 @@ func TestPB3RuntimeCLIUnsupported(t *testing.T) {
 // TestPB3RuntimeCLIUnsupportedSkipCmd verifies #59: a pb3 spec with skipCmd=true
 // (cli: none) is allowed — no CLI is emitted, so the unsupported pairing is moot.
 func TestPB3RuntimeCLIUnsupportedSkipCmd(t *testing.T) {
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("protoc not found in PATH; skipping pb3 generation test")
+	}
 	outdir := t.TempDir()
 	if err := ExecuteGenerate(context.Background(), filepath.Join("testdata", "23_pb3_runtime_cli_unsupported.jsonc"), outdir, "go", true, ""); err != nil {
 		t.Fatalf("pb3 with skipCmd=true should be allowed: %v", err)
