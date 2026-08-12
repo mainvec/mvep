@@ -646,8 +646,14 @@ silently builds against the stale published runtime. Follow
   sniffing.
 - **2026-08-12 — Decode via `oenc.LookupEncoding`, not `encoding/json`.**
   Matches the server's `executeCmd()` exactly, so CLI and wire semantics cannot
-  diverge, and pb3 packages get protojson for enums, `oneof`, and well-known
-  types.
+  diverge. **Correction (2026-08-12, #59):** `application/json` resolves to the
+  **plain** stdlib JSON encoder (ugo registers `application/json` to
+  `jsonEncoding`; protojson is registered under the short name `"protojson"`
+  only, deliberately never `application/json`). The runtime CLI is therefore
+  **plain-format only** — pb3 is not supported by it, and the earlier claim that
+  "pb3 packages get protojson for enums, `oneof`, and well-known types" is
+  inaccurate. The toolkit now rejects `format: pb3` with the runtime CLI at
+  generation time (#59).
 - **2026-08-12 — Unknown payload keys are a hard error**, consistent with the
   reserved-name enforcement decision. Silent key-dropping is the worst failure
   mode for a scripting surface.

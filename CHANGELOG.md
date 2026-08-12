@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now fails `mvep generate` naming the reserved word, matching the command-leaf
   check. Case handling is unchanged and correct: the runtime resolves names
   case-sensitively, so `MVEP` is distinct from `mvep`.
+- **`format: pb3` with the runtime CLI is rejected.** The descriptor-driven CLI
+  (`mvep exec`/`send`/`list`/`describe`) is plain-format only — it decodes via
+  the plain `application/json` encoder, which would mangle proto enums/`oneof`/
+  well-known types. A pb3 spec with the default (runtime) CLI mode now fails
+  generation with a clear message; `cli: legacy`/`none` remain available for
+  pb3.
 
 ## [runtime/go v0.12.0] - 2026-08-12 (plan 041, #49)
 

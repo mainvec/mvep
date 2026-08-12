@@ -1,0 +1,20 @@
+{
+	"$id": "test23Id",
+	"$schema": "resources/mvepspec/0.2/schema/2026-01-15",
+	"name": "test23Name",
+	"namespace": "test23Namespace",
+	"gen_options": {
+		"go_package": "github.com/mainvec/wo/mvep/wopdb/wopdb2api",
+		"format": "pb3"
+	},
+	"commands": {
+		"OrderPizzaCmd": {
+			"title": "Order a pizza",
+			"alias": "order_pizza",
+			"fields": {
+				"size": { "fnum": 1, "type": "string" },
+				"toppings": { "fnum": 2, "type": "string", "repeated": true }
+			}
+		}
+	}
+}
