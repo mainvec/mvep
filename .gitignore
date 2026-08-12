@@ -5,6 +5,9 @@
 *.so
 *.dylib
 
+# Locally built toolkit CLI binary
+/toolkit/mvep
+
 # Test binary, built with `go test -c`
 *.test
 
