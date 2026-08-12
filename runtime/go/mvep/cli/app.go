@@ -20,6 +20,14 @@ type App struct {
 	root     *cli.Command
 	desc     *mvep.PackageDesc
 	executor Executor
+	// namespace is the reserved framework command group name (default "mvep").
+	// It hosts the spec-independent machine surface (exec, send, list,
+	// describe). Overridable via WithNamespace.
+	namespace string
+	// commands indexes every CommandDesc by its CLI name (commandName), built
+	// during New. Used by the mvep exec dispatcher to look up a command by
+	// name without re-walking the tree.
+	commands map[string]*mvep.CommandDesc
 	// preHooks run after flag binding + required check, before the executor.
 	// A pre-hook returning an error aborts execution. Hooks run in
 	// registration order. Use for auth, logging, metrics (T13).
@@ -31,6 +39,17 @@ type App struct {
 	// renderer renders the result to stdout. Defaults to defaultRenderer;
 	// swapped via SetRenderer (T14).
 	renderer Renderer
+}
+
+// Option configures an App at construction. Options are applied in order.
+type Option func(*App)
+
+// WithNamespace overrides the reserved framework namespace group name. The
+// default is "mvep"; overriding it to "acme" yields `svc acme exec ...` and
+// `--acme-output`. The name must not collide with any descriptor command or
+// group (New panics otherwise).
+func WithNamespace(name string) Option {
+	return func(a *App) { a.namespace = name }
 }
 
 // PreHook runs before the executor dispatches a command. Returning an error
@@ -60,11 +79,16 @@ func (a *App) AddPostHook(h PostHook) { a.postHooks = append(a.postHooks, h) }
 // help. Flag binding (T9), required-flag enforcement (T10), and result
 // rendering (T14) layer on top of this; T8 establishes the command tree and
 // the execute-via-Executor seam.
-func New(desc *mvep.PackageDesc, executor Executor) *App {
+func New(desc *mvep.PackageDesc, executor Executor, opts ...Option) *App {
 	app := &App{
-		desc:     desc,
-		executor: executor,
-		renderer: defaultRenderer,
+		desc:      desc,
+		executor:  executor,
+		renderer:  defaultRenderer,
+		namespace: "mvep",
+		commands:  make(map[string]*mvep.CommandDesc, len(desc.Commands)),
+	}
+	for _, opt := range opts {
+		opt(app)
 	}
 
 	root := &cli.Command{
@@ -79,6 +103,22 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 	}
 	if desc.SpecVersion != "" {
 		root.Version = desc.SpecVersion
+	}
+
+	// The reserved namespace claims one top-level identifier. A descriptor
+	// command or group colliding with it is a construction error: the panic
+	// names the reserved word. This is unreachable in generated code once T9
+	// hard-errors at generation time, and matches ugo's AddCommand self-parent
+	// panic.
+	for i := range desc.Commands {
+		if commandName(&desc.Commands[i]) == app.namespace {
+			panic(fmt.Sprintf("reserved namespace %q collides with command %q", app.namespace, desc.Commands[i].Name))
+		}
+	}
+	for i := range desc.Groups {
+		if desc.Groups[i].Path == app.namespace {
+			panic(fmt.Sprintf("reserved namespace %q collides with group %q", app.namespace, desc.Groups[i].Path))
+		}
 	}
 
 	// groupByPath memoises a ugo *cli.Command per group path, created on
@@ -124,6 +164,7 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 	for i := range desc.Commands {
 		cmdDesc := &desc.Commands[i]
 		cmdName := commandName(cmdDesc)
+		app.commands[cmdName] = cmdDesc
 
 		// Declare sub first so its FlagSet exists for bindFlags; the RunE
 		// closure captures bindings, which is assigned next.
@@ -142,6 +183,22 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 		}
 		groupFor(cmdDesc.Group).AddCommand(sub)
 	}
+
+	// Register the reserved namespace group under the root. Its verbs (exec,
+	// send, list, describe) are added by later tasks; the group itself is the
+	// self-documenting home for the framework surface. It is Runnable so it
+	// appears in root help even before any verb is registered: running
+	// `svc mvep` alone prints the group's help.
+	ns := &cli.Command{
+		Usage: app.namespace,
+		Short: "framework commands",
+		Args:  unknownSubcommandArgs,
+	}
+	ns.RunE = func(ctx *cli.Context, args []string) error {
+		(&cli.CommandHelp{Command: ns}).WriteHelp(ctx)
+		return nil
+	}
+	root.AddCommand(ns)
 
 	app.root = root
 	return app
