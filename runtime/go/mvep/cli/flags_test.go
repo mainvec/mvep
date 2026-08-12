@@ -32,8 +32,10 @@ type t9AllTypesCmd struct {
 type t9Address struct {
 	Street string
 	City   string
-	Tags   []string // repeated string sub-field
-	Scores []int32  // repeated non-string sub-field
+	Tags   []string     // repeated string sub-field
+	Scores []int32      // repeated non-string sub-field
+	IDs    []string     // repeated UUID sub-field (binds via -json)
+	Refs   []*t9Address // repeated recRef sub-field (binds via -json)
 }
 
 // t9AllTypesResult is the matching result.
@@ -70,6 +72,9 @@ var t9AllTypesDesc = mvep.PackageDesc{
 						{Name: "city", Fnum: 2, Type: mvep.FieldString, Ptr: func(r any) any { return &r.(*t9Address).City }},
 						{Name: "tags", Fnum: 3, Type: mvep.FieldString, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).Tags }},
 						{Name: "scores", Fnum: 4, Type: mvep.FieldInt32, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).Scores }},
+						{Name: "ids", Fnum: 5, Type: mvep.FieldUUID, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).IDs }},
+						{Name: "refs", Fnum: 6, Type: mvep.FieldRecord, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).Refs },
+							Ref: &mvep.RecordDesc{Name: "Address"}},
 					}}},
 			},
 			Result: &mvep.ResultDesc{
@@ -84,6 +89,9 @@ var t9AllTypesDesc = mvep.PackageDesc{
 			{Name: "city", Fnum: 2, Type: mvep.FieldString, Ptr: func(r any) any { return &r.(*t9Address).City }},
 			{Name: "tags", Fnum: 3, Type: mvep.FieldString, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).Tags }},
 			{Name: "scores", Fnum: 4, Type: mvep.FieldInt32, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).Scores }},
+			{Name: "ids", Fnum: 5, Type: mvep.FieldUUID, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).IDs }},
+			{Name: "refs", Fnum: 6, Type: mvep.FieldRecord, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).Refs },
+				Ref: &mvep.RecordDesc{Name: "Address"}},
 		}},
 	},
 }
@@ -279,3 +287,73 @@ func TestFlagBindingMixedRepeatedAndScalarSubFields(t *testing.T) {
 	}
 }
 
+// TestFlagBindingRepeatedUUIDSubField verifies T1: a repeated FieldUUID
+// sub-field binds via --record-field-json, agreeing with the top-level
+// registerRepeatedFlag fallback (which string-binds FieldString alone).
+func TestFlagBindingRepeatedUUIDSubField(t *testing.T) {
+	ex := &recordingExecutor{}
+	app := New(&t9AllTypesDesc, ex)
+	var stdout, stderr bytes.Buffer
+	err := app.RunWithIO(context.Background(), []string{
+		"all_types_cmd",
+		"--addr-ids-json", `["11111111-1111-1111-1111-111111111111","22222222-2222-2222-2222-222222222222"]`,
+	}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmd := ex.gotCmd.(*t9AllTypesCmd)
+	if cmd.Addr == nil {
+		t.Fatal("Addr is nil, want constructed record")
+	}
+	if len(cmd.Addr.IDs) != 2 || cmd.Addr.IDs[0] != "11111111-1111-1111-1111-111111111111" || cmd.Addr.IDs[1] != "22222222-2222-2222-2222-222222222222" {
+		t.Errorf("Addr.IDs = %v, want [uuid1 uuid2]", cmd.Addr.IDs)
+	}
+}
+
+// TestFlagBindingRepeatedSubFieldNonArrayJSONError verifies T1: a non-array but
+// valid JSON value (e.g. an object) passed to a repeated non-string
+// --record-field-json flag errors naming the sub-field flag, not the parent.
+func TestFlagBindingRepeatedSubFieldNonArrayJSONError(t *testing.T) {
+	ex := &recordingExecutor{}
+	app := New(&t9AllTypesDesc, ex)
+	var stdout, stderr bytes.Buffer
+	err := app.RunWithIO(context.Background(), []string{
+		"all_types_cmd",
+		"--addr-scores-json", `{"a":1}`,
+	}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for non-array -json, got nil")
+	}
+	if !strings.Contains(err.Error(), "--addr-scores-json") {
+		t.Errorf("error should name the sub-field flag; got: %v", err)
+	}
+}
+
+// TestFlagBindingRepeatedRecRefSubField verifies T1: a repeated record (recRef)
+// sub-field binds from --record-field-json as a JSON array of objects, the most
+// complex path through registerRepeatedSubFieldFlag.
+func TestFlagBindingRepeatedRecRefSubField(t *testing.T) {
+	ex := &recordingExecutor{}
+	app := New(&t9AllTypesDesc, ex)
+	var stdout, stderr bytes.Buffer
+	err := app.RunWithIO(context.Background(), []string{
+		"all_types_cmd",
+		"--addr-refs-json", `[{"street":"1 A St","city":"X"},{"street":"2 B St","city":"Y"}]`,
+	}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmd := ex.gotCmd.(*t9AllTypesCmd)
+	if cmd.Addr == nil {
+		t.Fatal("Addr is nil, want constructed record")
+	}
+	if len(cmd.Addr.Refs) != 2 {
+		t.Fatalf("Addr.Refs length = %d, want 2", len(cmd.Addr.Refs))
+	}
+	if cmd.Addr.Refs[0].Street != "1 A St" || cmd.Addr.Refs[0].City != "X" {
+		t.Errorf("Addr.Refs[0] = %+v, want {Street:1 A St City:X}", cmd.Addr.Refs[0])
+	}
+	if cmd.Addr.Refs[1].Street != "2 B St" || cmd.Addr.Refs[1].City != "Y" {
+		t.Errorf("Addr.Refs[1] = %+v, want {Street:2 B St City:Y}", cmd.Addr.Refs[1])
+	}
+}

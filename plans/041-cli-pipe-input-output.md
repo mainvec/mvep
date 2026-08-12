@@ -1,9 +1,8 @@
 # #NNN: CLI payload reachability — `mvep` namespace, pipes, and nested-field parity
 
-**GitHub Issue**: [#49](https://github.com/mainvec/mvep/issues/49)
-  (`feat(cli): mvep namespace, payload pipes, and nested-field flag parity`)
+**GitHub Issue**: *to create* (`feat(cli): mvep namespace, payload pipes, and nested-field flag parity`)
 
-- Branch: `feat/049-cli-pipe-input-output`
+- Branch: `feat/041-cli-pipe-input-output`
 - Supersedes: plan 042 (`fix(cli): bind repeated record sub-fields as repeatable flags`) — folded in as **T1**
 - Related: [plan 023](023-cli-generation-complete-reusable.md) items **B2**, **B3**, **B3c**, **D2**, **E5**;
   [plan 025](archived/2026-08-10-025-runtime-cli-builder.md) T9 (introduced depth-1 flattening);
@@ -12,7 +11,7 @@
 
 ## Progress
 
-- [x] T1: Repeated record sub-fields bind correctly (patch release, unblocks zirafa)
+- [ ] T1: Repeated record sub-fields bind correctly (patch release, unblocks zirafa)
 - [ ] T2: Reserved `mvep` namespace and command index
 - [ ] T3: Input sources — file, explicit stdin, implicit pipe
 - [ ] T4: `mvep exec` payload dispatch
@@ -94,6 +93,10 @@ zirafa side in `plans/028-improvements-from-field-report.md`, blocked on the
 - **Flattening beyond depth 1** (plan 023 D2) — unchanged.
 - **Repeatable flags for non-string top-level scalars** (`--count 1 --count 2`).
   Orthogonal flag ergonomics; deferred to its own plan.
+- **Widening the repeatable set to `FieldUUID`/`FieldTimestamp`/`FieldDuration`.**
+  Better ergonomics than `-json` for these string-shaped types, but it must
+  change top level and sub-field in one commit or it re-creates the drift T1
+  closes. Deferred so the T1 patch stays minimal.
 - Whole-payload `--input-file` on individual generated subcommands — explicitly
   rejected, see Decision Log.
 - Interactive/TUI prompting, colour output, `--mvep-output yaml|table|template`
@@ -274,16 +277,33 @@ if rf.Repeated {
 the caller already assembles into its JSON object, so `registerRecordFlag`
 (`flags.go:215`) needs no change:
 
-- **Repeated string-like** (`FieldString`, `FieldUUID`, `FieldTimestamp`,
-  `FieldDuration`) → `StringSliceVar`; `isSet` is `len(*p) > 0`; `rawVal` is
-  `json.Marshal(*p)`, yielding a JSON array.
-- **Repeated non-string** (numeric, bool, bytes, map, `recRef`) →
-  `--<record>-<field>-json`; `isSet` is `*p != ""`; `rawVal` passes the
-  `json.RawMessage` through verbatim.
+- **Repeated `FieldString`** → `StringSliceVar`; `isSet` is `len(*p) > 0`;
+  `rawVal` is `json.Marshal(*p)`, yielding a JSON array.
+- **Everything else repeated** (`FieldUUID`, `FieldTimestamp`, `FieldDuration`,
+  `FieldBytes`, numeric, bool, map, `recRef`) → `--<record>-<field>-json`;
+  `isSet` is `*p != ""`; `rawVal` passes the `json.RawMessage` through.
+
+The split point is **`registerRepeatedFlag`, not the scalar switch**. Those are
+different sets, and only one of them matters: the invariant this task exists to
+restore is that top-level and sub-field binding agree for the same field type.
+The scalar switch string-binds `FieldString`, `FieldUUID`, `FieldTimestamp`,
+`FieldBytes` and `FieldDuration`; `registerRepeatedFlag` string-binds
+**`FieldString` alone**. Mirroring the scalar switch here would leave repeated
+UUID as `--ids-json '["a","b"]'` at top level but `--rec-ids a --rec-ids b` one
+level down — a new drift in place of the old one.
+
+| Repeated `FieldType` | Top level | Sub-field |
+|---|---|---|
+| `FieldString` | `StringSliceVar` | `StringSliceVar` |
+| `FieldUUID`, `FieldTimestamp`, `FieldDuration`, `FieldBytes` | `-json` | `-json` |
+| numeric, bool, map, `recRef` | `-json` | `-json` |
 
 Malformed `-json` is validated **inside the `rawVal` closure** so the error names
 the sub-field flag rather than surfacing as the parent's opaque
-`--<record>: json: cannot unmarshal ...`.
+`--<record>: json: cannot unmarshal ...`. Validation must check the value is a
+JSON **array**, not merely valid JSON: unmarshalling into `json.RawMessage`
+accepts `{"a":1}`, which then fails at the parent with exactly the opaque error
+this branch is meant to eliminate.
 
 ### Rejected: whole-payload `--input-file` per subcommand
 
@@ -324,23 +344,44 @@ and the flag-vs-payload precedence table all disappear.
 ### T1: Repeated record sub-fields bind correctly
 
 **Outcome**: `registerSubFieldFlag` checks `rf.Repeated` before its type switch.
-Repeated string-like sub-fields bind via `StringSliceVar` with `rawVal` emitting
-a JSON array; repeated non-string sub-fields register
-`--<record>-<field>-json` and pass the array through as `json.RawMessage`.
-Malformed JSON errors name the sub-field flag. Shipped as its own PR and
-`runtime/go` **patch** tag ahead of the rest of the plan.
+Repeated `FieldString` sub-fields bind via `StringSliceVar` with `rawVal`
+emitting a JSON array; **every other** repeated type registers
+`--<record>-<field>-json` and passes the array through as `json.RawMessage`,
+matching `registerRepeatedFlag` exactly. Malformed or non-array `-json` errors
+name the sub-field flag. Shipped as its own PR and `runtime/go` **patch** tag
+ahead of the rest of the plan.
 
 **Verification**: a record with a `[]string` sub-field set from two repeated
 flags unmarshals to a two-element slice (the zirafa case); repeated `int32` and
 repeated `recRef` sub-fields round-trip via `-json`; malformed input names
-`--<record>-<field>-json`, not the parent record flag; a mixed record with
-repeated and scalar sub-fields set together assembles into one correct struct; a
-record with no repeated sub-fields is behaviourally identical to before.
+`--<record>-<field>-json`, not the parent record flag; a **non-array** but valid
+JSON value (`{"a":1}`) also errors naming the sub-field flag; a repeated
+`FieldUUID` sub-field binds via `-json`, proving it agrees with top level; a
+mixed record with repeated and scalar sub-fields set together assembles into one
+correct struct; a record with no repeated sub-fields is behaviourally identical
+to before.
 
-**Notes**: the string-like set must match the scalar switch —
-`FieldString`, `FieldUUID`, `FieldTimestamp`, `FieldDuration` all bind as strings
-there and must stay aligned or the two drift again. This is the only task with a
+**Notes**: the split must mirror `registerRepeatedFlag`, **not** the scalar
+switch — see the parity table in Proposed Design. This is the only task with a
 downstream blocker; do not let it queue behind T2–T10.
+
+Review of the first implementation (commit `fix(runtime/go): bind repeated record
+sub-fields correctly (#49)`) found the core branch, error wrapping, and
+`registerRecordFlag` stability all correct, with three items outstanding before
+the patch tag:
+
+1. The repeated string-like set was `FieldString, FieldUUID, FieldTimestamp,
+   FieldDuration`, mirroring the scalar switch. Narrow it to `FieldString` for
+   exact top-level parity. Nothing regresses — repeated UUID sub-fields were
+   totally broken before, so there is no working usage on either side.
+2. `rawVal` validates JSON validity but not array-ness; add the array check.
+3. No repeated `recRef` sub-field test — the most complex path through the new
+   branch. The `t9Address` fixture carries only `tags` (`[]string`) and `scores`
+   (`[]int32`).
+
+The `CHANGELOG.md` entry and the `registerRepeatedSubFieldFlag` doc comment both
+assert that sub-field and top-level binding agree on every `FieldType`; both
+need correcting alongside item 1.
 
 ### T2: Reserved `mvep` namespace and command index
 
@@ -635,6 +676,18 @@ silently builds against the stale published runtime. Follow
 - **2026-08-12 — 041 and 042 unified.** The parity invariant must be enforced
   once: T8's `-file` hatch would otherwise re-introduce the top-level /
   sub-field drift T1 closes. Sequencing preserves 042's fast patch release.
+- **2026-08-12 — Sub-field repeated binding mirrors `registerRepeatedFlag`, not
+  the scalar switch.** The two sets differ: the scalar switch string-binds
+  `FieldString`, `FieldUUID`, `FieldTimestamp`, `FieldBytes` and `FieldDuration`,
+  while `registerRepeatedFlag` string-binds `FieldString` alone. Only the
+  top-level comparison expresses the invariant T1 exists to restore, so repeated
+  sub-fields string-bind `FieldString` only. Rejected: widening top level to
+  match a larger sub-field set — better UX, but it enlarges a patch whose purpose
+  is to unblock zirafa quickly. Logged as a Non-goal for a later minor.
+- **2026-08-12 — `-json` sub-field validation checks array-ness, not just
+  validity.** Unmarshalling into `json.RawMessage` accepts any valid JSON, so a
+  JSON object would pass the closure and fail at the parent with the opaque
+  `--<record>: json: cannot unmarshal ...` error the closure exists to replace.
 - **2026-08-12 — Fix in the runtime binder, not in codegen.**
   `FieldDesc.Repeated` is already present and correct for nested record fields;
   codegen emits the right descriptor and the binder ignores it. Teaching codegen

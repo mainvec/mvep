@@ -17,10 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sub-field now binds as a repeatable flag (`--<record>-<field> 'a'
   --<record>-<field> 'b'`) instead of a single string that failed to unmarshal
   into the record's `[]string`, making any record with a repeated field
-  reachable from the CLI. Repeated non-string sub-fields bind via
-  `--<record>-<field>-json` as a JSON array, matching the top-level fallback.
-  Malformed `-json` errors name the sub-field flag, not the parent record
-  flag. Sub-field and top-level binding now agree on every `FieldType`.
+  reachable from the CLI. Every other repeated sub-field type (UUID,
+  timestamp, duration, bytes, numeric, bool, map, `recRef`) binds via
+  `--<record>-<field>-json` as a JSON array, matching the top-level
+  `registerRepeatedFlag` fallback exactly. Malformed or non-array `-json`
+  values error naming the sub-field flag, not the parent record flag.
+  Sub-field and top-level binding now agree on every `FieldType`.
 
 ## [Unreleased] - 2026-08-11 (plan 040, #40)
 

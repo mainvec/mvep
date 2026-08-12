@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mainvec/mvep/runtime/go/mvep"
@@ -389,14 +390,16 @@ func registerSubFieldFlag(fs *cli.FlagSet, parentName string, rf *mvep.FieldDesc
 }
 
 // registerRepeatedSubFieldFlag binds a repeated depth-1 record sub-field. The
-// string-like set must match the scalar switch (FieldString, FieldUUID,
-// FieldTimestamp, FieldDuration) or the two paths drift again for the same
-// field type.
+// split must mirror registerRepeatedFlag (top level), NOT the scalar switch:
+// those are different sets, and only top-level parity expresses the invariant
+// this task exists to restore. registerRepeatedFlag string-binds FieldString
+// alone; everything else binds via --json.
 //
-// - Repeated string-like types bind via StringSliceVar, with rawVal emitting a
-//   JSON array (json.Marshal of the slice).
-// - Repeated non-string types (numeric, bool, bytes, map, recRef) bind from
-//   --<record>-<field>-json, passing the array through as json.RawMessage.
+//   - Repeated FieldString binds via StringSliceVar, with rawVal emitting a
+//     JSON array (json.Marshal of the slice).
+//   - Every other repeated type (FieldUUID, FieldTimestamp, FieldDuration,
+//     FieldBytes, numeric, bool, map, recRef) binds from
+//     --<record>-<field>-json, passing the array through as json.RawMessage.
 func registerRepeatedSubFieldFlag(fs *cli.FlagSet, parentName string, rf *mvep.FieldDesc) struct {
 	field  *mvep.FieldDesc
 	rawVal func() (json.RawMessage, error)
@@ -410,7 +413,7 @@ func registerRepeatedSubFieldFlag(fs *cli.FlagSet, parentName string, rf *mvep.F
 	}{field: rf}
 
 	switch rf.Type {
-	case mvep.FieldString, mvep.FieldUUID, mvep.FieldTimestamp, mvep.FieldDuration:
+	case mvep.FieldString:
 		p := new([]string)
 		fs.StringSliceVar(p, flagName, nil, rf.Desc)
 		result.isSet = func() bool { return len(*p) > 0 }
@@ -420,9 +423,11 @@ func registerRepeatedSubFieldFlag(fs *cli.FlagSet, parentName string, rf *mvep.F
 		}
 	default:
 		// Repeated non-string: bind as a JSON array via --<record>-<field>-json.
-		// Malformed JSON is validated in the rawVal closure so the error names
-		// the sub-field flag rather than surfacing as the parent's opaque
-		// --<record>: json: cannot unmarshal ... error.
+		// Malformed JSON and non-array values are both validated in the rawVal
+		// closure so the error names the sub-field flag rather than surfacing as
+		// the parent's opaque --<record>: json: cannot unmarshal ... error.
+		// Unmarshalling into json.RawMessage alone accepts {"a":1}, which then
+		// fails at the parent — so array-ness is checked explicitly here.
 		p := new(string)
 		fs.StringVar(p, flagName+"-json", "", rf.Desc+" (JSON array)")
 		result.isSet = func() bool { return *p != "" }
@@ -430,6 +435,10 @@ func registerRepeatedSubFieldFlag(fs *cli.FlagSet, parentName string, rf *mvep.F
 			var raw json.RawMessage
 			if err := json.Unmarshal([]byte(*p), &raw); err != nil {
 				return nil, fmt.Errorf("--%s-json: %w", flagName, err)
+			}
+			var arr []json.RawMessage
+			if err := json.Unmarshal([]byte(*p), &arr); err != nil {
+				return nil, fmt.Errorf("--%s-json: expected a JSON array, got %s", flagName, strings.TrimSpace(*p))
 			}
 			return raw, nil
 		}
