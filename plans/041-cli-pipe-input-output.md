@@ -727,4 +727,6 @@ silently builds against the stale published runtime. Follow
 
 ## Status
 
-Draft — not yet approved for implementation. No code has been written.
+Implemented on branch `feat/049-cli-pipe-input-output` (issue #49). T1 shipped as
+`runtime/go v0.11.1` (patch, PR #50); T2–T10 ship as a `runtime/go` minor, then a
+`toolkit` release for the T9 validation change (see Rollout).
