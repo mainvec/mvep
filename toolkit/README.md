@@ -242,6 +242,15 @@ Define map fields:
 }
 ```
 
+### Reserved names
+
+The generated CLI reserves a single top-level `mvep` namespace for its
+framework surface (`svc mvep exec`, `send`, `list`, `describe`). A spec that
+declares a top-level command or group named `mvep` fails `mvep generate` with
+an error naming the reserved word. See
+[`runtime/go/mvep/cli/README.md`](../runtime/go/mvep/cli/README.md) for the
+namespace verbs and the `--mvep-output` flag.
+
 ## Generated File Structure
 
 ```

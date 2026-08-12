@@ -290,6 +290,43 @@ path segment as its name. Groups are a CLI presentation concern only — they do
 not affect routes, envelopes or encodings, and a spec with no `group` generates
 the same flat tree as before.
 
+### The reserved `mvep` namespace
+
+Every generated CLI reserves a single top-level `mvep` group that provides a
+spec-independent, machine-readable surface:
+
+```
+cat p.json | svc mvep exec generate            # run a command from a JSON payload
+svc mvep exec --input p.json generate          # flags precede the command name
+cat reqs.ndjson | svc mvep send                # stream CmdReq -> CmdResp envelopes
+svc mvep list                                  # command names
+svc mvep describe [command]                    # versioned schema projection
+```
+
+- **`mvep exec`** reads a complete payload from `--input <path>`, `--input -`,
+  or implicitly from stdin when stdin is not a terminal. Payload keys are
+  validated against the descriptor (unknown keys, including nested record
+  fields, hard-error), then decoded with the same encoder registry the server
+  uses.
+- **`mvep send`** reads a stream of `CmdReq` envelopes (NDJSON or concatenated)
+  and emits one `CmdResp` per record, flushing immediately for live pipelines.
+  `--fail-fast` halts at the first error; the process exits non-zero if any
+  record errored. Request headers ride the context, so interceptors behave
+  identically under the CLI and over HTTP, and response headers round-trip.
+- **`mvep list`** prints command names (a JSON array under `--mvep-output json`).
+- **`mvep describe`** emits a versioned JSON projection (name, alias, group,
+  description, fields, result).
+- **`--mvep-output json|text`** (a persistent flag on every command) renders
+  results and errors as machine-readable JSON; errors serialize as
+  `{"error":...}` on stdout, shaped like a `send` record's `CmdResp.Error`.
+
+The namespace name is overridable via `cli.New(desc, executor,
+cli.WithNamespace("acme"))`, which also renames the output flag to
+`--acme-output`. A spec that declares a top-level command or group named `mvep`
+fails generation (reserved-name validation). Because ugo inherits stdlib `flag`
+parsing, `--input`/`--fail-fast` must precede the command name inside the
+namespace verbs. See `runtime/go/mvep/cli/README.md` for the full guide.
+
 ### Flags
 
 | Flag | Commands | Description |
@@ -677,8 +714,10 @@ func main() {
 
 Add `// NOMVEP` as the first line to protect a hand-customized entry point.
 The `mvep/cli` library provides flag binding (all `FieldType`s via `Ptr`),
-required-flag enforcement, pre/post hooks, custom renderers, and exit-code
-classification. See `runtime/go/mvep/cli/README.md` for the full guide.
+required-flag enforcement, pre/post hooks, custom renderers, the reserved
+`mvep` namespace (`exec`/`send`/`list`/`describe`), the `--mvep-output` JSON
+renderer, per-field `-file` hatches, and exit-code classification. See
+`runtime/go/mvep/cli/README.md` for the full guide.
 
 ---
 
@@ -1592,6 +1631,7 @@ The `client/` directory is **hand-written** (not generated). It wraps the genera
 | Running generate without validating | Always `mvep validate` first to catch spec errors before generating. |
 | Forgetting `NOMVEP` on customized files | Add `// NOMVEP` as the first line of any generated file you've customized (legacy `// NOMVGEN` / `// NOWOGEN` still honored). |
 | Wrong `go_package` path | Must match your actual Go module path. |
+| Naming a command or group `mvep` | `mvep` is reserved for the generated CLI's framework namespace (`svc mvep exec`/`send`/`list`/`describe`). Generation fails with a reserved-name error. |
 
 ---
 

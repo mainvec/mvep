@@ -82,6 +82,35 @@ Additional guides:
 - [`toolkit/AGENT.md`](toolkit/AGENT.md) — guide for AI agents working in the codebase
 - [`toolkit/MVEP_SKILL.md`](toolkit/MVEP_SKILL.md) — integration guide for MVEP Toolkit projects
 
+## The generated CLI and the `mvep` namespace
+
+Every generated CLI (the `runtime` gen_option) is built by the descriptor-driven
+`mvep/cli` builder and reserves a single `mvep` group that provides a
+spec-independent, machine-readable surface:
+
+```
+cat p.json | svc mvep exec generate            # run a command from a JSON payload
+svc mvep exec --input p.json generate          # flags precede the command name
+cat reqs.ndjson | svc mvep send                # stream CmdReq -> CmdResp envelopes
+svc mvep list                                  # command names
+svc mvep describe [command]                    # versioned schema projection
+```
+
+- **`mvep exec`** reads a complete payload from a file, explicit stdin, or
+  implicitly from a pipe, validates its keys against the descriptor, and decodes
+  with the same encoder the server uses.
+- **`mvep send`** streams `CmdReq` envelopes and emits one `CmdResp` per record,
+  flushing immediately for live pipelines.
+- **`--mvep-output json|text`** (a persistent flag on every command) renders
+  results and errors as machine-readable JSON.
+
+The namespace name is overridable via `cli.New(desc, executor,
+cli.WithNamespace("acme"))`, which also renames the output flag to
+`--acme-output`. A spec that declares a top-level command or group named `mvep`
+fails generation (reserved-name validation). See
+[`runtime/go/mvep/cli/README.md`](runtime/go/mvep/cli/README.md) for the full
+guide.
+
 ## Repository layout
 
 ```
