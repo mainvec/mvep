@@ -10,19 +10,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
 > `references/generated-patterns.md`) for staleness.
 
-## [Unreleased] - 2026-08-12 (plan 041, #49)
+## [Unreleased] - 2026-08-12 (plan 041 follow-up, #52–#54)
 
 ### Fixed — runtime/go
-- **Repeated record sub-fields bind correctly.** A `repeated string` record
-  sub-field now binds as a repeatable flag (`--<record>-<field> 'a'
-  --<record>-<field> 'b'`) instead of a single string that failed to unmarshal
-  into the record's `[]string`, making any record with a repeated field
-  reachable from the CLI. Every other repeated sub-field type (UUID,
-  timestamp, duration, bytes, numeric, bool, map, `recRef`) binds via
-  `--<record>-<field>-json` as a JSON array, matching the top-level
-  `registerRepeatedFlag` fallback exactly. Malformed or non-array `-json`
-  values error naming the sub-field flag, not the parent record flag.
-  Sub-field and top-level binding now agree on every `FieldType`.
+- **`mvep exec` renders its result.** The payload path was routed through the
+  execution core without rendering, so `mvep exec <cmd>` printed nothing on
+  success and `--mvep-output json` was useless on the machine surface. `exec`
+  now goes through the same rendering tail as the flag path, so both output
+  modes are byte-identical between flag-driven and payload-driven invocation.
+  `mvep send` still emits envelopes only.
+- **`--input -` reads stdin unconditionally.** It previously errored whenever
+  stdin was a pipe — the only realistic way to use it — because the explicit
+  `-` and the implicit pipe were misread as two competing consumers. They are
+  the same single consumer, so `cat p.json | svc mvep exec --input - <cmd>`
+  now works.
+- **`mvep send` flushes each `CmdResp` per record.** Responses were buffered
+  and written once at EOF, so nothing was readable in a live pipeline until the
+  input closed. Each response is now written and flushed as its record is
+  processed.
+
+### Fixed — toolkit
+- **Reserved-name check now covers group aliases.** A root-level group whose
+  alias resolves to `mvep` passed generation and would panic at `cli.New`; it
+  now fails `mvep generate` naming the reserved word, matching the command-leaf
+  check. Case handling is unchanged and correct: the runtime resolves names
+  case-sensitively, so `MVEP` is distinct from `mvep`.
+- **`format: pb3` with the runtime CLI is rejected.** The descriptor-driven CLI
+  (`mvep exec`/`send`/`list`/`describe`) is plain-format only — it decodes via
+  the plain `application/json` encoder, which would mangle proto enums/`oneof`/
+  well-known types. A pb3 spec with the default (runtime) CLI mode now fails
+  generation with a clear message; `cli: legacy`/`none` remain available for
+  pb3.
+
+## [runtime/go v0.12.0] - 2026-08-12 (plan 041, #49)
 
 ### Added — runtime/go
 - **Reserved `mvep` namespace.** Every generated CLI reserves a single `mvep`
@@ -51,6 +71,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   non-string, and record fields, with `-file > -json > flattened sub-flags`
   precedence at both nesting levels.
 
+## [runtime/go v0.11.1] - 2026-08-12 (plan 041 T1, #49)
+
+### Fixed — runtime/go
+- **Repeated record sub-fields bind correctly.** A `repeated string` record
+  sub-field now binds as a repeatable flag (`--<record>-<field> 'a'
+  --<record>-<field> 'b'`) instead of a single string that failed to unmarshal
+  into the record's `[]string`, making any record with a repeated field
+  reachable from the CLI. Every other repeated sub-field type (UUID,
+  timestamp, duration, bytes, numeric, bool, map, `recRef`) binds via
+  `--<record>-<field>-json` as a JSON array, matching the top-level
+  `registerRepeatedFlag` fallback exactly. Malformed or non-array `-json`
+  values error naming the sub-field flag, not the parent record flag.
+  Sub-field and top-level binding now agree on every `FieldType`.
+
+## [toolkit v0.10.0] - 2026-08-12 (plan 041 T9, #49)
+
 ### Added — toolkit
 - **Generate-time reserved-name validation.** A spec declaring a top-level
   command or group named `mvep` fails `mvep generate` with an error naming the
@@ -65,8 +101,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a couple of dummy commands (`PingCmd`, `StatusCmd`) as a valid, editable
   starting point. The impl file is `// NOMVEP`-guarded so regeneration cannot
   clobber it.
-
-## [Unreleased] - 2026-08-11 (plan 040, #40)
 
 ### Added — spec
 - **Command groups.** A command's optional `group` field (a `/`-separated

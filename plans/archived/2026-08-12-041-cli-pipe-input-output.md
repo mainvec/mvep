@@ -1,8 +1,9 @@
-# #NNN: CLI payload reachability — `mvep` namespace, pipes, and nested-field parity
+# 041: CLI payload reachability — `mvep` namespace, pipes, and nested-field parity
 
-**GitHub Issue**: *to create* (`feat(cli): mvep namespace, payload pipes, and nested-field flag parity`)
+**GitHub Issue**: [#49](https://github.com/mainvec/mvep/issues/49)
+  (`feat(cli): mvep namespace, payload pipes, and nested-field flag parity`)
 
-- Branch: `feat/041-cli-pipe-input-output`
+- Branch: `feat/049-cli-pipe-input-output`
 - Supersedes: plan 042 (`fix(cli): bind repeated record sub-fields as repeatable flags`) — folded in as **T1**
 - Related: [plan 023](023-cli-generation-complete-reusable.md) items **B2**, **B3**, **B3c**, **D2**, **E5**;
   [plan 025](archived/2026-08-10-025-runtime-cli-builder.md) T9 (introduced depth-1 flattening);
@@ -11,7 +12,7 @@
 
 ## Progress
 
-- [ ] T1: Repeated record sub-fields bind correctly (patch release, unblocks zirafa)
+- [x] T1: Repeated record sub-fields bind correctly (patch release, unblocks zirafa)
 - [x] T2: Reserved `mvep` namespace and command index
 - [x] T3: Input sources — file, explicit stdin, implicit pipe
 - [x] T4: `mvep exec` payload dispatch
@@ -645,8 +646,14 @@ silently builds against the stale published runtime. Follow
   sniffing.
 - **2026-08-12 — Decode via `oenc.LookupEncoding`, not `encoding/json`.**
   Matches the server's `executeCmd()` exactly, so CLI and wire semantics cannot
-  diverge, and pb3 packages get protojson for enums, `oneof`, and well-known
-  types.
+  diverge. **Correction (2026-08-12, #59):** `application/json` resolves to the
+  **plain** stdlib JSON encoder (ugo registers `application/json` to
+  `jsonEncoding`; protojson is registered under the short name `"protojson"`
+  only, deliberately never `application/json`). The runtime CLI is therefore
+  **plain-format only** — pb3 is not supported by it, and the earlier claim that
+  "pb3 packages get protojson for enums, `oneof`, and well-known types" is
+  inaccurate. The toolkit now rejects `format: pb3` with the runtime CLI at
+  generation time (#59).
 - **2026-08-12 — Unknown payload keys are a hard error**, consistent with the
   reserved-name enforcement decision. Silent key-dropping is the worst failure
   mode for a scripting surface.

@@ -41,14 +41,14 @@ read from stdin when --input is absent and stdin is not a terminal.`,
 	ns.AddCommand(exec)
 }
 
-// execVerb resolves the payload from --input or implicit stdin, dispatches it,
-// and renders the result (already handled by the shared tail).
+// execVerb resolves the payload from --input or implicit stdin, dispatches it
+// via the rendering path (so exec renders identically to the flag path, #52).
 func (a *App) execVerb(ctx *cli.Context, name, input string) error {
 	payload, err := resolveInput(input, a.stdin, a.stdinIsTTY())
 	if err != nil {
 		return err
 	}
-	_, err = a.dispatch(ctx, name, payload)
+	_, err = a.dispatchRender(ctx, name, payload)
 	return err
 }
 

@@ -3,6 +3,7 @@ package toolkit
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -162,5 +163,31 @@ func TestCLIModeNoneGenopt(t *testing.T) {
 	mainFile := filepath.Join(outdir, "cmd", "nonemode", "nonemode_main_cmd.go")
 	if _, err := os.Stat(mainFile); !os.IsNotExist(err) {
 		t.Errorf("cli=none should not generate a CLI main; file exists")
+	}
+}
+
+// TestPB3RuntimeCLIUnsupported verifies #59: a pb3 spec with the default
+// (runtime) CLI mode is rejected at generation time, because the descriptor-
+// driven CLI is plain-format only.
+func TestPB3RuntimeCLIUnsupported(t *testing.T) {
+	outdir := t.TempDir()
+	err := ExecuteGenerate(context.Background(), filepath.Join("testdata", "23_pb3_runtime_cli_unsupported.jsonc"), outdir, "go", false, "")
+	if err == nil {
+		t.Fatal("expected an error for pb3 + runtime CLI, got nil")
+	}
+	if !strings.Contains(err.Error(), "pb3") || !strings.Contains(err.Error(), "plain") {
+		t.Errorf("error should name pb3 and plain; got: %v", err)
+	}
+}
+
+// TestPB3RuntimeCLIUnsupportedSkipCmd verifies #59: a pb3 spec with skipCmd=true
+// (cli: none) is allowed — no CLI is emitted, so the unsupported pairing is moot.
+func TestPB3RuntimeCLIUnsupportedSkipCmd(t *testing.T) {
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("protoc not found in PATH; skipping pb3 generation test")
+	}
+	outdir := t.TempDir()
+	if err := ExecuteGenerate(context.Background(), filepath.Join("testdata", "23_pb3_runtime_cli_unsupported.jsonc"), outdir, "go", true, ""); err != nil {
+		t.Fatalf("pb3 with skipCmd=true should be allowed: %v", err)
 	}
 }

@@ -163,12 +163,6 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 		return err
 	}
 
-	goApiDir := filepath.Join(outdir, "api")
-	err := os.MkdirAll(goApiDir, dirPerm)
-	if err != nil {
-		return fmt.Errorf("creating go api dir %s: %w", goApiDir, err)
-	}
-
 	// Determine format from flag or gen_options
 	formatOpt, hasFormatOpt := srvDef.GenOpts["format"]
 	if format == "" && hasFormatOpt {
@@ -177,6 +171,28 @@ func executeGenerateGo(srvDef *SrvDef, outdir string, specpath string, format st
 	// Require format to be specified
 	if format == "" {
 		return errors.New("format parameter is required (supported: plain, pb3)")
+	}
+
+	// The descriptor-driven runtime CLI (mvep.PackageDesc, Describe(), and the
+	// cli.New main with its reserved mvep namespace) targets the plain format.
+	// pb3 is not supported by it: dispatch decodes via the plain application/json
+	// encoder, which mangles proto enums/oneof/well-known types. Reject the
+	// unsupported pairing loudly rather than silently generating a broken
+	// surface (#59). skipCmd=true (cli: none) is fine — no CLI is emitted.
+	if format == "pb3" && !skipCmd {
+		cliMode := "runtime"
+		if cliOpt, hasCliOpt := srvDef.GenOpts["cli"]; hasCliOpt {
+			cliMode = cliOpt
+		}
+		if cliMode == "runtime" {
+			return fmt.Errorf("format %q with the runtime CLI is not supported: the descriptor-driven CLI (mvep exec/send/list/describe) is plain-format only; set gen_options.cli to \"legacy\" or \"none\" for pb3", format)
+		}
+	}
+
+	goApiDir := filepath.Join(outdir, "api")
+	err := os.MkdirAll(goApiDir, dirPerm)
+	if err != nil {
+		return fmt.Errorf("creating go api dir %s: %w", goApiDir, err)
 	}
 
 	if format == "plain" {

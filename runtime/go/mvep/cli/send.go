@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -46,12 +45,11 @@ func (a *App) registerSend(ns *cli.Command) {
 func (a *App) sendVerb(ctx *cli.Context, failFast bool) error {
 	br := bufio.NewReader(a.stdin)
 	var errored bool
-	var respOut bytes.Buffer
 
 	for {
 		line, err := br.ReadString('\n')
 		if len(line) > 0 {
-			if anyErrored := a.sendLine(ctx, &respOut, line); anyErrored {
+			if anyErrored := a.sendLine(ctx, line); anyErrored {
 				errored = true
 				if failFast {
 					break
@@ -63,7 +61,6 @@ func (a *App) sendVerb(ctx *cli.Context, failFast bool) error {
 		}
 	}
 
-	ctx.Write(respOut.Bytes())
 	if errored {
 		return fmt.Errorf("mvep send: one or more records failed")
 	}
@@ -71,9 +68,10 @@ func (a *App) sendVerb(ctx *cli.Context, failFast bool) error {
 }
 
 // sendLine decodes every CmdReq on one input line and writes its CmdResp for
-// each. A malformed line emits a single decode_error CmdResp. Returns true if
+// each, flushing immediately so a response is readable before the input closes
+// (#54). A malformed line emits a single decode_error CmdResp. Returns true if
 // any record on the line errored.
-func (a *App) sendLine(ctx *cli.Context, out *bytes.Buffer, line string) bool {
+func (a *App) sendLine(ctx *cli.Context, line string) bool {
 	dec := json.NewDecoder(strings.NewReader(line))
 	anyErrored := false
 	for {
@@ -83,11 +81,11 @@ func (a *App) sendLine(ctx *cli.Context, out *bytes.Buffer, line string) bool {
 			return anyErrored
 		}
 		if err != nil {
-			writeResp(out, mvep.NewCmdRespError("decode_error", err.Error()))
+			writeResp(ctx, mvep.NewCmdRespError("decode_error", err.Error()))
 			return true
 		}
 		resp := a.sendOne(ctx, &req)
-		writeResp(out, resp)
+		writeResp(ctx, resp)
 		if resp.HasError() {
 			anyErrored = true
 		}

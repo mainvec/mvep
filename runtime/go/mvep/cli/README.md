@@ -230,3 +230,14 @@ The CLI mode is a spec gen_option, not a CLI flag:
 
 `skipCmd=true` forces `none` regardless of the genopt. NOMVEP/NOMVGEN
 markers are honoured in both `legacy` and `runtime` modes.
+
+## Format support
+
+The descriptor-driven runtime CLI (`mvep exec`/`send`/`list`/`describe`) is
+**plain-format only**. It decodes payloads via `oenc.LookupEncoding("application/json")`,
+which resolves to the plain stdlib JSON encoder — protojson is registered under
+the short name `"protojson"` only, never `application/json`. Driving pb3
+messages through stdlib `encoding/json` would mangle enums, `oneof`, and
+well-known types, so pb3 is not supported by this CLI. The toolkit rejects
+`format: pb3` combined with the runtime CLI at generation time; use `cli:
+legacy` or `cli: none` for pb3 specs.
