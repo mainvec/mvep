@@ -175,3 +175,58 @@ func TestExecRequiredField(t *testing.T) {
 		t.Errorf("error should name the required field; got: %v", err)
 	}
 }
+
+// TestExecRendersText verifies #52: mvep exec renders its result with the
+// default text renderer, byte-identical to the same command invoked via flags.
+func TestExecRendersText(t *testing.T) {
+	// Flag path.
+	exFlag := &recordingExecutor{result: &t4EchoResult{Out: "hello"}}
+	appFlag := New(&t4Desc, exFlag)
+	var outFlag, _ bytes.Buffer
+	if err := appFlag.RunWithIO(context.Background(), []string{"echo_cmd", "--in", "x", "--count", "1"}, &outFlag, &bytes.Buffer{}); err != nil {
+		t.Fatalf("flag path unexpected error: %v", err)
+	}
+
+	// Payload path (mvep exec).
+	exExec := &recordingExecutor{result: &t4EchoResult{Out: "hello"}}
+	appExec := New(&t4Desc, exExec, WithStdin(strings.NewReader(`{"in":"x","count":1}`)))
+	var outExec, _ bytes.Buffer
+	if err := appExec.RunWithIO(context.Background(), []string{"mvep", "exec", "echo_cmd"}, &outExec, &bytes.Buffer{}); err != nil {
+		t.Fatalf("exec path unexpected error: %v", err)
+	}
+
+	if outExec.String() == "" {
+		t.Fatal("mvep exec rendered nothing; want the result on stdout")
+	}
+	if outExec.String() != outFlag.String() {
+		t.Errorf("exec output %q != flag output %q", outExec.String(), outFlag.String())
+	}
+}
+
+// TestExecRendersJSON verifies #52: --mvep-output json mvep exec emits the same
+// JSON as the flag path.
+func TestExecRendersJSON(t *testing.T) {
+	// Flag path.
+	exFlag := &recordingExecutor{result: &t4EchoResult{Out: "hello"}}
+	appFlag := New(&t4Desc, exFlag)
+	var outFlag, _ bytes.Buffer
+	if err := appFlag.RunWithIO(context.Background(), []string{"echo_cmd", "--in", "x", "--count", "1", "--mvep-output", "json"}, &outFlag, &bytes.Buffer{}); err != nil {
+		t.Fatalf("flag path unexpected error: %v", err)
+	}
+
+	// Payload path.
+	exExec := &recordingExecutor{result: &t4EchoResult{Out: "hello"}}
+	appExec := New(&t4Desc, exExec, WithStdin(strings.NewReader(`{"in":"x","count":1}`)))
+	var outExec, _ bytes.Buffer
+	// --mvep-output must precede the command name (stdlib flag semantics).
+	if err := appExec.RunWithIO(context.Background(), []string{"mvep", "exec", "--mvep-output", "json", "echo_cmd"}, &outExec, &bytes.Buffer{}); err != nil {
+		t.Fatalf("exec path unexpected error: %v", err)
+	}
+
+	if outExec.String() == "" {
+		t.Fatal("mvep exec (json) rendered nothing")
+	}
+	if outExec.String() != outFlag.String() {
+		t.Errorf("exec json output %q != flag json output %q", outExec.String(), outFlag.String())
+	}
+}

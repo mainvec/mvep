@@ -10,6 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
 > `references/generated-patterns.md`) for staleness.
 
+## [Unreleased] - 2026-08-12 (plan 041 follow-up, #52–#54)
+
+### Fixed — runtime/go
+- **`mvep exec` renders its result.** The payload path was routed through the
+  execution core without rendering, so `mvep exec <cmd>` printed nothing on
+  success and `--mvep-output json` was useless on the machine surface. `exec`
+  now goes through the same rendering tail as the flag path, so both output
+  modes are byte-identical between flag-driven and payload-driven invocation.
+  `mvep send` still emits envelopes only.
+- **`--input -` reads stdin unconditionally.** It previously errored whenever
+  stdin was a pipe — the only realistic way to use it — because the explicit
+  `-` and the implicit pipe were misread as two competing consumers. They are
+  the same single consumer, so `cat p.json | svc mvep exec --input - <cmd>`
+  now works.
+- **`mvep send` flushes each `CmdResp` per record.** Responses were buffered
+  and written once at EOF, so nothing was readable in a live pipeline until the
+  input closed. Each response is now written and flushed as its record is
+  processed.
+
 ## [Unreleased] - 2026-08-12 (plan 041, #49)
 
 ### Fixed — runtime/go

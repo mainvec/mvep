@@ -382,10 +382,38 @@ func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings [
 
 // dispatch is the payload path. It looks up a command by CLI name, validates
 // the payload keys against the descriptor, decodes the payload via the same
-// encoding registry the server uses, and runs the shared execution core,
-// returning the result. exec renders via the shared tail; send (T6) uses the
-// result directly to emit a CmdResp envelope.
+// encoding registry the server uses, and runs the shared execution core
+// WITHOUT rendering, returning the result. send (T6) uses the result directly
+// to emit a CmdResp envelope; exec uses dispatchRender to render via the shared
+// tail. The decode/validate half is shared; only the tail differs.
 func (a *App) dispatch(ctx *cli.Context, name string, payload []byte) (any, error) {
+	cmd, err := a.decode(ctx, name, payload)
+	if err != nil {
+		return nil, err
+	}
+	return a.runCore(ctx, cmd.desc, cmd.command)
+}
+
+// dispatchRender is the exec payload path: decode + validate, then the shared
+// rendering tail, so exec renders identically to the flag path (#52).
+func (a *App) dispatchRender(ctx *cli.Context, name string, payload []byte) (any, error) {
+	cmd, err := a.decode(ctx, name, payload)
+	if err != nil {
+		return nil, err
+	}
+	return a.execute(ctx, cmd.desc, cmd.command)
+}
+
+// decoded holds a decoded command and its descriptor, shared by both dispatch
+// variants so the decode/validate half never drifts.
+type decoded struct {
+	command any
+	desc    *mvep.CommandDesc
+}
+
+// decode validates the payload keys against the descriptor and decodes it via
+// the same encoder registry the server uses.
+func (a *App) decode(ctx *cli.Context, name string, payload []byte) (*decoded, error) {
 	cmdDesc, ok := a.commands[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown command %q (valid: %s)", name, strings.Join(a.commandNames(), ", "))
@@ -403,8 +431,7 @@ func (a *App) dispatch(ctx *cli.Context, name string, payload []byte) (any, erro
 	if err := enc.Decode(payload, cmd); err != nil {
 		return nil, fmt.Errorf("decode %s: %w", name, err)
 	}
-
-	return a.runCore(ctx, cmdDesc, cmd)
+	return &decoded{command: cmd, desc: cmdDesc}, nil
 }
 
 // execute is the shared tail of both the flag and payload paths: required-flag

@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mainvec/mvep/runtime/go/mvep"
 )
@@ -150,4 +152,62 @@ func TestSendResponseHeaders(t *testing.T) {
 	if resp.Headers["resp-trace"] != "abc" {
 		t.Errorf("response header resp-trace = %q, want abc; got headers %v", resp.Headers["resp-trace"], resp.Headers)
 	}
+}
+
+// TestSendFlushesPerRecord verifies #54: each CmdResp is written and flushed as
+// its record is processed, so a response is readable before the input closes.
+func TestSendFlushesPerRecord(t *testing.T) {
+	ex := &recordingExecutor{result: &t4EchoResult{Out: "ok"}}
+
+	// Wire send's stdin to a pipe we control, and its stdout to a pipe we read
+	// from incrementally.
+	inR, inW := io.Pipe()
+	outR, outW := io.Pipe()
+	app := New(&t4Desc, ex, WithStdin(inR))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = app.RunWithIO(context.Background(), []string{"mvep", "send"}, outW, io.Discard)
+	}()
+
+	// Write one request (a single line with a trailing newline).
+	req := `{"cmd":"echo_cmd","payload":"` + base64.StdEncoding.EncodeToString([]byte(`{"in":"a","count":1}`)) + `"}` + "\n"
+	if _, err := io.WriteString(inW, req); err != nil {
+		t.Fatalf("write request: %v", err)
+	}
+
+	// Read a response BEFORE closing stdin, with a timeout. If send buffers to
+	// EOF, no data arrives and this times out.
+	type readResult struct {
+		n   int
+		err error
+	}
+	readCh := make(chan readResult, 1)
+	buf := make([]byte, 4096)
+	go func() {
+		n, err := outR.Read(buf)
+		readCh <- readResult{n: n, err: err}
+	}()
+
+	select {
+	case rr := <-readCh:
+		if rr.err != nil {
+			t.Fatalf("no response before input closed (send buffers to EOF?): %v", rr.err)
+		}
+		var resp mvep.CmdResp
+		if err := json.Unmarshal(buf[:rr.n], &resp); err != nil {
+			t.Fatalf("response not valid JSON: %v; got %q", err, buf[:rr.n])
+		}
+		if resp.Error != nil {
+			t.Errorf("unexpected error on record: %+v", resp.Error)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for a response before input closed — send buffers to EOF")
+	}
+
+	// Close stdin and stdout so the send loop ends and the writer unblocks.
+	inW.Close()
+	outW.Close()
+	<-done
 }

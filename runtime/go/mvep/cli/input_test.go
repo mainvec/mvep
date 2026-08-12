@@ -36,6 +36,19 @@ func TestResolveInputExplicitStdin(t *testing.T) {
 	}
 }
 
+// TestResolveInputExplicitStdinPipe verifies #53: --input - reads stdin even
+// when stdin is a pipe (the realistic way to use it). Explicit - and the
+// implicit pipe are the same single consumer, so this must not error.
+func TestResolveInputExplicitStdinPipe(t *testing.T) {
+	got, err := resolveInput("-", strings.NewReader(`{"in":"pipe"}`), false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(got) != `{"in":"pipe"}` {
+		t.Errorf("payload = %q, want %q", got, `{"in":"pipe"}`)
+	}
+}
+
 // TestResolveInputImplicitPipe verifies T3: with no --input and stdin not a
 // character device, the payload is read implicitly from stdin.
 func TestResolveInputImplicitPipe(t *testing.T) {
@@ -60,6 +73,18 @@ func TestResolveInputEmptyStdin(t *testing.T) {
 	}
 }
 
+// TestResolveInputExplicitStdinEmpty verifies #53: empty stdin under --input -
+// still yields {}.
+func TestResolveInputExplicitStdinEmpty(t *testing.T) {
+	got, err := resolveInput("-", strings.NewReader(""), false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(got) != "{}" {
+		t.Errorf("payload = %q, want %q", got, "{}")
+	}
+}
+
 // TestResolveInputTTYNoInput verifies T3: a TTY stdin with no --input does not
 // block and yields an empty payload.
 func TestResolveInputTTYNoInput(t *testing.T) {
@@ -69,18 +94,6 @@ func TestResolveInputTTYNoInput(t *testing.T) {
 	}
 	if string(got) != "{}" {
 		t.Errorf("payload = %q, want %q", got, "{}")
-	}
-}
-
-// TestResolveInputDoubleDash verifies T3: requesting "-" twice (explicit
-// --input - plus an implicit pipe) errors before any read.
-func TestResolveInputDoubleDash(t *testing.T) {
-	_, err := resolveInput("-", strings.NewReader("data"), false)
-	if err == nil {
-		t.Fatal("expected error for two consumers of '-', got nil")
-	}
-	if !strings.Contains(err.Error(), "-") {
-		t.Errorf("error should mention '-'; got: %v", err)
 	}
 }
 

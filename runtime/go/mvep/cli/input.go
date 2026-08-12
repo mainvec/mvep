@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"io"
 	"os"
 )
@@ -11,18 +10,16 @@ import (
 // not a parse error; checkRequired then applies normally.
 //
 // Resolution order:
-//   - input == "-": read stdin explicitly. If stdin is also not a character
-//     device, the implicit-pipe path would claim it too — two consumers of "-"
-//     in one invocation is an error, reported before any read.
+//   - input == "-": read stdin explicitly. Explicit "-" and the implicit pipe
+//     are the same single consumer of stdin (the implicit path exists because
+//     --input was absent), so this reads stdin regardless of whether it is a
+//     terminal or a pipe (#53).
 //   - input == "": no --input flag. If stdin is not a character device, read
 //     it implicitly (a pipe). If stdin is a TTY, do not block — yield "{}".
 //   - otherwise: read the named file.
 func resolveInput(input string, stdin io.Reader, stdinIsTTY bool) ([]byte, error) {
 	switch {
 	case input == "-":
-		if !stdinIsTTY {
-			return nil, fmt.Errorf("cannot use '-' twice: --input - and implicit stdin pipe both claim stdin")
-		}
 		return readAll(stdin)
 	case input != "":
 		return os.ReadFile(input)
