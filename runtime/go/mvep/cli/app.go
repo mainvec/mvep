@@ -230,6 +230,8 @@ func New(desc *mvep.PackageDesc, executor Executor, opts ...Option) *App {
 	}
 	app.registerExec(ns)
 	app.registerSend(ns)
+	app.registerList(ns)
+	app.registerDescribe(ns)
 	root.AddCommand(ns)
 
 	app.root = root

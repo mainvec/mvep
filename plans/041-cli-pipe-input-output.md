@@ -17,7 +17,7 @@
 - [x] T4: `mvep exec` payload dispatch
 - [x] T5: Built-in JSON renderer and `--mvep-output`
 - [x] T6: `mvep send` streaming envelope pipe
-- [ ] T7: `mvep list` and `mvep describe`
+- [x] T7: `mvep list` and `mvep describe`
 - [ ] T8: Per-field `-file` hatch at both nesting levels
 - [ ] T9: Toolkit reserved-name validation
 - [ ] T10: Documentation and release
