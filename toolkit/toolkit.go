@@ -1028,6 +1028,19 @@ func validateCommandGroups(srvDef *SrvDef) error {
 		if g == reservedNamespace || strings.HasPrefix(g, reservedNamespace+"/") {
 			return fmt.Errorf("group %q: name %q is reserved for the %q namespace", g, g, reservedNamespace)
 		}
+		// A root-level group's alias resolves to a top-level identifier, so it
+		// can collide with the reserved namespace the same way a command leaf
+		// name can (#55). Nested group aliases resolve under their parent and
+		// cannot collide with the root namespace.
+		if !strings.Contains(g, "/") {
+			if meta, ok := srvDef.CommandGroups[g]; ok {
+				for _, a := range meta.Aliases {
+					if a == reservedNamespace {
+						return fmt.Errorf("group %q: alias %q is reserved for the %q namespace", g, a, reservedNamespace)
+					}
+				}
+			}
+		}
 	}
 
 	// nameByParent maps "parentPath/leafName" -> command name for duplicate

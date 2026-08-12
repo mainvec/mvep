@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   input closed. Each response is now written and flushed as its record is
   processed.
 
+### Fixed — toolkit
+- **Reserved-name check now covers group aliases.** A root-level group whose
+  alias resolves to `mvep` passed generation and would panic at `cli.New`; it
+  now fails `mvep generate` naming the reserved word, matching the command-leaf
+  check. Case handling is unchanged and correct: the runtime resolves names
+  case-sensitively, so `MVEP` is distinct from `mvep`.
+
 ## [Unreleased] - 2026-08-12 (plan 041, #49)
 
 ### Fixed — runtime/go

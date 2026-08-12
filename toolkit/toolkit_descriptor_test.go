@@ -325,6 +325,11 @@ func TestExecuteGenerateGroupValidation(t *testing.T) {
 			fixture: "21_reserved_namespace_collision.jsonc",
 			wantSub: []string{"mvep"},
 		},
+		{
+			name:    "group alias named after the reserved namespace",
+			fixture: "22_reserved_namespace_group_alias.jsonc",
+			wantSub: []string{"mvep"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
