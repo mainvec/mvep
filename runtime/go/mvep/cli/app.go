@@ -6,11 +6,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/mainvec/mvep/runtime/go/mvep"
 	"github.com/mainvec/ugo/cli"
+	oenc "github.com/mainvec/ugo/oencoding"
+	_ "github.com/mainvec/ugo/oencoding/json"
 )
 
 // App is a descriptor-driven CLI. New builds it from a *mvep.PackageDesc and
@@ -20,6 +24,26 @@ type App struct {
 	root     *cli.Command
 	desc     *mvep.PackageDesc
 	executor Executor
+	// namespace is the reserved framework command group name (default "mvep").
+	// It hosts the spec-independent machine surface (exec, send, list,
+	// describe). Overridable via WithNamespace.
+	namespace string
+	// commands indexes every CommandDesc by its CLI name (commandName), built
+	// during New. Used by the mvep exec dispatcher to look up a command by
+	// name without re-walking the tree.
+	commands map[string]*mvep.CommandDesc
+	// stdin is the reader used for explicit/implicit stdin payloads (T3/T4).
+	// Defaults to os.Stdin; testable via the Option below.
+	stdin io.Reader
+	// stdout/stderr are the io writers for the current RunWithIO invocation,
+	// captured so send can rebuild a *cli.Context enriched with request/response
+	// headers (ContextWithCmdReq returns a plain context.Context).
+	stdout, stderr io.Writer
+	// outputMode is the --<namespace>-output value ("text" or "json"),
+	// defaulting to "text". Registered as a root persistent flag so it is
+	// visible on every command; the flag name follows the configured
+	// namespace.
+	outputMode string
 	// preHooks run after flag binding + required check, before the executor.
 	// A pre-hook returning an error aborts execution. Hooks run in
 	// registration order. Use for auth, logging, metrics (T13).
@@ -31,6 +55,23 @@ type App struct {
 	// renderer renders the result to stdout. Defaults to defaultRenderer;
 	// swapped via SetRenderer (T14).
 	renderer Renderer
+}
+
+// Option configures an App at construction. Options are applied in order.
+type Option func(*App)
+
+// WithNamespace overrides the reserved framework namespace group name. The
+// default is "mvep"; overriding it to "acme" yields `svc acme exec ...` and
+// `--acme-output`. The name must not collide with any descriptor command or
+// group (New panics otherwise).
+func WithNamespace(name string) Option {
+	return func(a *App) { a.namespace = name }
+}
+
+// WithStdin overrides the reader used for explicit/implicit stdin payloads.
+// Defaults to os.Stdin. Testable injection point for the exec/send verbs.
+func WithStdin(r io.Reader) Option {
+	return func(a *App) { a.stdin = r }
 }
 
 // PreHook runs before the executor dispatches a command. Returning an error
@@ -60,11 +101,18 @@ func (a *App) AddPostHook(h PostHook) { a.postHooks = append(a.postHooks, h) }
 // help. Flag binding (T9), required-flag enforcement (T10), and result
 // rendering (T14) layer on top of this; T8 establishes the command tree and
 // the execute-via-Executor seam.
-func New(desc *mvep.PackageDesc, executor Executor) *App {
+func New(desc *mvep.PackageDesc, executor Executor, opts ...Option) *App {
 	app := &App{
-		desc:     desc,
-		executor: executor,
-		renderer: defaultRenderer,
+		desc:       desc,
+		executor:   executor,
+		renderer:   defaultRenderer,
+		namespace:  "mvep",
+		commands:   make(map[string]*mvep.CommandDesc, len(desc.Commands)),
+		stdin:      os.Stdin,
+		outputMode: "text",
+	}
+	for _, opt := range opts {
+		opt(app)
 	}
 
 	root := &cli.Command{
@@ -79,6 +127,28 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 	}
 	if desc.SpecVersion != "" {
 		root.Version = desc.SpecVersion
+	}
+
+	// Register the namespace-scoped persistent output flag on the root so it is
+	// visible on every command. It is namespaced because a persistent root flag
+	// claims a name on every generated command (--output stays the implementor's
+	// to add). The name follows the configured namespace (T5).
+	root.PersistentFlags().StringVar(&app.outputMode, app.namespace+"-output", "text", "output format (text|json)")
+
+	// The reserved namespace claims one top-level identifier. A descriptor
+	// command or group colliding with it is a construction error: the panic
+	// names the reserved word. This is unreachable in generated code once T9
+	// hard-errors at generation time, and matches ugo's AddCommand self-parent
+	// panic.
+	for i := range desc.Commands {
+		if commandName(&desc.Commands[i]) == app.namespace {
+			panic(fmt.Sprintf("reserved namespace %q collides with command %q", app.namespace, desc.Commands[i].Name))
+		}
+	}
+	for i := range desc.Groups {
+		if desc.Groups[i].Path == app.namespace {
+			panic(fmt.Sprintf("reserved namespace %q collides with group %q", app.namespace, desc.Groups[i].Path))
+		}
 	}
 
 	// groupByPath memoises a ugo *cli.Command per group path, created on
@@ -124,6 +194,7 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 	for i := range desc.Commands {
 		cmdDesc := &desc.Commands[i]
 		cmdName := commandName(cmdDesc)
+		app.commands[cmdName] = cmdDesc
 
 		// Declare sub first so its FlagSet exists for bindFlags; the RunE
 		// closure captures bindings, which is assigned next.
@@ -142,6 +213,26 @@ func New(desc *mvep.PackageDesc, executor Executor) *App {
 		}
 		groupFor(cmdDesc.Group).AddCommand(sub)
 	}
+
+	// Register the reserved namespace group under the root. Its verbs (exec,
+	// send, list, describe) are added by later tasks; the group itself is the
+	// self-documenting home for the framework surface. It is Runnable so it
+	// appears in root help even before any verb is registered: running
+	// `svc mvep` alone prints the group's help.
+	ns := &cli.Command{
+		Usage: app.namespace,
+		Short: "framework commands",
+		Args:  unknownSubcommandArgs,
+	}
+	ns.RunE = func(ctx *cli.Context, args []string) error {
+		(&cli.CommandHelp{Command: ns}).WriteHelp(ctx)
+		return nil
+	}
+	app.registerExec(ns)
+	app.registerSend(ns)
+	app.registerList(ns)
+	app.registerDescribe(ns)
+	root.AddCommand(ns)
 
 	app.root = root
 	return app
@@ -215,17 +306,65 @@ func (a *App) Run(ctx context.Context) error {
 // nil, os.Args[1:] is used; when stdout/stderr are nil, os.Stdout/os.Stderr are
 // used. This mirrors ugo's Framework.ExecuteWithIO and is the testable entry
 // point.
+//
+// Under --<namespace>-output json, errors are serialized as {"error":...} on
+// stdout (never stderr) and the error is still returned, so exit codes are
+// unchanged. When flag parsing itself fails the output flag may never have been
+// parsed, so the mode falls back to a pre-scan of the raw args (T5).
 func (a *App) RunWithIO(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	fw := &cli.Framework{Root: a.root}
-	if args == nil {
-		return fw.Run(ctx)
+	if stdout == nil {
+		stdout = os.Stdout
 	}
-	return fw.ExecuteWithIO(ctx, args, stdout, stderr)
+	if stderr == nil {
+		stderr = os.Stderr
+	}
+	a.stdout = stdout
+	a.stderr = stderr
+
+	fw := &cli.Framework{Root: a.root}
+	var err error
+	if args == nil {
+		err = fw.Run(ctx)
+	} else {
+		err = fw.ExecuteWithIO(ctx, args, stdout, stderr)
+	}
+
+	if err != nil && a.jsonOutputFor(args) {
+		renderJSONError(stdout, err)
+	}
+	return err
+}
+
+// jsonOutputFor reports whether the output mode is JSON, using the parsed
+// outputMode when available and falling back to a pre-scan of the raw args
+// when flag parsing failed before the output flag was read.
+func (a *App) jsonOutputFor(args []string) bool {
+	if a.outputMode == "json" {
+		return true
+	}
+	if args == nil {
+		return false
+	}
+	prefix := "--" + a.namespace + "-output"
+	for i, arg := range args {
+		switch {
+		case arg == prefix:
+			if i+1 < len(args) && args[i+1] == "json" {
+				return true
+			}
+			return false
+		case strings.HasPrefix(arg, prefix+"="):
+			return strings.HasSuffix(arg, "=json")
+		}
+	}
+	return false
 }
 
 // runCommand constructs the command struct, applies flag values via the Ptr
 // accessors, enforces required flags, dispatches through the Executor, and
-// renders the result.
+// renders the result. This is the flag path: it differs from the payload path
+// (dispatch) only in how the command struct is populated; both share the
+// identical tail in execute.
 func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings []flagBinding) error {
 	cmd := cmdDesc.New()
 
@@ -237,19 +376,78 @@ func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings [
 		return err
 	}
 
+	_, err := a.execute(ctx, cmdDesc, cmd)
+	return err
+}
+
+// dispatch is the payload path. It looks up a command by CLI name, validates
+// the payload keys against the descriptor, decodes the payload via the same
+// encoding registry the server uses, and runs the shared execution core,
+// returning the result. exec renders via the shared tail; send (T6) uses the
+// result directly to emit a CmdResp envelope.
+func (a *App) dispatch(ctx *cli.Context, name string, payload []byte) (any, error) {
+	cmdDesc, ok := a.commands[name]
+	if !ok {
+		return nil, fmt.Errorf("unknown command %q (valid: %s)", name, strings.Join(a.commandNames(), ", "))
+	}
+
+	if err := validatePayloadKeys(cmdDesc, a.desc, payload); err != nil {
+		return nil, err
+	}
+
+	cmd := cmdDesc.New()
+	enc, ok := oenc.LookupEncoding("application/json")
+	if !ok {
+		return nil, fmt.Errorf("no application/json encoder registered")
+	}
+	if err := enc.Decode(payload, cmd); err != nil {
+		return nil, fmt.Errorf("decode %s: %w", name, err)
+	}
+
+	return a.runCore(ctx, cmdDesc, cmd)
+}
+
+// execute is the shared tail of both the flag and payload paths: required-flag
+// checking, pre-hooks, executor.Run, post-hooks, and rendering. It returns the
+// result (and error). Keeping this identical across both paths is what
+// guarantees hooks, required-checking, and rendering cannot drift between
+// flag-driven and payload-driven invocation.
+func (a *App) execute(ctx *cli.Context, cmdDesc *mvep.CommandDesc, cmd any) (any, error) {
+	result, err := a.runCore(ctx, cmdDesc, cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// Render the result (T14). The renderer writes to the command's stdout
+	// (the ugo Context implements io.Writer). Under --<namespace>-output json,
+	// a JSON renderer is selected (T5); otherwise the default text renderer.
+	if result != nil {
+		if a.outputMode == "json" {
+			jsonRenderer(ctx, result)
+		} else {
+			a.renderer(ctx, result)
+		}
+	}
+	return result, nil
+}
+
+// runCore is the shared execution core (no rendering): required-flag checking,
+// pre-hooks, executor.Run, and post-hooks. execute wraps it with rendering;
+// send (T6) uses it directly and emits CmdResp envelopes instead.
+func (a *App) runCore(ctx *cli.Context, cmdDesc *mvep.CommandDesc, cmd any) (any, error) {
 	// Enforce required flags (T10): a required field left at its zero value
 	// after parsing is a usage error, not an execution error. Enforcement
 	// lives in cli, not ugo, so the behaviour is ours to define. The error
 	// names the missing flag so the caller can surface it and exit 2.
 	if err := checkRequired(cmdDesc, cmd); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Pre-hooks (T13): run in registration order before the executor. A
 	// pre-hook returning an error aborts — the executor is NOT called.
 	for _, h := range a.preHooks {
 		if err := h(ctx, cmd); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -262,16 +460,18 @@ func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings [
 		h(ctx, cmd, result, err)
 	}
 
-	if err != nil {
-		return err
-	}
+	return result, err
+}
 
-	// Render the result (T14). The renderer writes to the command's stdout
-	// (the ugo Context implements io.Writer).
-	if result != nil {
-		a.renderer(ctx, result)
+// commandNames returns the sorted CLI names of every command, for error and
+// list output.
+func (a *App) commandNames() []string {
+	names := make([]string, 0, len(a.commands))
+	for n := range a.commands {
+		names = append(names, n)
 	}
-	return nil
+	sort.Strings(names)
+	return names
 }
 
 // checkRequired returns an error naming the first required field whose value

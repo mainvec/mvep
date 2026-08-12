@@ -24,6 +24,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   values error naming the sub-field flag, not the parent record flag.
   Sub-field and top-level binding now agree on every `FieldType`.
 
+### Added — runtime/go
+- **Reserved `mvep` namespace.** Every generated CLI reserves a single `mvep`
+  group (`svc mvep <verb>`) hosting a spec-independent, machine-readable
+  surface. The namespace name is overridable via
+  `cli.New(desc, executor, cli.WithNamespace("acme"))`.
+- **`mvep exec`** reads a complete command payload from `--input <path>`,
+  `--input -`, or implicitly from stdin when stdin is not a terminal. Payload
+  keys are validated against the descriptor (unknown keys, including nested
+  record fields, hard-error), then decoded with the same encoder registry the
+  server uses. Flags precede the command name (stdlib `flag` semantics).
+- **`mvep send`** reads a stream of `CmdReq` envelopes (NDJSON or concatenated)
+  and emits one `CmdResp` per record, flushing immediately for live pipelines.
+  Continue-on-error by default; `--fail-fast` halts; non-zero exit if any
+  record errored. Request headers ride the context, so interceptors behave
+  identically under the CLI and over HTTP, and response headers round-trip.
+- **`mvep list`** and **`mvep describe`**. `list` prints command names (a JSON
+  array under `--mvep-output json`). `describe [command]` emits a versioned
+  JSON projection (name, alias, group, description, fields, result).
+- **`--mvep-output json|text`** persistent flag. Under `json`, results render
+  as JSON on stdout and errors serialize as `{"error":...}` on stdout (never
+  stderr), shaped exactly like a `send` record's `CmdResp.Error`; exit codes
+  are unchanged. The flag name follows the configured namespace.
+- **Per-field `-file` hatches.** `--<name>-file` and
+  `--<record>-<field>-file` load JSON values from files for maps, repeated
+  non-string, and record fields, with `-file > -json > flattened sub-flags`
+  precedence at both nesting levels.
+
+### Added — toolkit
+- **Generate-time reserved-name validation.** A spec declaring a top-level
+  command or group named `mvep` fails `mvep generate` with an error naming the
+  reserved word, catching the runtime namespace collision before generation.
+
 ## [Unreleased] - 2026-08-11 (plan 040, #40)
 
 ### Fixed — toolkit

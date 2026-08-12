@@ -320,6 +320,11 @@ func TestExecuteGenerateGroupValidation(t *testing.T) {
 			fixture: "19_group_collides_command_depth.jsonc",
 			wantSub: []string{"keys", "server"},
 		},
+		{
+			name:    "command named after the reserved namespace",
+			fixture: "21_reserved_namespace_collision.jsonc",
+			wantSub: []string{"mvep"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

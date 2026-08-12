@@ -139,12 +139,84 @@ Every `FieldType` is bound via the `Ptr` accessor:
 The binding does **not** mutate the shared descriptor's `Ptr` — parsed values
 are held in per-execution locals and written back via `Ptr` after parsing.
 
+### Sub-field binding and repeated fields (T1, T8)
+
+Depth-1 record flattening agrees with top-level binding on every `FieldType` ×
+`Repeated` combination, so the two can never drift. `--<record>-<field>-file`
+supersedes `--<record>-<field>-json`, which supersedes the flattened
+sub-flags.
+
+| Field | Top-level form | Sub-field form |
+|-------|----------------|----------------|
+| map | `--<name>-json`, `--<name>-file` | — |
+| record (`$ref`) | `--<name>-<field>`, `--<name>-json`, `--<name>-file` | `--<name>-<field>` |
+| repeated string | `StringSliceVar` (`--name a --name b`) | `--<record>-<field> 'a' --<record>-<field> 'b'` |
+| repeated non-string | `--<name>-json`, `--<name>-file` | `--<record>-<field>-json`, `--<record>-<field>-file` |
+
+Repeated `FieldString` binds as a repeatable flag (a JSON array is emitted).
+Every other repeated type (UUID, timestamp, duration, bytes, numeric, bool,
+map, `recRef`) binds via `--<name>-json` / `--<name>-file` as a JSON array,
+matching the top-level `registerRepeatedFlag` fallback exactly. Malformed or
+non-array `-json`/`-file` values error naming the sub-field flag.
+
 ## Required flags (T10)
 
 `FieldDesc.Required` is enforced in `cli`, not ugo. A missing required flag
 returns `"required flag --<name> is missing"` and maps to exit code 2. A
 required field set to its zero value intentionally (e.g. `--count 0`) is
 indistinguishable from missing — the standard CLI convention.
+
+## The reserved `mvep` namespace (T2–T7)
+
+Every generated CLI reserves a single `mvep` group (`svc mvep <verb>`) that
+provides a spec-independent, machine-readable surface. It is overridable via
+`cli.New(desc, executor, cli.WithNamespace("acme"))`, which also renames the
+persistent output flag to `--acme-output`.
+
+```
+cat p.json | svc mvep exec generate            # implicit stdin (pipe)
+svc mvep exec --input p.json generate          # flags precede the command name
+svc mvep exec --input - generate               # explicit stdin
+cat reqs.ndjson | svc mvep send                # CmdReq stream -> CmdResp stream
+svc mvep list                                  # command names
+svc mvep describe [command]                    # versioned schema projection
+```
+
+- **`exec`** reads a complete payload from `--input <path>`, `--input -`, or
+  implicitly from stdin when stdin is not a terminal. Payload keys are
+  validated against the descriptor (unknown keys hard-error), then decoded with
+  the same encoder registry the server uses.
+- **`send`** reads a stream of `CmdReq` envelopes (NDJSON or concatenated) and
+  emits one `CmdResp` per record, flushing immediately so it works in a live
+  pipeline. `CmdReq.Payload` is `[]byte`, so inputs carry base64 payloads.
+  `--fail-fast` halts at the first error; the process exits non-zero if any
+  record errored. Request headers ride the context (`mvep.ContextWithCmdReq`),
+  so header-reading interceptors behave identically under the CLI and over HTTP;
+  response headers set via `mvep.SetResponseHeader` round-trip into the emitted
+  `CmdResp`.
+- **`list`** prints command names (a JSON array under `--mvep-output json`).
+- **`describe`** emits a minimal, versioned JSON projection — name, alias,
+  group, description, fields (name, type, repeated, required, ref), result type.
+  No argument describes all.
+
+Because ugo inherits stdlib `flag` parsing, which stops at the first non-flag
+argument, `--input`/`--fail-fast` must precede the command name inside the
+namespace verbs.
+
+## `--mvep-output json|text` (T5)
+
+A persistent flag visible on every command (`--<namespace>-output`, default
+`text`) selects the renderer:
+
+- **`text`** (default) — today's human-readable output, byte for byte.
+- **`json`** — the result is marshaled to stdout as JSON. Errors serialize to
+  stdout as `{"error":{"code":...,"message":...}}` (using `mvep.ErrorInfo`),
+  nothing on stderr, and the error is still returned so exit codes are
+  unchanged. A failed `exec` is shaped exactly like a `send` record's
+  `CmdResp.Error`, so one consumer parses both.
+
+The implementor's own `--output` flag is unaffected — it never collides with
+the namespaced `--mvep-output`.
 
 ## gen_options.cli
 
