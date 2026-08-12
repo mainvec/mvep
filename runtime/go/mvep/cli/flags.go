@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mainvec/mvep/runtime/go/mvep"
@@ -261,7 +262,7 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDe
 	// into the record struct uses the right JSON type (#36).
 	type subBinding struct {
 		field  *mvep.FieldDesc
-		rawVal func() json.RawMessage // returns the JSON-encoded value
+		rawVal func() (json.RawMessage, error) // returns the JSON-encoded value
 		isSet  func() bool
 	}
 	var subs []subBinding
@@ -287,9 +288,17 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDe
 		// where all values were JSON strings.
 		obj := make(map[string]json.RawMessage, len(subs))
 		for _, s := range subs {
-			if s.isSet() {
-				obj[s.field.Name] = s.rawVal()
+			if !s.isSet() {
+				continue
 			}
+			raw, err := s.rawVal()
+			if err != nil {
+				// The error already names the sub-field flag (e.g.
+				// --<record>-<field>-json) so it is surfaced as-is rather
+				// than wrapped in the parent's opaque --<record> error.
+				return err
+			}
+			obj[s.field.Name] = raw
 		}
 		jsonBytes, _ := json.Marshal(obj)
 		if err := json.Unmarshal(jsonBytes, f.Ptr(cmd)); err != nil {
@@ -306,68 +315,133 @@ func registerRecordFlag(fs *cli.FlagSet, f *mvep.FieldDesc, desc *mvep.PackageDe
 // was set.
 func registerSubFieldFlag(fs *cli.FlagSet, parentName string, rf *mvep.FieldDesc) struct {
 	field  *mvep.FieldDesc
-	rawVal func() json.RawMessage
+	rawVal func() (json.RawMessage, error)
 	isSet  func() bool
 } {
 	flagName := parentName + "-" + rf.Name
 	result := struct {
 		field  *mvep.FieldDesc
-		rawVal func() json.RawMessage
+		rawVal func() (json.RawMessage, error)
 		isSet  func() bool
 	}{field: rf}
+
+	// Repeated sub-fields bind via their own branch BEFORE the type switch,
+	// mirroring registerFlag: the scalar switch below would otherwise fall a
+	// repeated string into the FieldString case and bind a single value,
+	// which cannot unmarshal into the []string the record struct expects.
+	if rf.Repeated {
+		return registerRepeatedSubFieldFlag(fs, parentName, rf)
+	}
 
 	switch rf.Type {
 	case mvep.FieldString, mvep.FieldUUID, mvep.FieldTimestamp, mvep.FieldBytes:
 		p := new(string)
 		fs.StringVar(p, flagName, "", rf.Desc)
 		result.isSet = func() bool { return *p != "" }
-		result.rawVal = func() json.RawMessage { return encodeJSONString(*p) }
+		result.rawVal = func() (json.RawMessage, error) { return encodeJSONString(*p), nil }
 	case mvep.FieldBool:
 		p := new(bool)
 		fs.BoolVar(p, flagName, false, rf.Desc)
 		result.isSet = func() bool { return *p }
-		result.rawVal = func() json.RawMessage {
+		result.rawVal = func() (json.RawMessage, error) {
 			if *p {
-				return json.RawMessage("true")
+				return json.RawMessage("true"), nil
 			}
-			return json.RawMessage("false")
+			return json.RawMessage("false"), nil
 		}
 	case mvep.FieldInt32, mvep.FieldSint32:
 		p := new(int32)
 		fs.Int32Var(p, flagName, 0, rf.Desc)
 		result.isSet = func() bool { return *p != 0 }
-		result.rawVal = func() json.RawMessage { return encodeJSONNumber(int64(*p)) }
+		result.rawVal = func() (json.RawMessage, error) { return encodeJSONNumber(int64(*p)), nil }
 	case mvep.FieldInt64:
 		p := new(int64)
 		fs.Int64Var(p, flagName, 0, rf.Desc)
 		result.isSet = func() bool { return *p != 0 }
-		result.rawVal = func() json.RawMessage { return encodeJSONNumber(*p) }
+		result.rawVal = func() (json.RawMessage, error) { return encodeJSONNumber(*p), nil }
 	case mvep.FieldUint32:
 		p := new(uint32)
 		Uint32Var(fs, p, flagName, 0, rf.Desc)
 		result.isSet = func() bool { return *p != 0 }
-		result.rawVal = func() json.RawMessage { return encodeJSONNumber(int64(*p)) }
+		result.rawVal = func() (json.RawMessage, error) { return encodeJSONNumber(int64(*p)), nil }
 	case mvep.FieldFloat:
 		p := new(float32)
 		Float32Var(fs, p, flagName, 0, rf.Desc)
 		result.isSet = func() bool { return *p != 0 }
-		result.rawVal = func() json.RawMessage { return encodeJSONFloat(float64(*p)) }
+		result.rawVal = func() (json.RawMessage, error) { return encodeJSONFloat(float64(*p)), nil }
 	case mvep.FieldDouble:
 		p := new(float64)
 		fs.Float64Var(p, flagName, 0, rf.Desc)
 		result.isSet = func() bool { return *p != 0 }
-		result.rawVal = func() json.RawMessage { return encodeJSONFloat(*p) }
+		result.rawVal = func() (json.RawMessage, error) { return encodeJSONFloat(*p), nil }
 	case mvep.FieldDuration:
 		p := new(string)
 		fs.StringVar(p, flagName, "", rf.Desc)
 		result.isSet = func() bool { return *p != "" }
-		result.rawVal = func() json.RawMessage { return encodeJSONString(*p) }
+		result.rawVal = func() (json.RawMessage, error) { return encodeJSONString(*p), nil }
 	default:
 		// Fallback: treat as string.
 		p := new(string)
 		fs.StringVar(p, flagName, "", rf.Desc)
 		result.isSet = func() bool { return *p != "" }
-		result.rawVal = func() json.RawMessage { return encodeJSONString(*p) }
+		result.rawVal = func() (json.RawMessage, error) { return encodeJSONString(*p), nil }
+	}
+	return result
+}
+
+// registerRepeatedSubFieldFlag binds a repeated depth-1 record sub-field. The
+// split must mirror registerRepeatedFlag (top level), NOT the scalar switch:
+// those are different sets, and only top-level parity expresses the invariant
+// this task exists to restore. registerRepeatedFlag string-binds FieldString
+// alone; everything else binds via --json.
+//
+//   - Repeated FieldString binds via StringSliceVar, with rawVal emitting a
+//     JSON array (json.Marshal of the slice).
+//   - Every other repeated type (FieldUUID, FieldTimestamp, FieldDuration,
+//     FieldBytes, numeric, bool, map, recRef) binds from
+//     --<record>-<field>-json, passing the array through as json.RawMessage.
+func registerRepeatedSubFieldFlag(fs *cli.FlagSet, parentName string, rf *mvep.FieldDesc) struct {
+	field  *mvep.FieldDesc
+	rawVal func() (json.RawMessage, error)
+	isSet  func() bool
+} {
+	flagName := parentName + "-" + rf.Name
+	result := struct {
+		field  *mvep.FieldDesc
+		rawVal func() (json.RawMessage, error)
+		isSet  func() bool
+	}{field: rf}
+
+	switch rf.Type {
+	case mvep.FieldString:
+		p := new([]string)
+		fs.StringSliceVar(p, flagName, nil, rf.Desc)
+		result.isSet = func() bool { return len(*p) > 0 }
+		result.rawVal = func() (json.RawMessage, error) {
+			b, _ := json.Marshal(*p)
+			return b, nil
+		}
+	default:
+		// Repeated non-string: bind as a JSON array via --<record>-<field>-json.
+		// Malformed JSON and non-array values are both validated in the rawVal
+		// closure so the error names the sub-field flag rather than surfacing as
+		// the parent's opaque --<record>: json: cannot unmarshal ... error.
+		// Unmarshalling into json.RawMessage alone accepts {"a":1}, which then
+		// fails at the parent — so array-ness is checked explicitly here.
+		p := new(string)
+		fs.StringVar(p, flagName+"-json", "", rf.Desc+" (JSON array)")
+		result.isSet = func() bool { return *p != "" }
+		result.rawVal = func() (json.RawMessage, error) {
+			var raw json.RawMessage
+			if err := json.Unmarshal([]byte(*p), &raw); err != nil {
+				return nil, fmt.Errorf("--%s-json: %w", flagName, err)
+			}
+			var arr []json.RawMessage
+			if err := json.Unmarshal([]byte(*p), &arr); err != nil {
+				return nil, fmt.Errorf("--%s-json: expected a JSON array, got %s", flagName, strings.TrimSpace(*p))
+			}
+			return raw, nil
+		}
 	}
 	return result
 }
