@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +32,8 @@ type t9AllTypesCmd struct {
 type t9Address struct {
 	Street string
 	City   string
+	Tags   []string // repeated string sub-field
+	Scores []int32  // repeated non-string sub-field
 }
 
 // t9AllTypesResult is the matching result.
@@ -65,6 +68,8 @@ var t9AllTypesDesc = mvep.PackageDesc{
 					Ref: &mvep.RecordDesc{Name: "Address", Fields: []mvep.FieldDesc{
 						{Name: "street", Fnum: 1, Type: mvep.FieldString, Ptr: func(r any) any { return &r.(*t9Address).Street }},
 						{Name: "city", Fnum: 2, Type: mvep.FieldString, Ptr: func(r any) any { return &r.(*t9Address).City }},
+						{Name: "tags", Fnum: 3, Type: mvep.FieldString, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).Tags }},
+						{Name: "scores", Fnum: 4, Type: mvep.FieldInt32, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).Scores }},
 					}}},
 			},
 			Result: &mvep.ResultDesc{
@@ -77,6 +82,8 @@ var t9AllTypesDesc = mvep.PackageDesc{
 		{Name: "Address", Fields: []mvep.FieldDesc{
 			{Name: "street", Fnum: 1, Type: mvep.FieldString, Ptr: func(r any) any { return &r.(*t9Address).Street }},
 			{Name: "city", Fnum: 2, Type: mvep.FieldString, Ptr: func(r any) any { return &r.(*t9Address).City }},
+			{Name: "tags", Fnum: 3, Type: mvep.FieldString, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).Tags }},
+			{Name: "scores", Fnum: 4, Type: mvep.FieldInt32, Repeated: true, Ptr: func(r any) any { return &r.(*t9Address).Scores }},
 		}},
 	},
 }
@@ -173,3 +180,102 @@ func TestFlagBindingRecord(t *testing.T) {
 		t.Errorf("Addr = %+v, want {Street:123 Main St City:Springfield}", cmd.Addr)
 	}
 }
+
+// TestFlagBindingRepeatedStringSubField verifies T1: a repeated string record
+// sub-field binds from repeatable --record-field flags into a []string. This is
+// the zirafa argsTemplate case.
+func TestFlagBindingRepeatedStringSubField(t *testing.T) {
+	ex := &recordingExecutor{}
+	app := New(&t9AllTypesDesc, ex)
+	var stdout, stderr bytes.Buffer
+	err := app.RunWithIO(context.Background(), []string{
+		"all_types_cmd",
+		"--addr-tags", "a",
+		"--addr-tags", "b",
+		"--addr-tags", "c",
+	}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmd := ex.gotCmd.(*t9AllTypesCmd)
+	if cmd.Addr == nil {
+		t.Fatal("Addr is nil, want constructed record")
+	}
+	if len(cmd.Addr.Tags) != 3 || cmd.Addr.Tags[0] != "a" || cmd.Addr.Tags[1] != "b" || cmd.Addr.Tags[2] != "c" {
+		t.Errorf("Addr.Tags = %v, want [a b c]", cmd.Addr.Tags)
+	}
+}
+
+// TestFlagBindingRepeatedNonStringSubField verifies T1: a repeated non-string
+// record sub-field binds from --record-field-json as a JSON array.
+func TestFlagBindingRepeatedNonStringSubField(t *testing.T) {
+	ex := &recordingExecutor{}
+	app := New(&t9AllTypesDesc, ex)
+	var stdout, stderr bytes.Buffer
+	err := app.RunWithIO(context.Background(), []string{
+		"all_types_cmd",
+		"--addr-scores-json", "[1,2,3]",
+	}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmd := ex.gotCmd.(*t9AllTypesCmd)
+	if cmd.Addr == nil {
+		t.Fatal("Addr is nil, want constructed record")
+	}
+	if len(cmd.Addr.Scores) != 3 || cmd.Addr.Scores[0] != 1 || cmd.Addr.Scores[1] != 2 || cmd.Addr.Scores[2] != 3 {
+		t.Errorf("Addr.Scores = %v, want [1 2 3]", cmd.Addr.Scores)
+	}
+}
+
+// TestFlagBindingRepeatedSubFieldJSONError verifies T1: malformed JSON passed
+// to a repeated non-string --record-field-json flag errors naming the sub-field
+// flag, not the parent record flag.
+func TestFlagBindingRepeatedSubFieldJSONError(t *testing.T) {
+	ex := &recordingExecutor{}
+	app := New(&t9AllTypesDesc, ex)
+	var stdout, stderr bytes.Buffer
+	err := app.RunWithIO(context.Background(), []string{
+		"all_types_cmd",
+		"--addr-scores-json", "[1,2",
+	}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for malformed -json, got nil")
+	}
+	if !strings.Contains(err.Error(), "--addr-scores-json") {
+		t.Errorf("error should name the sub-field flag; got: %v", err)
+	}
+}
+
+// TestFlagBindingMixedRepeatedAndScalarSubFields verifies T1: a record with both
+// repeated and scalar sub-fields set together assembles into one correct struct.
+func TestFlagBindingMixedRepeatedAndScalarSubFields(t *testing.T) {
+	ex := &recordingExecutor{}
+	app := New(&t9AllTypesDesc, ex)
+	var stdout, stderr bytes.Buffer
+	err := app.RunWithIO(context.Background(), []string{
+		"all_types_cmd",
+		"--addr-street", "123 Main St",
+		"--addr-city", "Springfield",
+		"--addr-tags", "a",
+		"--addr-tags", "b",
+		"--addr-scores-json", "[5,6]",
+	}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmd := ex.gotCmd.(*t9AllTypesCmd)
+	if cmd.Addr == nil {
+		t.Fatal("Addr is nil, want constructed record")
+	}
+	if cmd.Addr.Street != "123 Main St" || cmd.Addr.City != "Springfield" {
+		t.Errorf("Addr scalar = %+v, want {Street:123 Main St City:Springfield}", cmd.Addr)
+	}
+	if len(cmd.Addr.Tags) != 2 || cmd.Addr.Tags[0] != "a" || cmd.Addr.Tags[1] != "b" {
+		t.Errorf("Addr.Tags = %v, want [a b]", cmd.Addr.Tags)
+	}
+	if len(cmd.Addr.Scores) != 2 || cmd.Addr.Scores[0] != 5 || cmd.Addr.Scores[1] != 6 {
+		t.Errorf("Addr.Scores = %v, want [5 6]", cmd.Addr.Scores)
+	}
+}
+

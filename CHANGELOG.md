@@ -10,6 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
 > `references/generated-patterns.md`) for staleness.
 
+## [Unreleased] - 2026-08-12 (plan 041, #49)
+
+### Fixed — runtime/go
+- **Repeated record sub-fields bind correctly.** A `repeated string` record
+  sub-field now binds as a repeatable flag (`--<record>-<field> 'a'
+  --<record>-<field> 'b'`) instead of a single string that failed to unmarshal
+  into the record's `[]string`, making any record with a repeated field
+  reachable from the CLI. Repeated non-string sub-fields bind via
+  `--<record>-<field>-json` as a JSON array, matching the top-level fallback.
+  Malformed `-json` errors name the sub-field flag, not the parent record
+  flag. Sub-field and top-level binding now agree on every `FieldType`.
+
 ## [Unreleased] - 2026-08-11 (plan 040, #40)
 
 ### Fixed — toolkit
