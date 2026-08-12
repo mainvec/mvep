@@ -35,6 +35,10 @@ type App struct {
 	// stdin is the reader used for explicit/implicit stdin payloads (T3/T4).
 	// Defaults to os.Stdin; testable via the Option below.
 	stdin io.Reader
+	// stdout/stderr are the io writers for the current RunWithIO invocation,
+	// captured so send can rebuild a *cli.Context enriched with request/response
+	// headers (ContextWithCmdReq returns a plain context.Context).
+	stdout, stderr io.Writer
 	// outputMode is the --<namespace>-output value ("text" or "json"),
 	// defaulting to "text". Registered as a root persistent flag so it is
 	// visible on every command; the flag name follows the configured
@@ -225,6 +229,7 @@ func New(desc *mvep.PackageDesc, executor Executor, opts ...Option) *App {
 		return nil
 	}
 	app.registerExec(ns)
+	app.registerSend(ns)
 	root.AddCommand(ns)
 
 	app.root = root
@@ -311,6 +316,8 @@ func (a *App) RunWithIO(ctx context.Context, args []string, stdout, stderr io.Wr
 	if stderr == nil {
 		stderr = os.Stderr
 	}
+	a.stdout = stdout
+	a.stderr = stderr
 
 	fw := &cli.Framework{Root: a.root}
 	var err error
@@ -373,8 +380,9 @@ func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings [
 
 // dispatch is the payload path. It looks up a command by CLI name, validates
 // the payload keys against the descriptor, decodes the payload via the same
-// encoding registry the server uses, and runs the shared tail, returning the
-// result. send (T6) is this function in a loop.
+// encoding registry the server uses, and runs the shared execution core,
+// returning the result. exec renders via the shared tail; send (T6) uses the
+// result directly to emit a CmdResp envelope.
 func (a *App) dispatch(ctx *cli.Context, name string, payload []byte) (any, error) {
 	cmdDesc, ok := a.commands[name]
 	if !ok {
@@ -394,7 +402,7 @@ func (a *App) dispatch(ctx *cli.Context, name string, payload []byte) (any, erro
 		return nil, fmt.Errorf("decode %s: %w", name, err)
 	}
 
-	return a.execute(ctx, cmdDesc, cmd)
+	return a.runCore(ctx, cmdDesc, cmd)
 }
 
 // execute is the shared tail of both the flag and payload paths: required-flag
@@ -403,6 +411,28 @@ func (a *App) dispatch(ctx *cli.Context, name string, payload []byte) (any, erro
 // guarantees hooks, required-checking, and rendering cannot drift between
 // flag-driven and payload-driven invocation.
 func (a *App) execute(ctx *cli.Context, cmdDesc *mvep.CommandDesc, cmd any) (any, error) {
+	result, err := a.runCore(ctx, cmdDesc, cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// Render the result (T14). The renderer writes to the command's stdout
+	// (the ugo Context implements io.Writer). Under --<namespace>-output json,
+	// a JSON renderer is selected (T5); otherwise the default text renderer.
+	if result != nil {
+		if a.outputMode == "json" {
+			jsonRenderer(ctx, result)
+		} else {
+			a.renderer(ctx, result)
+		}
+	}
+	return result, nil
+}
+
+// runCore is the shared execution core (no rendering): required-flag checking,
+// pre-hooks, executor.Run, and post-hooks. execute wraps it with rendering;
+// send (T6) uses it directly and emits CmdResp envelopes instead.
+func (a *App) runCore(ctx *cli.Context, cmdDesc *mvep.CommandDesc, cmd any) (any, error) {
 	// Enforce required flags (T10): a required field left at its zero value
 	// after parsing is a usage error, not an execution error. Enforcement
 	// lives in cli, not ugo, so the behaviour is ours to define. The error
@@ -428,21 +458,7 @@ func (a *App) execute(ctx *cli.Context, cmdDesc *mvep.CommandDesc, cmd any) (any
 		h(ctx, cmd, result, err)
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
-	// Render the result (T14). The renderer writes to the command's stdout
-	// (the ugo Context implements io.Writer). Under --<namespace>-output json,
-	// a JSON renderer is selected (T5); otherwise the default text renderer.
-	if result != nil {
-		if a.outputMode == "json" {
-			jsonRenderer(ctx, result)
-		} else {
-			a.renderer(ctx, result)
-		}
-	}
-	return result, nil
+	return result, err
 }
 
 // commandNames returns the sorted CLI names of every command, for error and

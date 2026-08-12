@@ -16,7 +16,7 @@
 - [x] T3: Input sources — file, explicit stdin, implicit pipe
 - [x] T4: `mvep exec` payload dispatch
 - [x] T5: Built-in JSON renderer and `--mvep-output`
-- [ ] T6: `mvep send` streaming envelope pipe
+- [x] T6: `mvep send` streaming envelope pipe
 - [ ] T7: `mvep list` and `mvep describe`
 - [ ] T8: Per-field `-file` hatch at both nesting levels
 - [ ] T9: Toolkit reserved-name validation
@@ -490,6 +490,14 @@ executor; a header set via `mvep.SetResponseHeader` appears on the emitted
 reusing them means header-reading interceptors behave identically under the CLI
 and over HTTP. `send` always emits envelopes and ignores `--mvep-output text` —
 its output *is* the wire format; document that asymmetry with `exec`.
+
+Implemented `send` line-by-line with a fresh decoder per line rather than one
+long-lived `json.Decoder`. A decoder cannot advance past a `json.SyntaxError`
+— it returns the same error forever — and its read-ahead makes resync via
+`Buffered()` unreliable. Reading a line and decoding it fresh handles NDJSON,
+concatenated objects on a line, and malformed lines with one code path and no
+infinite loop. `CmdReq.Payload` is `[]byte`, so send inputs carry base64
+payloads (the wire format), not raw JSON objects.
 
 ### T7: `mvep list` and `mvep describe`
 
