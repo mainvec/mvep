@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/mainvec/mvep/runtime/go/mvep"
 )
 
 // Renderer renders a command result to the given writer. The default renderer
@@ -22,6 +25,42 @@ func defaultRenderer(w io.Writer, result any) {
 		return
 	}
 	fmt.Fprintln(w, result)
+}
+
+// jsonRenderer (T5) marshals a command result as JSON to the writer. It is
+// selected by --mvep-output json in the shared tail.
+func jsonRenderer(w io.Writer, result any) {
+	if result == nil {
+		return
+	}
+	b, err := json.Marshal(result)
+	if err != nil {
+		fmt.Fprintln(w, err)
+		return
+	}
+	w.Write(b)
+}
+
+// renderJSONError (T5) serializes an error as {"error":{"code":...,"message":...}}
+// using mvep.ErrorInfo, shaped exactly like a CmdResp.Error. This runs at
+// RunWithIO so parse, usage, required-flag, dispatch, and execution errors are
+// all covered uniformly, and so a failed exec is parseable by the same consumer
+// that parses a send record's CmdResp.Error.
+func renderJSONError(w io.Writer, err error) {
+	info := mvep.ErrorInfo{Message: err.Error()}
+	var ec *ErrorCode
+	if errors.As(err, &ec) {
+		info.Code = ec.Code
+	} else if isUsageError(err) {
+		info.Code = "invalid_request"
+	} else {
+		info.Code = "command_error"
+	}
+	out := struct {
+		Error mvep.ErrorInfo `json:"error"`
+	}{Error: info}
+	b, _ := json.Marshal(out)
+	w.Write(b)
 }
 
 // SetRenderer replaces the default result renderer. The implementor uses this

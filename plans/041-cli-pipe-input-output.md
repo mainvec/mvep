@@ -15,7 +15,7 @@
 - [x] T2: Reserved `mvep` namespace and command index
 - [x] T3: Input sources — file, explicit stdin, implicit pipe
 - [x] T4: `mvep exec` payload dispatch
-- [ ] T5: Built-in JSON renderer and `--mvep-output`
+- [x] T5: Built-in JSON renderer and `--mvep-output`
 - [ ] T6: `mvep send` streaming envelope pipe
 - [ ] T7: `mvep list` and `mvep describe`
 - [ ] T8: Per-field `-file` hatch at both nesting levels

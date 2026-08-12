@@ -35,6 +35,11 @@ type App struct {
 	// stdin is the reader used for explicit/implicit stdin payloads (T3/T4).
 	// Defaults to os.Stdin; testable via the Option below.
 	stdin io.Reader
+	// outputMode is the --<namespace>-output value ("text" or "json"),
+	// defaulting to "text". Registered as a root persistent flag so it is
+	// visible on every command; the flag name follows the configured
+	// namespace.
+	outputMode string
 	// preHooks run after flag binding + required check, before the executor.
 	// A pre-hook returning an error aborts execution. Hooks run in
 	// registration order. Use for auth, logging, metrics (T13).
@@ -94,12 +99,13 @@ func (a *App) AddPostHook(h PostHook) { a.postHooks = append(a.postHooks, h) }
 // the execute-via-Executor seam.
 func New(desc *mvep.PackageDesc, executor Executor, opts ...Option) *App {
 	app := &App{
-		desc:      desc,
-		executor:  executor,
-		renderer:  defaultRenderer,
-		namespace: "mvep",
-		commands:  make(map[string]*mvep.CommandDesc, len(desc.Commands)),
-		stdin:     os.Stdin,
+		desc:       desc,
+		executor:   executor,
+		renderer:   defaultRenderer,
+		namespace:  "mvep",
+		commands:   make(map[string]*mvep.CommandDesc, len(desc.Commands)),
+		stdin:      os.Stdin,
+		outputMode: "text",
 	}
 	for _, opt := range opts {
 		opt(app)
@@ -118,6 +124,12 @@ func New(desc *mvep.PackageDesc, executor Executor, opts ...Option) *App {
 	if desc.SpecVersion != "" {
 		root.Version = desc.SpecVersion
 	}
+
+	// Register the namespace-scoped persistent output flag on the root so it is
+	// visible on every command. It is namespaced because a persistent root flag
+	// claims a name on every generated command (--output stays the implementor's
+	// to add). The name follows the configured namespace (T5).
+	root.PersistentFlags().StringVar(&app.outputMode, app.namespace+"-output", "text", "output format (text|json)")
 
 	// The reserved namespace claims one top-level identifier. A descriptor
 	// command or group colliding with it is a construction error: the panic
@@ -287,12 +299,56 @@ func (a *App) Run(ctx context.Context) error {
 // nil, os.Args[1:] is used; when stdout/stderr are nil, os.Stdout/os.Stderr are
 // used. This mirrors ugo's Framework.ExecuteWithIO and is the testable entry
 // point.
+//
+// Under --<namespace>-output json, errors are serialized as {"error":...} on
+// stdout (never stderr) and the error is still returned, so exit codes are
+// unchanged. When flag parsing itself fails the output flag may never have been
+// parsed, so the mode falls back to a pre-scan of the raw args (T5).
 func (a *App) RunWithIO(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	fw := &cli.Framework{Root: a.root}
-	if args == nil {
-		return fw.Run(ctx)
+	if stdout == nil {
+		stdout = os.Stdout
 	}
-	return fw.ExecuteWithIO(ctx, args, stdout, stderr)
+	if stderr == nil {
+		stderr = os.Stderr
+	}
+
+	fw := &cli.Framework{Root: a.root}
+	var err error
+	if args == nil {
+		err = fw.Run(ctx)
+	} else {
+		err = fw.ExecuteWithIO(ctx, args, stdout, stderr)
+	}
+
+	if err != nil && a.jsonOutputFor(args) {
+		renderJSONError(stdout, err)
+	}
+	return err
+}
+
+// jsonOutputFor reports whether the output mode is JSON, using the parsed
+// outputMode when available and falling back to a pre-scan of the raw args
+// when flag parsing failed before the output flag was read.
+func (a *App) jsonOutputFor(args []string) bool {
+	if a.outputMode == "json" {
+		return true
+	}
+	if args == nil {
+		return false
+	}
+	prefix := "--" + a.namespace + "-output"
+	for i, arg := range args {
+		switch {
+		case arg == prefix:
+			if i+1 < len(args) && args[i+1] == "json" {
+				return true
+			}
+			return false
+		case strings.HasPrefix(arg, prefix+"="):
+			return strings.HasSuffix(arg, "=json")
+		}
+	}
+	return false
 }
 
 // runCommand constructs the command struct, applies flag values via the Ptr
@@ -377,9 +433,14 @@ func (a *App) execute(ctx *cli.Context, cmdDesc *mvep.CommandDesc, cmd any) (any
 	}
 
 	// Render the result (T14). The renderer writes to the command's stdout
-	// (the ugo Context implements io.Writer).
+	// (the ugo Context implements io.Writer). Under --<namespace>-output json,
+	// a JSON renderer is selected (T5); otherwise the default text renderer.
 	if result != nil {
-		a.renderer(ctx, result)
+		if a.outputMode == "json" {
+			jsonRenderer(ctx, result)
+		} else {
+			a.renderer(ctx, result)
+		}
 	}
 	return result, nil
 }
