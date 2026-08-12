@@ -14,7 +14,7 @@
 - [ ] T1: Repeated record sub-fields bind correctly (patch release, unblocks zirafa)
 - [x] T2: Reserved `mvep` namespace and command index
 - [x] T3: Input sources — file, explicit stdin, implicit pipe
-- [ ] T4: `mvep exec` payload dispatch
+- [x] T4: `mvep exec` payload dispatch
 - [ ] T5: Built-in JSON renderer and `--mvep-output`
 - [ ] T6: `mvep send` streaming envelope pipe
 - [ ] T7: `mvep list` and `mvep describe`
@@ -109,8 +109,8 @@ zirafa side in `plans/028-improvements-from-field-report.md`, blocked on the
 ```
 # machine path
 cat p.json | svc mvep exec generate            # implicit stdin
-svc mvep exec generate --input p.json
-svc mvep exec generate --input -
+svc mvep exec --input p.json generate          # flags precede the command name
+svc mvep exec --input - generate
 cat reqs.ndjson | svc mvep send                # CmdReq stream -> CmdResp stream
 svc mvep list
 svc mvep describe [command]
@@ -696,6 +696,16 @@ silently builds against the stale published runtime. Follow
 - **2026-08-12 — `-json` suffix for repeated non-string sub-fields**, consistent
   with the top-level and map fallbacks, rather than a comma-separated list —
   comma-splitting is ambiguous for strings and does not generalise to `recRef`.
+- **2026-08-12 — Flags precede positionals inside `mvep exec`/`send`.** ugo
+  inherits stdlib `flag` parsing, which stops at the first non-flag argument, so
+  `mvep exec echo_cmd --input p.json` leaves `--input` unbound; the flags must
+  come first: `mvep exec --input p.json echo_cmd`. A Cobra-style pre-scan that
+  pulls `--input`/`--fail-fast` out of the stream wherever they appear is
+  feasible and low-risk (it mirrors the `--mvep-output` pre-scan in T5, and ugo
+  even ships a `Preprocessor` hook for exactly this), but is deferred: `exec` is
+  script-facing where the flag-first form is easy to standardize, and adding it
+  is an ergonomic nicety rather than a correctness fix. Revisit if a human-facing
+  consumer objects.
 
 ## Known Limitations
 

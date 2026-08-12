@@ -6,11 +6,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/mainvec/mvep/runtime/go/mvep"
 	"github.com/mainvec/ugo/cli"
+	oenc "github.com/mainvec/ugo/oencoding"
+	_ "github.com/mainvec/ugo/oencoding/json"
 )
 
 // App is a descriptor-driven CLI. New builds it from a *mvep.PackageDesc and
@@ -28,6 +32,9 @@ type App struct {
 	// during New. Used by the mvep exec dispatcher to look up a command by
 	// name without re-walking the tree.
 	commands map[string]*mvep.CommandDesc
+	// stdin is the reader used for explicit/implicit stdin payloads (T3/T4).
+	// Defaults to os.Stdin; testable via the Option below.
+	stdin io.Reader
 	// preHooks run after flag binding + required check, before the executor.
 	// A pre-hook returning an error aborts execution. Hooks run in
 	// registration order. Use for auth, logging, metrics (T13).
@@ -50,6 +57,12 @@ type Option func(*App)
 // group (New panics otherwise).
 func WithNamespace(name string) Option {
 	return func(a *App) { a.namespace = name }
+}
+
+// WithStdin overrides the reader used for explicit/implicit stdin payloads.
+// Defaults to os.Stdin. Testable injection point for the exec/send verbs.
+func WithStdin(r io.Reader) Option {
+	return func(a *App) { a.stdin = r }
 }
 
 // PreHook runs before the executor dispatches a command. Returning an error
@@ -86,6 +99,7 @@ func New(desc *mvep.PackageDesc, executor Executor, opts ...Option) *App {
 		renderer:  defaultRenderer,
 		namespace: "mvep",
 		commands:  make(map[string]*mvep.CommandDesc, len(desc.Commands)),
+		stdin:     os.Stdin,
 	}
 	for _, opt := range opts {
 		opt(app)
@@ -198,6 +212,7 @@ func New(desc *mvep.PackageDesc, executor Executor, opts ...Option) *App {
 		(&cli.CommandHelp{Command: ns}).WriteHelp(ctx)
 		return nil
 	}
+	app.registerExec(ns)
 	root.AddCommand(ns)
 
 	app.root = root
@@ -282,7 +297,9 @@ func (a *App) RunWithIO(ctx context.Context, args []string, stdout, stderr io.Wr
 
 // runCommand constructs the command struct, applies flag values via the Ptr
 // accessors, enforces required flags, dispatches through the Executor, and
-// renders the result.
+// renders the result. This is the flag path: it differs from the payload path
+// (dispatch) only in how the command struct is populated; both share the
+// identical tail in execute.
 func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings []flagBinding) error {
 	cmd := cmdDesc.New()
 
@@ -294,19 +311,55 @@ func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings [
 		return err
 	}
 
+	_, err := a.execute(ctx, cmdDesc, cmd)
+	return err
+}
+
+// dispatch is the payload path. It looks up a command by CLI name, validates
+// the payload keys against the descriptor, decodes the payload via the same
+// encoding registry the server uses, and runs the shared tail, returning the
+// result. send (T6) is this function in a loop.
+func (a *App) dispatch(ctx *cli.Context, name string, payload []byte) (any, error) {
+	cmdDesc, ok := a.commands[name]
+	if !ok {
+		return nil, fmt.Errorf("unknown command %q (valid: %s)", name, strings.Join(a.commandNames(), ", "))
+	}
+
+	if err := validatePayloadKeys(cmdDesc, a.desc, payload); err != nil {
+		return nil, err
+	}
+
+	cmd := cmdDesc.New()
+	enc, ok := oenc.LookupEncoding("application/json")
+	if !ok {
+		return nil, fmt.Errorf("no application/json encoder registered")
+	}
+	if err := enc.Decode(payload, cmd); err != nil {
+		return nil, fmt.Errorf("decode %s: %w", name, err)
+	}
+
+	return a.execute(ctx, cmdDesc, cmd)
+}
+
+// execute is the shared tail of both the flag and payload paths: required-flag
+// checking, pre-hooks, executor.Run, post-hooks, and rendering. It returns the
+// result (and error). Keeping this identical across both paths is what
+// guarantees hooks, required-checking, and rendering cannot drift between
+// flag-driven and payload-driven invocation.
+func (a *App) execute(ctx *cli.Context, cmdDesc *mvep.CommandDesc, cmd any) (any, error) {
 	// Enforce required flags (T10): a required field left at its zero value
 	// after parsing is a usage error, not an execution error. Enforcement
 	// lives in cli, not ugo, so the behaviour is ours to define. The error
 	// names the missing flag so the caller can surface it and exit 2.
 	if err := checkRequired(cmdDesc, cmd); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Pre-hooks (T13): run in registration order before the executor. A
 	// pre-hook returning an error aborts — the executor is NOT called.
 	for _, h := range a.preHooks {
 		if err := h(ctx, cmd); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -320,7 +373,7 @@ func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings [
 	}
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Render the result (T14). The renderer writes to the command's stdout
@@ -328,7 +381,18 @@ func (a *App) runCommand(ctx *cli.Context, cmdDesc *mvep.CommandDesc, bindings [
 	if result != nil {
 		a.renderer(ctx, result)
 	}
-	return nil
+	return result, nil
+}
+
+// commandNames returns the sorted CLI names of every command, for error and
+// list output.
+func (a *App) commandNames() []string {
+	names := make([]string, 0, len(a.commands))
+	for n := range a.commands {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // checkRequired returns an error naming the first required field whose value
