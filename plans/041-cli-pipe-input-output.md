@@ -19,7 +19,7 @@
 - [x] T6: `mvep send` streaming envelope pipe
 - [x] T7: `mvep list` and `mvep describe`
 - [x] T8: Per-field `-file` hatch at both nesting levels
-- [ ] T9: Toolkit reserved-name validation
+- [x] T9: Toolkit reserved-name validation
 - [ ] T10: Documentation and release
 
 ## Problem / Goal

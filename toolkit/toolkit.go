@@ -1010,6 +1010,26 @@ func validateCommandGroups(srvDef *SrvDef) error {
 		return toSnake(cmdName)
 	}
 
+	// The reserved runtime namespace (plan 041, T9) claims one top-level
+	// identifier on every generated CLI. A spec declaring a top-level command
+	// or group named after it is a hard error at generation time; the runtime
+	// would panic at construction otherwise (cli.New). Reserved words are a
+	// fixed set so new framework verbs can be added without a new reservation.
+	const reservedNamespace = "mvep"
+
+	it0 := omap.IteratorByKey(srvDef.Commands)
+	for it0.HasNext() {
+		cmdName, cmd := it0.Next()
+		if cmd.Group == "" && leafName(cmd, cmdName) == reservedNamespace {
+			return fmt.Errorf("command %q: name %q is reserved for the %q namespace", cmdName, leafName(cmd, cmdName), reservedNamespace)
+		}
+	}
+	for _, g := range sortedGroupNames(srvDef.CommandGroups) {
+		if g == reservedNamespace || strings.HasPrefix(g, reservedNamespace+"/") {
+			return fmt.Errorf("group %q: name %q is reserved for the %q namespace", g, g, reservedNamespace)
+		}
+	}
+
 	// nameByParent maps "parentPath/leafName" -> command name for duplicate
 	// detection. parentPath is the group path ("" for root).
 	nameByParent := map[string]string{}

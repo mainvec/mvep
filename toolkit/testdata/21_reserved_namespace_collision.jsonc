@@ -1,0 +1,18 @@
+{
+	"$id": "test21Id",
+	"$schema": "resources/mvepspec/0.2/schema/2026-01-15",
+	"name": "test21",
+	"namespace": "test21ns",
+	"commands": {
+		"MvepCmd": {
+			"title": "Mvep",
+			"alias": "mvep",
+			"desc": "A command that collides with the reserved namespace"
+		},
+		"RootCmd": {
+			"title": "Root",
+			"alias": "root",
+			"desc": "A root command"
+		}
+	}
+}
