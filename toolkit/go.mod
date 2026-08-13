@@ -17,7 +17,7 @@ require (
 )
 
 require (
-	github.com/mainvec/mvep/runtime/go v0.12.1
+	github.com/mainvec/mvep/runtime/go v0.12.2
 	github.com/mainvec/ugo v0.7.0
 	google.golang.org/protobuf v1.36.10
 )
