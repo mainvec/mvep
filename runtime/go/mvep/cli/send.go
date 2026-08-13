@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -75,7 +76,7 @@ func (a *App) sendLine(ctx *cli.Context, line string) bool {
 	dec := json.NewDecoder(strings.NewReader(line))
 	anyErrored := false
 	for {
-		var req mvep.CmdReq
+		var req sendReq
 		err := dec.Decode(&req)
 		if err == io.EOF {
 			return anyErrored
@@ -92,24 +93,59 @@ func (a *App) sendLine(ctx *cli.Context, line string) bool {
 	}
 }
 
-// sendOne dispatches a single CmdReq and builds its CmdResp. The request is
+// sendReq is the CLI-local request envelope. Payload is json.RawMessage so a
+// raw JSON payload is accepted directly (and base64 is decoded as a fallback),
+// matching mvep exec's pleasant raw-JSON path (#62). The shared mvep.CmdReq
+// keeps []byte for the transport/server wire format.
+type sendReq struct {
+	Cmd     string
+	Headers map[string]string
+	Payload json.RawMessage
+}
+
+// payloadBytes resolves the request payload to raw bytes. A JSON object/array
+// is used verbatim; a JSON string is treated as base64 (backward compatible
+// with the previous wire format).
+func (r *sendReq) payloadBytes() ([]byte, error) {
+	if len(r.Payload) == 0 {
+		return nil, nil
+	}
+	// If the payload is a JSON string, it is base64-encoded bytes.
+	if len(r.Payload) > 0 && r.Payload[0] == '"' {
+		var s string
+		if err := json.Unmarshal(r.Payload, &s); err != nil {
+			return nil, err
+		}
+		return base64.StdEncoding.DecodeString(s)
+	}
+	return r.Payload, nil
+}
+
+// sendOne dispatches a single request and builds its CmdResp. The request is
 // placed on the context via ContextWithCmdReq so header-reading interceptors and
 // hooks behave identically under the CLI and over HTTP; response headers set via
 // SetResponseHeader are read back into the emitted envelope.
-func (a *App) sendOne(ctx *cli.Context, req *mvep.CmdReq) *mvep.CmdResp {
+func (a *App) sendOne(ctx *cli.Context, req *sendReq) *mvep.CmdResp {
+	payload, err := req.payloadBytes()
+	if err != nil {
+		return mvep.NewCmdRespError("decode_error", err.Error())
+	}
+	wireReq := mvep.NewCmdReq(req.Cmd, payload)
+	wireReq.Headers = req.Headers
+
 	// ContextWithCmdReq returns a plain context.Context; wrap it back into a
 	// *cli.Context carrying the invocation's IO writers so dispatch can run the
 	// shared execution core with the enriched context.
-	base := mvep.ContextWithCmdReq(ctx, req)
+	base := mvep.ContextWithCmdReq(ctx, wireReq)
 	base = mvep.ContextWithCmdResp(base, mvep.NewCmdResp(nil))
 	ioctx := cli.ContextWithIO(base, a.stdin, a.stdout, a.stderr)
 
-	result, err := a.dispatch(ioctx, req.Cmd, req.Payload)
+	result, err := a.dispatch(ioctx, req.Cmd, payload)
 	if err != nil {
 		return mvep.NewCmdRespError("command_error", err.Error())
 	}
 
-	payload, err := encodeResult(result)
+	payload, err = encodeResult(result)
 	if err != nil {
 		return mvep.NewCmdRespError("encode_error", err.Error())
 	}
@@ -135,9 +171,19 @@ func encodeResult(result any) ([]byte, error) {
 }
 
 // writeResp encodes a CmdResp as JSON and writes it, with a newline so the
-// stream stays NDJSON-parseable.
+// stream stays NDJSON-parseable. The payload is emitted as raw JSON (not
+// base64) so the response is directly consumable by scripts (#62).
 func writeResp(w io.Writer, resp *mvep.CmdResp) {
-	b, _ := json.Marshal(resp)
+	out := struct {
+		Headers map[string]string `json:"headers,omitempty"`
+		Payload json.RawMessage   `json:"payload,omitempty"`
+		Error   *mvep.ErrorInfo   `json:"error,omitempty"`
+	}{
+		Headers: resp.Headers,
+		Payload: resp.Payload,
+		Error:   resp.Error,
+	}
+	b, _ := json.Marshal(out)
 	w.Write(b)
 	w.Write([]byte("\n"))
 }
