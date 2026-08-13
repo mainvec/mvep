@@ -195,7 +195,8 @@ are a human-facing presentation concern — use them on the flag path
   the same encoder registry the server uses.
 - **`send`** reads a stream of `CmdReq` envelopes (NDJSON or concatenated) and
   emits one `CmdResp` per record, flushing immediately so it works in a live
-  pipeline. `CmdReq.Payload` is `[]byte`, so inputs carry base64 payloads, and
+  pipeline. Payloads are raw JSON objects/arrays (base64 strings are still
+  accepted for backward compatibility), and responses carry raw JSON payloads.
   `CmdReq.Cmd` carries the descriptor `Name`. `--fail-fast` halts at the first
   error; the process exits non-zero if any record errored. Request headers ride
   the context (`mvep.ContextWithCmdReq`), so header-reading interceptors behave

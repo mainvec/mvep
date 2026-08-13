@@ -34,6 +34,14 @@ func sendReqJSON(cmd string, payloadObj any) string {
 	return string(out)
 }
 
+// sendResp is the CLI-local response envelope with a raw JSON payload, matching
+// what mvep send emits (#62).
+type sendResp struct {
+	Headers map[string]string `json:"headers,omitempty"`
+	Payload json.RawMessage   `json:"payload,omitempty"`
+	Error   *mvep.ErrorInfo   `json:"error,omitempty"`
+}
+
 // TestSendNDJSON verifies T6: NDJSON input streams produce one CmdResp per
 // record.
 func TestSendNDJSON(t *testing.T) {
@@ -52,7 +60,7 @@ func TestSendNDJSON(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 CmdResp lines, got %d: %s", len(lines), stdout.String())
 	}
-	var resp mvep.CmdResp
+	var resp sendResp
 	if err := json.Unmarshal([]byte(lines[0]), &resp); err != nil {
 		t.Fatalf("line 0 not valid JSON: %v", err)
 	}
@@ -100,7 +108,7 @@ func TestSendMalformedContinues(t *testing.T) {
 	if len(lines) != 3 {
 		t.Fatalf("expected 3 CmdResp lines (2 ok + 1 error), got %d: %s", len(lines), stdout.String())
 	}
-	var resp mvep.CmdResp
+	var resp sendResp
 	if err := json.Unmarshal([]byte(lines[1]), &resp); err != nil {
 		t.Fatalf("middle line not valid JSON: %v", err)
 	}
@@ -145,7 +153,7 @@ func TestSendResponseHeaders(t *testing.T) {
 	if ex.gotHeader != "t1" {
 		t.Errorf("executor read request header = %q, want t1", ex.gotHeader)
 	}
-	var resp mvep.CmdResp
+	var resp sendResp
 	if err := json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &resp); err != nil {
 		t.Fatalf("output not valid JSON: %v", err)
 	}
@@ -195,7 +203,7 @@ func TestSendFlushesPerRecord(t *testing.T) {
 		if rr.err != nil {
 			t.Fatalf("no response before input closed (send buffers to EOF?): %v", rr.err)
 		}
-		var resp mvep.CmdResp
+		var resp sendResp
 		if err := json.Unmarshal(buf[:rr.n], &resp); err != nil {
 			t.Fatalf("response not valid JSON: %v; got %q", err, buf[:rr.n])
 		}
@@ -210,4 +218,65 @@ func TestSendFlushesPerRecord(t *testing.T) {
 	inW.Close()
 	outW.Close()
 	<-done
+}
+
+// TestSendRawJSONPayload verifies #62: send accepts a raw JSON payload (not
+// base64) and emits a raw JSON payload in the CmdResp.
+func TestSendRawJSONPayload(t *testing.T) {
+	ex := &recordingExecutor{result: &t4EchoResult{Out: "ok"}}
+	app := New(&t4Desc, ex, WithStdin(strings.NewReader(
+		`{"cmd":"EchoCmd","payload":{"in":"a","count":1}}`+"\n",
+	)))
+
+	var stdout, stderr bytes.Buffer
+	err := app.RunWithIO(context.Background(), []string{"mvep", "send"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmd, ok := ex.gotCmd.(*t4EchoCmd)
+	if !ok {
+		t.Fatalf("executor received %T, want *t4EchoCmd", ex.gotCmd)
+	}
+	if cmd.In != "a" || cmd.Count != 1 {
+		t.Errorf("cmd = %+v, want {In:a Count:1}", cmd)
+	}
+	// The response payload must be raw JSON, not base64.
+	var resp struct {
+		Payload json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &resp); err != nil {
+		t.Fatalf("output not valid JSON: %v; got: %s", err, stdout.String())
+	}
+	if len(resp.Payload) == 0 {
+		t.Fatal("response payload is empty")
+	}
+	var result t4EchoResult
+	if err := json.Unmarshal(resp.Payload, &result); err != nil {
+		t.Fatalf("response payload is not raw JSON: %v; got %q", err, resp.Payload)
+	}
+	if result.Out != "ok" {
+		t.Errorf("result.Out = %q, want ok", result.Out)
+	}
+}
+
+// TestSendBase64PayloadStillAccepted verifies #62: base64 payloads remain
+// accepted for backward compatibility.
+func TestSendBase64PayloadStillAccepted(t *testing.T) {
+	ex := &recordingExecutor{result: &t4EchoResult{Out: "ok"}}
+	app := New(&t4Desc, ex, WithStdin(strings.NewReader(
+		`{"cmd":"EchoCmd","payload":"`+base64.StdEncoding.EncodeToString([]byte(`{"in":"a","count":1}`))+`"}`+"\n",
+	)))
+
+	var stdout, stderr bytes.Buffer
+	err := app.RunWithIO(context.Background(), []string{"mvep", "send"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmd, ok := ex.gotCmd.(*t4EchoCmd)
+	if !ok {
+		t.Fatalf("executor received %T, want *t4EchoCmd", ex.gotCmd)
+	}
+	if cmd.In != "a" || cmd.Count != 1 {
+		t.Errorf("cmd = %+v, want {In:a Count:1}", cmd)
+	}
 }

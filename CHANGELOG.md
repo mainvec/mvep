@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
 > `references/generated-patterns.md`) for staleness.
 
+## [Unreleased] - 2026-08-13 (plan 062, #62)
+
+### Changed — runtime/go
+- **`mvep send` accepts raw JSON payloads and emits raw JSON payloads.** The
+  `CmdReq.Payload`/`CmdResp.Payload` fields are `[]byte`, so the CLI previously
+  forced base64 on the wire. `send` now accepts a raw JSON object/array payload
+  directly (base64 strings remain accepted for backward compatibility) and emits
+  the result payload as raw JSON, matching `mvep exec`'s pleasant path. The
+  shared `mvep.CmdReq`/`CmdResp` structs (used by the transport/server) are
+  unchanged.
+
 ## [Unreleased] - 2026-08-13 (plan 060, #60)
 
 ### Changed — runtime/go
