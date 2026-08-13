@@ -42,12 +42,27 @@ func (a *App) registerList(ns *cli.Command) {
 		RunE: func(ctx *cli.Context, args []string) error {
 			names := a.commandNames()
 			if a.outputMode == "json" {
-				b, _ := json.Marshal(names)
+				// Machine form: an array of {name, description} objects.
+				entries := make([]map[string]string, 0, len(names))
+				for _, n := range names {
+					cmd := a.commands[n]
+					desc := ""
+					if cmd != nil {
+						desc = cmd.Desc
+					}
+					entries = append(entries, map[string]string{"name": n, "description": desc})
+				}
+				b, _ := json.Marshal(entries)
 				ctx.Write(b)
 				return nil
 			}
 			for _, n := range names {
-				fmt.Fprintln(ctx, n)
+				cmd := a.commands[n]
+				desc := ""
+				if cmd != nil {
+					desc = cmd.Desc
+				}
+				fmt.Fprintf(ctx, "%-30s %s\n", n, desc)
 			}
 			return nil
 		},
@@ -88,7 +103,7 @@ func (a *App) registerDescribe(ns *cli.Command) {
 func projectCommand(cmd *mvep.CommandDesc, desc *mvep.PackageDesc) describeProjection {
 	proj := describeProjection{
 		Version:     "1",
-		Name:        commandName(cmd),
+		Name:        cmd.Name,
 		Alias:       cmd.Alias,
 		Group:       cmd.Group,
 		Description: cmd.Desc,

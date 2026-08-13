@@ -193,13 +193,17 @@ func New(desc *mvep.PackageDesc, executor Executor, opts ...Option) *App {
 
 	for i := range desc.Commands {
 		cmdDesc := &desc.Commands[i]
-		cmdName := commandName(cmdDesc)
-		app.commands[cmdName] = cmdDesc
+		// The mvep machine surface (exec/send/describe/list) keys commands by
+		// the descriptor Name, which is unique and wire-consistent with the
+		// server (NewPackageFromDesc.InstanceOf keys on c.Name). The human flag
+		// path below still uses the leaf commandName (alias/snake_case) as
+		// sub.Usage, so groups and aliases remain a presentation concern.
+		app.commands[cmdDesc.Name] = cmdDesc
 
 		// Declare sub first so its FlagSet exists for bindFlags; the RunE
 		// closure captures bindings, which is assigned next.
 		sub := &cli.Command{
-			Usage:   cmdName,
+			Usage:   commandName(cmdDesc),
 			Short:   cmdDesc.Desc,
 			Aliases: aliasesFor(cmdDesc),
 		}

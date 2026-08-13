@@ -47,14 +47,14 @@ var t4Desc = mvep.PackageDesc{
 	},
 }
 
-// TestExecDispatchFromStdin verifies T4: `svc mvep exec echo_cmd` with a
+// TestExecDispatchFromStdin verifies T4: `svc mvep exec EchoCmd` with a
 // piped payload reaches the command with the field bound.
 func TestExecDispatchFromStdin(t *testing.T) {
 	ex := &recordingExecutor{result: &t4EchoResult{Out: "ok"}}
 	app := New(&t4Desc, ex, WithStdin(strings.NewReader(`{"in":"spec.json","count":1}`)))
 
 	var stdout, stderr bytes.Buffer
-	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "echo_cmd"}, &stdout, &stderr)
+	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "EchoCmd"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestExecDispatchFromInputFlag(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	// ugo parses flags with stdlib semantics, which stop at the first
 	// positional argument — so --input must precede the command name.
-	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "--input", path, "echo_cmd"}, &stdout, &stderr)
+	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "--input", path, "EchoCmd"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestExecDispatchNestedRecord(t *testing.T) {
 	app := New(&t4Desc, ex, WithStdin(strings.NewReader(`{"in":"x","count":1,"addr":{"street":"1 A St","city":"Springfield"}}`)))
 
 	var stdout, stderr bytes.Buffer
-	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "echo_cmd"}, &stdout, &stderr)
+	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "EchoCmd"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestExecDispatchNestedRecord(t *testing.T) {
 func TestExecUnknownTopLevelKey(t *testing.T) {
 	app := New(&t4Desc, &recordingExecutor{}, WithStdin(strings.NewReader(`{"inn":"x","count":1}`)))
 	var stdout, stderr bytes.Buffer
-	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "echo_cmd"}, &stdout, &stderr)
+	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "EchoCmd"}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected error for unknown key, got nil")
 	}
@@ -127,7 +127,7 @@ func TestExecUnknownTopLevelKey(t *testing.T) {
 func TestExecUnknownNestedKey(t *testing.T) {
 	app := New(&t4Desc, &recordingExecutor{}, WithStdin(strings.NewReader(`{"in":"x","count":1,"addr":{"street2":"1 A St"}}`)))
 	var stdout, stderr bytes.Buffer
-	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "echo_cmd"}, &stdout, &stderr)
+	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "EchoCmd"}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected error for unknown nested key, got nil")
 	}
@@ -142,7 +142,7 @@ func TestExecSnakeCaseKey(t *testing.T) {
 	ex := &recordingExecutor{result: &t4EchoResult{Out: "ok"}}
 	app := New(&t4Desc, ex, WithStdin(strings.NewReader(`{"in":"x","count":1}`)))
 	var stdout, stderr bytes.Buffer
-	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "echo_cmd"}, &stdout, &stderr)
+	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "EchoCmd"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestExecUnknownCommand(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown command, got nil")
 	}
-	if !strings.Contains(err.Error(), "echo_cmd") {
+	if !strings.Contains(err.Error(), "EchoCmd") {
 		t.Errorf("error should list valid names; got: %v", err)
 	}
 }
@@ -167,7 +167,7 @@ func TestExecUnknownCommand(t *testing.T) {
 func TestExecRequiredField(t *testing.T) {
 	app := New(&t4Desc, &recordingExecutor{}, WithStdin(strings.NewReader(`{"in":"x"}`)))
 	var stdout, stderr bytes.Buffer
-	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "echo_cmd"}, &stdout, &stderr)
+	err := app.RunWithIO(context.Background(), []string{"mvep", "exec", "EchoCmd"}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected error for missing required field, got nil")
 	}
@@ -191,7 +191,7 @@ func TestExecRendersText(t *testing.T) {
 	exExec := &recordingExecutor{result: &t4EchoResult{Out: "hello"}}
 	appExec := New(&t4Desc, exExec, WithStdin(strings.NewReader(`{"in":"x","count":1}`)))
 	var outExec, _ bytes.Buffer
-	if err := appExec.RunWithIO(context.Background(), []string{"mvep", "exec", "echo_cmd"}, &outExec, &bytes.Buffer{}); err != nil {
+	if err := appExec.RunWithIO(context.Background(), []string{"mvep", "exec", "EchoCmd"}, &outExec, &bytes.Buffer{}); err != nil {
 		t.Fatalf("exec path unexpected error: %v", err)
 	}
 
@@ -219,7 +219,7 @@ func TestExecRendersJSON(t *testing.T) {
 	appExec := New(&t4Desc, exExec, WithStdin(strings.NewReader(`{"in":"x","count":1}`)))
 	var outExec, _ bytes.Buffer
 	// --mvep-output must precede the command name (stdlib flag semantics).
-	if err := appExec.RunWithIO(context.Background(), []string{"mvep", "exec", "--mvep-output", "json", "echo_cmd"}, &outExec, &bytes.Buffer{}); err != nil {
+	if err := appExec.RunWithIO(context.Background(), []string{"mvep", "exec", "--mvep-output", "json", "EchoCmd"}, &outExec, &bytes.Buffer{}); err != nil {
 		t.Fatalf("exec path unexpected error: %v", err)
 	}
 
