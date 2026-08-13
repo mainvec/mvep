@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
 > `references/generated-patterns.md`) for staleness.
 
+## [Unreleased] - 2026-08-13 (plan 060, #60)
+
+### Changed — runtime/go
+- **The `mvep` machine surface keys commands by their descriptor `Name`**, not
+  by their CLI alias. `mvep exec`/`send`/`describe`/`list` now resolve and emit
+  the descriptor `Name` (e.g. `StartServerCmd`) — the same identity the server
+  uses on the wire (`InstanceOf` / `CmdReq.Cmd`) — so the surface is
+  wire-consistent and no two commands can collide, even when aliases repeat
+  across groups. `mvep list` also prints each command's description (a JSON
+  array of `{name, description}` objects under `--mvep-output json`). The human
+  flag path (`svc server start`) is unchanged: groups and aliases remain a
+  presentation concern there.
+
 ## [Unreleased] - 2026-08-12 (plan 041 follow-up, #52–#54)
 
 ### Fixed — runtime/go

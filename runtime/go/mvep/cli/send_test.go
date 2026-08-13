@@ -39,8 +39,8 @@ func sendReqJSON(cmd string, payloadObj any) string {
 func TestSendNDJSON(t *testing.T) {
 	ex := &recordingExecutor{result: &t4EchoResult{Out: "ok"}}
 	app := New(&t4Desc, ex, WithStdin(strings.NewReader(
-		sendReqJSON("echo_cmd", map[string]any{"in": "a", "count": 1})+"\n"+
-			sendReqJSON("echo_cmd", map[string]any{"in": "b", "count": 2})+"\n",
+		sendReqJSON("EchoCmd", map[string]any{"in": "a", "count": 1})+"\n"+
+			sendReqJSON("EchoCmd", map[string]any{"in": "b", "count": 2})+"\n",
 	)))
 
 	var stdout, stderr bytes.Buffer
@@ -66,8 +66,8 @@ func TestSendNDJSON(t *testing.T) {
 func TestSendConcatenated(t *testing.T) {
 	ex := &recordingExecutor{result: &t4EchoResult{Out: "ok"}}
 	app := New(&t4Desc, ex, WithStdin(strings.NewReader(
-		sendReqJSON("echo_cmd", map[string]any{"in": "a", "count": 1})+
-			sendReqJSON("echo_cmd", map[string]any{"in": "b", "count": 2}),
+		sendReqJSON("EchoCmd", map[string]any{"in": "a", "count": 1})+
+			sendReqJSON("EchoCmd", map[string]any{"in": "b", "count": 2}),
 	)))
 
 	var stdout, stderr bytes.Buffer
@@ -86,9 +86,9 @@ func TestSendConcatenated(t *testing.T) {
 func TestSendMalformedContinues(t *testing.T) {
 	ex := &recordingExecutor{result: &t4EchoResult{Out: "ok"}}
 	app := New(&t4Desc, ex, WithStdin(strings.NewReader(
-		sendReqJSON("echo_cmd", map[string]any{"in": "a", "count": 1})+"\n"+
+		sendReqJSON("EchoCmd", map[string]any{"in": "a", "count": 1})+"\n"+
 			"NOT JSON\n"+
-			sendReqJSON("echo_cmd", map[string]any{"in": "b", "count": 2})+"\n",
+			sendReqJSON("EchoCmd", map[string]any{"in": "b", "count": 2})+"\n",
 	)))
 
 	var stdout, stderr bytes.Buffer
@@ -113,9 +113,9 @@ func TestSendMalformedContinues(t *testing.T) {
 func TestSendFailFast(t *testing.T) {
 	ex := &recordingExecutor{result: &t4EchoResult{Out: "ok"}}
 	app := New(&t4Desc, ex, WithStdin(strings.NewReader(
-		sendReqJSON("echo_cmd", map[string]any{"in": "a", "count": 1})+"\n"+
+		sendReqJSON("EchoCmd", map[string]any{"in": "a", "count": 1})+"\n"+
 			"NOT JSON\n"+
-			sendReqJSON("echo_cmd", map[string]any{"in": "b", "count": 2})+"\n",
+			sendReqJSON("EchoCmd", map[string]any{"in": "b", "count": 2})+"\n",
 	)))
 
 	var stdout, stderr bytes.Buffer
@@ -134,7 +134,7 @@ func TestSendFailFast(t *testing.T) {
 func TestSendResponseHeaders(t *testing.T) {
 	ex := &headerExecutor{}
 	app := New(&t4Desc, ex, WithStdin(strings.NewReader(
-		`{"cmd":"echo_cmd","headers":{"trace-id":"t1"},"payload":"`+base64.StdEncoding.EncodeToString([]byte(`{"in":"a","count":1}`))+`"}`+"\n",
+		`{"cmd":"EchoCmd","headers":{"trace-id":"t1"},"payload":"`+base64.StdEncoding.EncodeToString([]byte(`{"in":"a","count":1}`))+`"}`+"\n",
 	)))
 
 	var stdout, stderr bytes.Buffer
@@ -172,7 +172,7 @@ func TestSendFlushesPerRecord(t *testing.T) {
 	}()
 
 	// Write one request (a single line with a trailing newline).
-	req := `{"cmd":"echo_cmd","payload":"` + base64.StdEncoding.EncodeToString([]byte(`{"in":"a","count":1}`)) + `"}` + "\n"
+	req := `{"cmd":"EchoCmd","payload":"` + base64.StdEncoding.EncodeToString([]byte(`{"in":"a","count":1}`)) + `"}` + "\n"
 	if _, err := io.WriteString(inW, req); err != nil {
 		t.Fatalf("write request: %v", err)
 	}

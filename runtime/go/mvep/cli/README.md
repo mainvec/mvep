@@ -174,13 +174,20 @@ provides a spec-independent, machine-readable surface. It is overridable via
 persistent output flag to `--acme-output`.
 
 ```
-cat p.json | svc mvep exec generate            # implicit stdin (pipe)
-svc mvep exec --input p.json generate          # flags precede the command name
-svc mvep exec --input - generate               # explicit stdin
-cat reqs.ndjson | svc mvep send                # CmdReq stream -> CmdResp stream
-svc mvep list                                  # command names
-svc mvep describe [command]                    # versioned schema projection
+cat p.json | svc mvep exec StartServerCmd       # implicit stdin (pipe)
+svc mvep exec --input p.json StartServerCmd     # flags precede the command name
+svc mvep exec --input - StartServerCmd          # explicit stdin
+cat reqs.ndjson | svc mvep send                 # CmdReq stream -> CmdResp stream
+svc mvep list                                   # names + descriptions
+svc mvep describe [command]                     # versioned schema projection
 ```
+
+The `mvep` verbs address commands by their **descriptor `Name`** (e.g.
+`StartServerCmd`), the same identity the server uses on the wire
+(`InstanceOf` / `CmdReq.Cmd`). Names are unique and collision-free, so grouped
+commands whose aliases repeat are still unambiguous here. Groups and aliases
+are a human-facing presentation concern — use them on the flag path
+(`svc server start`), not in the `mvep` namespace.
 
 - **`exec`** reads a complete payload from `--input <path>`, `--input -`, or
   implicitly from stdin when stdin is not a terminal. Payload keys are
@@ -188,13 +195,14 @@ svc mvep describe [command]                    # versioned schema projection
   the same encoder registry the server uses.
 - **`send`** reads a stream of `CmdReq` envelopes (NDJSON or concatenated) and
   emits one `CmdResp` per record, flushing immediately so it works in a live
-  pipeline. `CmdReq.Payload` is `[]byte`, so inputs carry base64 payloads.
-  `--fail-fast` halts at the first error; the process exits non-zero if any
-  record errored. Request headers ride the context (`mvep.ContextWithCmdReq`),
-  so header-reading interceptors behave identically under the CLI and over HTTP;
-  response headers set via `mvep.SetResponseHeader` round-trip into the emitted
-  `CmdResp`.
-- **`list`** prints command names (a JSON array under `--mvep-output json`).
+  pipeline. `CmdReq.Payload` is `[]byte`, so inputs carry base64 payloads, and
+  `CmdReq.Cmd` carries the descriptor `Name`. `--fail-fast` halts at the first
+  error; the process exits non-zero if any record errored. Request headers ride
+  the context (`mvep.ContextWithCmdReq`), so header-reading interceptors behave
+  identically under the CLI and over HTTP; response headers set via
+  `mvep.SetResponseHeader` round-trip into the emitted `CmdResp`.
+- **`list`** prints each command's `Name` and description (a JSON array of
+  `{name, description}` objects under `--mvep-output json`).
 - **`describe`** emits a minimal, versioned JSON projection — name, alias,
   group, description, fields (name, type, repeated, required, ref), result type.
   No argument describes all.

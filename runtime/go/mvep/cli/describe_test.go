@@ -20,13 +20,13 @@ func TestMvepList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(stdout.String(), "echo_cmd") {
-		t.Errorf("list should include echo_cmd; got: %s", stdout.String())
+	if !strings.Contains(stdout.String(), "EchoCmd") {
+		t.Errorf("list should include EchoCmd; got: %s", stdout.String())
 	}
 }
 
-// TestMvepListJSON verifies T7: mvep list under --mvep-output json prints a JSON
-// array.
+// TestMvepListJSON verifies T7: mvep list under --mvep-output json prints a
+// JSON array of {name, description} objects.
 func TestMvepListJSON(t *testing.T) {
 	ex := &recordingExecutor{}
 	app := New(&t4Desc, ex)
@@ -36,12 +36,12 @@ func TestMvepListJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	var names []string
-	if err := json.Unmarshal(stdout.Bytes(), &names); err != nil {
+	var entries []map[string]string
+	if err := json.Unmarshal(stdout.Bytes(), &entries); err != nil {
 		t.Fatalf("list output not valid JSON array: %v; got: %s", err, stdout.String())
 	}
-	if len(names) != 1 || names[0] != "echo_cmd" {
-		t.Errorf("names = %v, want [echo_cmd]", names)
+	if len(entries) != 1 || entries[0]["name"] != "EchoCmd" {
+		t.Errorf("entries = %v, want [{name:EchoCmd}]", entries)
 	}
 }
 
@@ -52,7 +52,7 @@ func TestMvepDescribe(t *testing.T) {
 	app := New(&t4Desc, ex)
 
 	var stdout, stderr bytes.Buffer
-	err := app.RunWithIO(context.Background(), []string{"mvep", "describe", "echo_cmd"}, &stdout, &stderr)
+	err := app.RunWithIO(context.Background(), []string{"mvep", "describe", "EchoCmd"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,8 +60,8 @@ func TestMvepDescribe(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
 		t.Fatalf("describe output not valid JSON: %v; got: %s", err, stdout.String())
 	}
-	if got["name"] != "echo_cmd" {
-		t.Errorf("name = %v, want echo_cmd", got["name"])
+	if got["name"] != "EchoCmd" {
+		t.Errorf("name = %v, want EchoCmd", got["name"])
 	}
 }
 
@@ -121,7 +121,7 @@ func TestDescribeProjectionStable(t *testing.T) {
 	if len(got) != 1 {
 		t.Errorf("expected 1 command, got %d", len(got))
 	}
-	if got[0]["name"] != "weird_cmd" {
-		t.Errorf("name = %v, want weird_cmd", got[0]["name"])
+	if got[0]["name"] != "WeirdCmd" {
+		t.Errorf("name = %v, want WeirdCmd", got[0]["name"])
 	}
 }
