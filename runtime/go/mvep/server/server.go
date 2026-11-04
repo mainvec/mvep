@@ -622,7 +622,7 @@ func parseListenAddr(addr string) (net.Addr, error) {
 }
 
 // corsAllowedHeaders is the set of headers MVEP actually uses.
-const corsAllowedHeaders = "Content-Type, x-mainvec-cmd, " + mvep.HeaderPrefix + "auth, " + mvep.HeaderPrefix + "request-id"
+const corsAllowedHeaders = "Content-Type, " + mvep.HeaderCmd + ", " + mvep.HeaderAuth + ", " + mvep.HeaderPrefix + "request-id"
 
 // corsEnabled reports whether CORS headers should be emitted and warns once at
 // startup if misconfigured (EnableCORS with no origins).
@@ -677,7 +677,7 @@ func (s *Server) corsHandler(next http.Handler) http.Handler {
 			return
 		}
 		if r.Method != http.MethodPost {
-			w.Header().Set("x-mainvec-error-code", "method_not_allowed")
+			w.Header().Set(mvep.HeaderErrorCode, "method_not_allowed")
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
