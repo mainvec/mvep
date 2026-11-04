@@ -70,15 +70,15 @@ func (t *HttpTransporter) TransportCmd(ctx context.Context, cmdName string, cont
 		return nil, fmt.Errorf("failed to create http request: %w", err)
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("x-mainvec-cmd", cmdName)
+	req.Header.Set(HeaderCmd, cmdName)
 	resp, err := t.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send http request: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
-		if resp.Header.Get("x-mainvec-error") != "" {
-			return nil, fmt.Errorf("error: %s", resp.Header.Get("x-mainvec-error"))
+		if resp.Header.Get(HeaderError) != "" {
+			return nil, fmt.Errorf("error: %s", resp.Header.Get(HeaderError))
 		}
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
@@ -104,7 +104,7 @@ func (t *HttpTransporter) TransportCmdReq(ctx context.Context, cmdReq *CmdReq, c
 
 	// Set standard headers
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("x-mainvec-cmd", cmdReq.Cmd)
+	req.Header.Set(HeaderCmd, cmdReq.Cmd)
 
 	// Set custom headers with prefix
 	for k, v := range cmdReq.Headers {
@@ -143,7 +143,7 @@ func (t *HttpTransporter) TransportCmdReq(ctx context.Context, cmdReq *CmdReq, c
 
 	// Check for errors
 	if resp.StatusCode != http.StatusOK {
-		errorMsg := resp.Header.Get("x-mainvec-error")
+		errorMsg := resp.Header.Get(HeaderError)
 		if errorMsg == "" {
 			errorMsg = string(respBody)
 		}
@@ -158,13 +158,13 @@ func (t *HttpTransporter) TransportCmdReq(ctx context.Context, cmdReq *CmdReq, c
 
 func (h *PackageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.Header().Set("x-mainvec-error-code", "method_not_allowed")
+		w.Header().Set(HeaderErrorCode, "method_not_allowed")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	cmdName := r.Header.Get("x-mainvec-cmd")
-	slog.Debug("received cmd", "x-mainvec-cmd", cmdName)
+	cmdName := r.Header.Get(HeaderCmd)
+	slog.Debug("received cmd", HeaderCmd, cmdName)
 	if cmdName == "" {
 		http.Error(w, "missing x-mainvec-cmd header", http.StatusBadRequest)
 		return
@@ -179,7 +179,7 @@ func (h *PackageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Parse as a media type so "application/json; charset=utf-8" resolves.
 	mediaType, _, err := mime.ParseMediaType(rawContentType)
 	if err != nil {
-		w.Header().Set("x-mainvec-error-code", "unsupported_media_type")
+		w.Header().Set(HeaderErrorCode, "unsupported_media_type")
 		http.Error(w, "unsupported media type", http.StatusUnsupportedMediaType)
 		return
 	}
@@ -204,7 +204,7 @@ func (h *PackageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if readErr != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(readErr, &maxErr) {
-			w.Header().Set("x-mainvec-error-code", "payload_too_large")
+			w.Header().Set(HeaderErrorCode, "payload_too_large")
 			http.Error(w, "payload too large", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -239,12 +239,12 @@ func WriteCmdResp(w http.ResponseWriter, cmdResp *CmdResp, mediaType string, ver
 		code := cmdResp.Error.Code
 		status := HTTPStatusForErrorCode(code)
 		slog.Error("command failed", "code", code, "message", cmdResp.Error.Message, "status", status)
-		w.Header().Set("x-mainvec-error-code", code)
+		w.Header().Set(HeaderErrorCode, code)
 		w.Header().Set("Content-Type", mediaType)
 		msg := "command failed"
 		if verboseErrors {
 			msg = cmdResp.Error.Message
-			w.Header().Set("x-mainvec-error", msg)
+			w.Header().Set(HeaderError, msg)
 		}
 		http.Error(w, msg, status)
 		return
@@ -269,7 +269,7 @@ type JobsRouteHandler struct {
 
 func (j *JobsRouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		w.Header().Set("x-mainvec-error-code", "method_not_allowed")
+		w.Header().Set(HeaderErrorCode, "method_not_allowed")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}

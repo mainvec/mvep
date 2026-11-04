@@ -5,6 +5,19 @@ import "context"
 // HeaderPrefix is the prefix for custom MVEP headers in HTTP transport
 const HeaderPrefix = "x-mvep-"
 
+// HTTP wire header names. CmdReq/CmdResp header keys travel as
+// HeaderPrefix+key; the names below are fixed.
+const (
+	// HeaderCmd carries the command name on a request.
+	HeaderCmd = "x-mainvec-cmd"
+	// HeaderErrorCode carries the stable ErrorInfo.Code on a failed response.
+	HeaderErrorCode = "x-mainvec-error-code"
+	// HeaderError carries the raw error message when VerboseErrors is set.
+	HeaderError = "x-mainvec-error"
+	// HeaderAuth is the wire form of the "auth" header read by AuthInterceptor.
+	HeaderAuth = HeaderPrefix + "auth"
+)
+
 // Context keys for passing CmdReq/CmdResp through context
 type cmdReqContextKey struct{}
 type cmdRespContextKey struct{}
