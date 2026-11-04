@@ -7,19 +7,29 @@ import (
 
 func TestWailsOrigin(t *testing.T) {
 	for origin, want := range map[string]bool{
-		"wails://wails":                true,
-		"wails://localhost":            true,
-		"http://wails.localhost":       true,
-		"https://wails.localhost":      true,
-		"https://WAILS.localhost":      true,
-		"http://wails.localhost:80":    false,
-		"https://wails.localhost.io":   false,
-		"https://evil.wails.localhost": false,
-		"https://attacker.example":     false,
-		"wails://wails/path":           false,
-		"null":                         false,
-		"":                             false,
-		"wails:":                       false,
+		"wails://wails":           true,
+		"wails://localhost":       true,
+		"wails://localhost:3145":  true,
+		"http://wails.localhost":  true,
+		"https://wails.localhost": true,
+		"https://WAILS.localhost": true,
+		// Dev mode serves the page on the dev server's port (#68).
+		"http://wails.localhost:3145":  true,
+		"https://wails.localhost:3145": true,
+		"http://wails.localhost:80":    true,
+		// Look-alikes stay refused, with or without a port.
+		"https://wails.localhost.io":        false,
+		"https://wails.localhost.io:3145":   false,
+		"https://evil.wails.localhost":      false,
+		"https://evil.wails.localhost:3145": false,
+		"http://wails.localhost:3145/path":  false,
+		"http://wails.localhost:abc":        false,
+		"https://attacker.example":          false,
+		"https://attacker.example:3145":     false,
+		"wails://wails/path":                false,
+		"null":                              false,
+		"":                                  false,
+		"wails:":                            false,
 	} {
 		if got := WailsOrigin(origin); got != want {
 			t.Errorf("WailsOrigin(%q) = %v, want %v", origin, got, want)
