@@ -10,6 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
 > `references/generated-patterns.md`) for staleness.
 
+## [Unreleased] - 2026-11-04 (plan 064, #64)
+
+### Added — runtime/go
+- **`mvep/webview`: a guarded loopback listener for daemon + webview apps.**
+  `webview.Guard` admits a request only when its `Host` is the loopback address
+  the connection arrived on (defeats DNS rebinding), its `Origin` (if any)
+  passes the app's check, and it carries a per-launch session token (Bearer or
+  `x-mvep-auth`, constant-time compare). Preflights are answered on Host and
+  Origin alone. CORS echoes only the exact origin and never `*`, and
+  `Access-Control-Expose-Headers` is computed per response from the `x-mvep-*` /
+  `x-mainvec-*` headers present. `webview.Start` runs the guard in front of a
+  streaming reverse proxy to a daemon over a Unix socket or TCP, swapping the
+  session token for the daemon's and dropping `Origin`. `WailsOrigin`,
+  `CapacitorOrigin` and `NewToken` are provided.
+- **`mvep/webview/webviewtest`**: a conformance check (`Check` / `Verify`) an
+  app runs in CI against its own listener.
+- **Wire header constants** `mvep.HeaderCmd`, `HeaderErrorCode`, `HeaderError`
+  and `HeaderAuth`, now used by the HTTP transport and server instead of string
+  literals. Values are unchanged.
+
 ## [Unreleased] - 2026-08-13 (plan 062, #62)
 
 ### Changed — runtime/go
