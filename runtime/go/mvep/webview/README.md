@@ -127,7 +127,7 @@ same way.
 
 | Func | Admits |
 | --- | --- |
-| `WailsOrigin` | `wails://…` (macOS, Linux); `http(s)://wails.localhost` (Windows) |
+| `WailsOrigin` | `wails://…` (macOS, Linux); `http(s)://wails.localhost`, any port (Windows, Android; dev mode adds the dev server's port) |
 | `CapacitorOrigin` | `capacitor://localhost` (iOS); `https://localhost` (Android, Capacitor 6+) |
 
 Any `func(origin string) bool` works, for a custom scheme or hostname. The

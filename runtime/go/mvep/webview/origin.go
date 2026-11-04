@@ -8,8 +8,13 @@ import (
 )
 
 // WailsOrigin reports whether origin is a Wails webview: the wails:// scheme
-// (macOS, Linux), or http(s)://wails.localhost (Windows WebView2). No web page
-// can hold the wails scheme, so any host under it is accepted.
+// (macOS, Linux), or http(s)://wails.localhost (Windows WebView2, Android).
+// No web page can hold the wails scheme, so any host under it is accepted.
+//
+// wails.localhost is accepted with any port, because in dev mode Wails serves
+// the page on the dev server's port (http://wails.localhost:3145). A .localhost
+// name only reaches this machine, so the port adds no trust either way; the
+// session token is what Guard relies on.
 func WailsOrigin(origin string) bool {
 	u, ok := parseOrigin(origin)
 	if !ok {
@@ -19,7 +24,7 @@ func WailsOrigin(origin string) bool {
 	case "wails":
 		return true
 	case "http", "https":
-		return strings.EqualFold(u.Host, "wails.localhost")
+		return strings.EqualFold(u.Hostname(), "wails.localhost")
 	}
 	return false
 }

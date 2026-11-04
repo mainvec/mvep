@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
 > `references/generated-patterns.md`) for staleness.
 
+## [Unreleased] - 2026-11-04 (#68)
+
+### Fixed — runtime/go
+- **`webview.WailsOrigin` admits `http(s)://wails.localhost` with any port.** In
+  dev mode Wails serves the page on the dev server's port
+  (`http://wails.localhost:3145`), so the guard refused every request from a
+  Windows or Android dev build with 403. Look-alike hosts (`wails.localhost.io`,
+  `evil.wails.localhost`) and origins with a path are still refused.
+
 ## [Unreleased] - 2026-11-04 (plan 064, #64)
 
 ### Added — runtime/go
