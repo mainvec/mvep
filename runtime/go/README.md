@@ -14,6 +14,7 @@ A Go library for building MVEP (MainVec Package) servers and clients with HTTP/U
 - **Async Jobs** *(experimental — API and wire model may change)*: Run any command as a background job with polling via `GetJobStatus` or `GET /jobs/{id}` (opt-in, encoder-independent, no codegen change)
 - **CORS Support**: Optional CORS headers for web applications
 - **Webview Guard**: A guarded loopback listener and reverse proxy for apps that pair a daemon with a Wails or Capacitor webview, plus a CI conformance check — see [mvep/webview/README.md](mvep/webview/README.md)
+- **MCP Server**: Expose any `PackageDesc` + `PackageHandler` as a Model Context Protocol (`tools/list`, `tools/call`) tool server over stdio with zero extra dependencies — see [mvep/mcp/README.md](mvep/mcp/README.md)
 - **Health Checks**: Built-in health check endpoints
 
 ## Installation

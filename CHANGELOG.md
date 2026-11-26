@@ -10,6 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `mvep-codegen` Copilot skill (`~/.mainvec/skills/mvep-codegen/`, especially
 > `references/generated-patterns.md`) for staleness.
 
+## [Unreleased] - 2026-11-26 (plan 061, #65)
+
+### Added — runtime/go
+- **`mvep/mcp`: serve any MVEP package as an MCP tool server.**
+  `mcp.NewServer(api.Describe(), handler)` projects `mvep.PackageDesc` onto
+  `tools/list` JSON Schemas (covering all 14 `FieldType`s, required/repeated
+  fields, `PackageDesc.Record` resolution with a cycle guard, and permissive
+  maps) and dispatches `tools/call` through `PackageHandler.ServeCmdReq` so
+  the full interceptor chain (`RecoveryInterceptor`, `AuthInterceptor`, etc.)
+  applies. Uses a zero-dependency newline-delimited JSON-RPC 2.0 `Transport`
+  (`mcp.Stdio()`, `mcp.NewStreamTransport`), flattens command groups via
+  `DefaultToolNamer` (`<group_path>_<alias|snake_case>`) with collision checks,
+  and supports custom naming via `WithToolNamer` / `DescriptorNameToolNamer`.
+  See `runtime/go/mvep/mcp/README.md`.
+
 ## [Unreleased] - 2026-11-04 (#68)
 
 ### Fixed — runtime/go
